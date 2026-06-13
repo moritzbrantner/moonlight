@@ -44,11 +44,11 @@ def parse_args():
     )
     parser.add_argument(
         "--output-dir",
-        default=os.getenv("BENCHMARK_OUTPUT_DIR", "data/shadowdiff/benchmark"),
+        default=os.getenv("BENCHMARK_OUTPUT_DIR", "data/moonlight/benchmark"),
     )
     parser.add_argument(
         "--moonlight-url",
-        default=os.getenv("SHADOWDIFF_URL", "http://127.0.0.1:8080"),
+        default=os.getenv("MOONLIGHT_URL", "http://127.0.0.1:8080"),
     )
     parser.add_argument(
         "--diffy-b-url",
@@ -249,7 +249,7 @@ def format_ms(value):
 
 def write_markdown(report, path):
     lines = [
-        "# Shadowdiff Benchmark",
+        "# Moonlight Benchmark",
         "",
         f"Generated: `{report['generated_at']}`",
         "",

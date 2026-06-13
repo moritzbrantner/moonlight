@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SHADOWDIFF_URL="${SHADOWDIFF_URL:-http://127.0.0.1:8080}"
+MOONLIGHT_URL="${MOONLIGHT_URL:-http://127.0.0.1:8080}"
 DIFFY_A_URL="${DIFFY_A_URL:-${DIFFY_URL:-http://127.0.0.1:8880}}"
 INCLUDE_DIFFY="${INCLUDE_DIFFY:-0}"
 ROUNDS="${ROUNDS:-3}"
@@ -26,7 +26,7 @@ send_one() {
 for round in $(seq 1 "${ROUNDS}"); do
   echo "round ${round}/${ROUNDS}"
   for endpoint in "${endpoints[@]}"; do
-    send_one "${SHADOWDIFF_URL}" "${endpoint}"
+    send_one "${MOONLIGHT_URL}" "${endpoint}"
     if [[ "${INCLUDE_DIFFY}" == "1" ]]; then
       send_one "${DIFFY_A_URL}" "${endpoint}" || true
     fi

@@ -208,14 +208,14 @@ button {
   color: #17663a;
 }
 
-.pill.candidate_diff,
-.pill.candidate_diff_with_noise,
-.pill.backend_error {
+.pill.suspicious_difference,
+.pill.suspicious_with_noise,
+.pill.target_error {
   background: #ffe4df;
   color: #a23b2a;
 }
 
-.pill.noise {
+.pill.reference_noise {
   background: #e8efff;
   color: #325aa8;
 }
@@ -245,21 +245,21 @@ button {
   margin: 4px 0 0;
 }
 
-.backend-grid {
+.target-grid {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 14px;
 }
 
-.backend-card {
+.target-card {
   border: 1px solid #e1e5ec;
   border-radius: 8px;
   min-width: 0;
   padding: 12px;
 }
 
-.backend-card h3 {
+.target-card h3 {
   font-size: 14px;
   margin: 0 0 10px;
 }
@@ -364,7 +364,7 @@ pre {
     min-height: auto;
   }
 
-  .backend-grid,
+  .target-grid,
   .diff-row {
     grid-template-columns: 1fr;
   }

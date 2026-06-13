@@ -7,14 +7,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Classification {
+    #[default]
     Match,
-    CandidateDiff,
-    Noise,
-    CandidateDiffWithNoise,
-    BackendError,
+    SuspiciousDifference,
+    ReferenceNoise,
+    SuspiciousWithNoise,
+    TargetError,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -23,7 +24,8 @@ pub enum DiffKind {
     Status,
     Header,
     Body,
-    BackendError,
+    Stderr,
+    TargetError,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -46,12 +48,6 @@ pub struct ComparisonSummary {
     pub noise_summary: String,
 }
 
-impl Default for Classification {
-    fn default() -> Self {
-        Self::Match
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BodyCapture {
     pub size_bytes: usize,
@@ -61,64 +57,84 @@ pub struct BodyCapture {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BackendCapture {
+pub struct TargetObservation {
     pub status: Option<u16>,
     pub headers: BTreeMap<String, String>,
     pub body: BodyCapture,
+    pub stderr: Option<BodyCapture>,
     pub latency_ms: u128,
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Adapter {
+    Http,
+    Cli,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RequestRecord {
+#[serde(untagged)]
+pub enum RunInput {
+    Http {
+        method: String,
+        path: String,
+        query: Option<String>,
+    },
+    Cli {
+        primary_command: String,
+        candidate_command: String,
+        secondary_command: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComparisonRun {
     pub id: Uuid,
     pub timestamp: DateTime<Utc>,
-    pub method: String,
-    pub path: String,
-    pub query: Option<String>,
+    pub adapter: Adapter,
+    pub input: RunInput,
     pub request_headers: BTreeMap<String, String>,
     pub request_body: BodyCapture,
-    pub primary: BackendCapture,
-    pub candidate: Option<BackendCapture>,
-    pub secondary: Option<BackendCapture>,
+    pub primary: TargetObservation,
+    pub candidate: TargetObservation,
+    pub secondary: Option<TargetObservation>,
     pub comparison: ComparisonSummary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RequestListItem {
+pub struct ComparisonRunListItem {
     pub id: Uuid,
     pub timestamp: DateTime<Utc>,
-    pub method: String,
-    pub path: String,
-    pub query: Option<String>,
+    pub adapter: Adapter,
+    pub input: RunInput,
     pub primary_status: Option<u16>,
     pub candidate_status: Option<u16>,
     pub secondary_status: Option<u16>,
     pub classification: Classification,
     pub primary_latency_ms: u128,
-    pub candidate_latency_ms: Option<u128>,
+    pub candidate_latency_ms: u128,
     pub secondary_latency_ms: Option<u128>,
     pub diff_count: usize,
     pub noise_count: usize,
 }
 
-impl From<&RequestRecord> for RequestListItem {
-    fn from(record: &RequestRecord) -> Self {
+impl From<&ComparisonRun> for ComparisonRunListItem {
+    fn from(run: &ComparisonRun) -> Self {
         Self {
-            id: record.id,
-            timestamp: record.timestamp,
-            method: record.method.clone(),
-            path: record.path.clone(),
-            query: record.query.clone(),
-            primary_status: record.primary.status,
-            candidate_status: record.candidate.as_ref().and_then(|backend| backend.status),
-            secondary_status: record.secondary.as_ref().and_then(|backend| backend.status),
-            classification: record.comparison.classification.clone(),
-            primary_latency_ms: record.primary.latency_ms,
-            candidate_latency_ms: record.candidate.as_ref().map(|backend| backend.latency_ms),
-            secondary_latency_ms: record.secondary.as_ref().map(|backend| backend.latency_ms),
-            diff_count: record.comparison.noise_filtered_diffs.len(),
-            noise_count: record.comparison.reference_noise.len(),
+            id: run.id,
+            timestamp: run.timestamp,
+            adapter: run.adapter,
+            input: run.input.clone(),
+            primary_status: run.primary.status,
+            candidate_status: run.candidate.status,
+            secondary_status: run.secondary.as_ref().and_then(|target| target.status),
+            classification: run.comparison.classification.clone(),
+            primary_latency_ms: run.primary.latency_ms,
+            candidate_latency_ms: run.candidate.latency_ms,
+            secondary_latency_ms: run.secondary.as_ref().map(|target| target.latency_ms),
+            diff_count: run.comparison.noise_filtered_diffs.len(),
+            noise_count: run.comparison.reference_noise.len(),
         }
     }
 }
@@ -126,18 +142,18 @@ impl From<&RequestRecord> for RequestListItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LatencyStats {
     pub primary_avg_ms: f64,
-    pub candidate_avg_ms: Option<f64>,
+    pub candidate_avg_ms: f64,
     pub secondary_avg_ms: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatsSummary {
-    pub total_requests: usize,
+    pub total_runs: usize,
     pub matches: usize,
-    pub candidate_diffs: usize,
-    pub noise: usize,
-    pub candidate_diff_with_noise: usize,
-    pub backend_errors: usize,
+    pub suspicious_differences: usize,
+    pub reference_noise: usize,
+    pub suspicious_with_noise: usize,
+    pub target_errors: usize,
     pub latency: LatencyStats,
-    pub latest_requests: Vec<RequestListItem>,
+    pub latest_runs: Vec<ComparisonRunListItem>,
 }

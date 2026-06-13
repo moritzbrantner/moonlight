@@ -2,8 +2,8 @@
 set -euo pipefail
 
 COMPOSE_FILES=(
-  -f docker-compose.shadowdiff.yml
-  -f docker-compose.shadowdiff-benchmark.yml
+  -f docker-compose.moonlight.yml
+  -f docker-compose.moonlight-benchmark.yml
 )
 
 docker compose "${COMPOSE_FILES[@]}" --profile reference up \
@@ -17,6 +17,6 @@ docker compose "${COMPOSE_FILES[@]}" --profile reference up \
   diffy-b \
   diffy-c
 
-python3 scripts/shadowdiff-benchmark.py "$@"
+python3 scripts/moonlight-benchmark.py "$@"
 
-echo "Markdown summary: data/shadowdiff/benchmark/latest.md"
+echo "Markdown summary: data/moonlight/benchmark/latest.md"

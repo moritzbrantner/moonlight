@@ -6,7 +6,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY examples ./examples
 
-RUN cargo build --release -p moonlight-http -p moonlight-cli -p shadowdiff-demo-services
+RUN cargo build --release -p moonlight-http -p moonlight-cli -p moonlight-demo-services
 
 FROM debian:bookworm-slim AS runtime
 
@@ -16,6 +16,6 @@ RUN apt-get update \
 
 COPY --from=builder /workspace/target/release/moonlight-http /usr/local/bin/moonlight-http
 COPY --from=builder /workspace/target/release/moonlight-cli /usr/local/bin/moonlight-cli
-COPY --from=builder /workspace/target/release/shadowdiff-demo-services /usr/local/bin/shadowdiff-demo-services
+COPY --from=builder /workspace/target/release/moonlight-demo-services /usr/local/bin/moonlight-demo-services
 
 WORKDIR /workspace

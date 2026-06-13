@@ -7,39 +7,76 @@ pub struct AppConfig {
     pub primary_url: String,
     pub candidate_url: String,
     pub secondary_url: String,
-    pub enable_candidate: bool,
     pub enable_secondary: bool,
-    pub return_backend: ReturnBackend,
-    pub response_mode: ResponseMode,
+    pub return_target: ReturnTarget,
+    pub return_fallback: ReturnFallback,
+    pub response_timing: ResponseTiming,
     pub max_body_capture_bytes: usize,
     pub redact_headers: Vec<String>,
     pub ignored_json_paths: Vec<String>,
     pub ignored_headers: Vec<String>,
+    pub ignore_stderr: bool,
     pub storage_path: PathBuf,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum ReturnBackend {
+pub enum ReturnTarget {
+    Primary,
+    Candidate,
+}
+
+impl FromStr for ReturnTarget {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "primary" => Ok(Self::Primary),
+            "candidate" => Ok(Self::Candidate),
+            other => {
+                anyhow::bail!("invalid MOONLIGHT_RETURN_TARGET {other:?}; use primary or candidate")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReturnFallback {
+    None,
     Primary,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ResponseMode {
-    WaitAll,
-    PrimaryThenShadow,
+impl FromStr for ReturnFallback {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "none" => Ok(Self::None),
+            "primary" => Ok(Self::Primary),
+            other => {
+                anyhow::bail!("invalid MOONLIGHT_RETURN_FALLBACK {other:?}; use none or primary")
+            }
+        }
+    }
 }
 
-impl FromStr for ResponseMode {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseTiming {
+    WaitAll,
+    ReturnSelected,
+}
+
+impl FromStr for ResponseTiming {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "wait_all" => Ok(Self::WaitAll),
-            "primary_then_shadow" => Ok(Self::PrimaryThenShadow),
+            "return_selected" => Ok(Self::ReturnSelected),
             other => anyhow::bail!(
-                "invalid SHADOWDIFF_RESPONSE_MODE {other:?}; use wait_all or primary_then_shadow"
+                "invalid MOONLIGHT_RESPONSE_TIMING {other:?}; use wait_all or return_selected"
             ),
         }
     }
@@ -52,41 +89,41 @@ impl AppConfig {
 
     fn from_lookup(get: impl Fn(&str) -> Option<String>) -> anyhow::Result<Self> {
         Ok(Self {
-            bind_addr: env_or(&get, "SHADOWDIFF_BIND_ADDR", "127.0.0.1:8080").parse()?,
+            bind_addr: env_or(&get, "MOONLIGHT_BIND_ADDR", "127.0.0.1:8080").parse()?,
             primary_url: normalize_base_url(env_or(
                 &get,
-                "SHADOWDIFF_PRIMARY_URL",
+                "MOONLIGHT_PRIMARY_URL",
                 "http://127.0.0.1:3001",
             )),
             candidate_url: normalize_base_url(env_or(
                 &get,
-                "SHADOWDIFF_CANDIDATE_URL",
+                "MOONLIGHT_CANDIDATE_URL",
                 "http://127.0.0.1:3002",
             )),
             secondary_url: normalize_base_url(env_or(
                 &get,
-                "SHADOWDIFF_SECONDARY_URL",
+                "MOONLIGHT_SECONDARY_URL",
                 "http://127.0.0.1:3003",
             )),
-            enable_candidate: env_bool(&get, "SHADOWDIFF_ENABLE_CANDIDATE", true),
-            enable_secondary: env_bool(&get, "SHADOWDIFF_ENABLE_SECONDARY", true),
-            return_backend: ReturnBackend::Primary,
-            response_mode: env_or(&get, "SHADOWDIFF_RESPONSE_MODE", "wait_all").parse()?,
-            max_body_capture_bytes: env_or(&get, "SHADOWDIFF_MAX_BODY_CAPTURE_BYTES", "8192")
+            enable_secondary: env_bool(&get, "MOONLIGHT_ENABLE_SECONDARY", true),
+            return_target: env_or(&get, "MOONLIGHT_RETURN_TARGET", "primary").parse()?,
+            return_fallback: env_or(&get, "MOONLIGHT_RETURN_FALLBACK", "none").parse()?,
+            response_timing: env_or(&get, "MOONLIGHT_RESPONSE_TIMING", "wait_all").parse()?,
+            max_body_capture_bytes: env_or(&get, "MOONLIGHT_MAX_BODY_CAPTURE_BYTES", "8192")
                 .parse()?,
             redact_headers: env_list(
                 &get,
-                "SHADOWDIFF_REDACT_HEADERS",
+                "MOONLIGHT_REDACT_HEADERS",
                 &["authorization", "cookie", "set-cookie", "x-api-key"],
             ),
             ignored_json_paths: env_list(
                 &get,
-                "SHADOWDIFF_IGNORED_JSON_PATHS",
+                "MOONLIGHT_IGNORED_JSON_PATHS",
                 &["$.timestamp", "$.requestId", "$.traceId", "$.id"],
             ),
             ignored_headers: env_list(
                 &get,
-                "SHADOWDIFF_IGNORED_HEADERS",
+                "MOONLIGHT_IGNORED_HEADERS",
                 &[
                     "date",
                     "server",
@@ -95,10 +132,11 @@ impl AppConfig {
                     "traceparent",
                 ],
             ),
+            ignore_stderr: env_bool(&get, "MOONLIGHT_IGNORE_STDERR", false),
             storage_path: PathBuf::from(env_or(
                 &get,
-                "SHADOWDIFF_STORAGE_PATH",
-                "data/shadowdiff/requests.jsonl",
+                "MOONLIGHT_STORAGE_PATH",
+                "data/moonlight/http-runs.jsonl",
             )),
         })
     }
@@ -148,22 +186,34 @@ mod tests {
     }
 
     #[test]
-    fn response_mode_defaults_to_wait_all() {
+    fn response_timing_defaults_to_wait_all() {
         let config = config_from(&[]).unwrap();
-        assert_eq!(config.response_mode, ResponseMode::WaitAll);
+        assert_eq!(config.response_timing, ResponseTiming::WaitAll);
     }
 
     #[test]
-    fn response_mode_parses_primary_then_shadow() {
-        let config = config_from(&[("SHADOWDIFF_RESPONSE_MODE", "primary_then_shadow")]).unwrap();
-        assert_eq!(config.response_mode, ResponseMode::PrimaryThenShadow);
+    fn response_timing_parses_return_selected() {
+        let config = config_from(&[("MOONLIGHT_RESPONSE_TIMING", "return_selected")]).unwrap();
+        assert_eq!(config.response_timing, ResponseTiming::ReturnSelected);
     }
 
     #[test]
-    fn invalid_response_mode_returns_error() {
-        let error = config_from(&[("SHADOWDIFF_RESPONSE_MODE", "fast")]).unwrap_err();
+    fn invalid_response_timing_returns_error() {
+        let error = config_from(&[("MOONLIGHT_RESPONSE_TIMING", "fast")]).unwrap_err();
         assert!(error
             .to_string()
-            .contains("invalid SHADOWDIFF_RESPONSE_MODE"));
+            .contains("invalid MOONLIGHT_RESPONSE_TIMING"));
+    }
+
+    #[test]
+    fn return_target_defaults_to_primary() {
+        let config = config_from(&[]).unwrap();
+        assert_eq!(config.return_target, ReturnTarget::Primary);
+    }
+
+    #[test]
+    fn return_fallback_defaults_to_none() {
+        let config = config_from(&[]).unwrap();
+        assert_eq!(config.return_fallback, ReturnFallback::None);
     }
 }

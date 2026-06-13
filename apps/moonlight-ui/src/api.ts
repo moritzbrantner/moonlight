@@ -1,6 +1,6 @@
-import type { AppConfig, RequestListItem, RequestRecord, StatsSummary } from "./types";
+import type { AppConfig, ComparisonRun, ComparisonRunListItem, StatsSummary } from "./types";
 
-const API_BASE = import.meta.env.VITE_SHADOWDIFF_API_URL ?? "";
+const API_BASE = import.meta.env.VITE_MOONLIGHT_API_URL ?? "";
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);
@@ -12,7 +12,7 @@ async function getJson<T>(path: string): Promise<T> {
 
 export const api = {
   config: () => getJson<AppConfig>("/api/config"),
-  requests: () => getJson<RequestListItem[]>("/api/requests"),
-  request: (id: string) => getJson<RequestRecord>(`/api/requests/${id}`),
+  runs: () => getJson<ComparisonRunListItem[]>("/api/runs"),
+  run: (id: string) => getJson<ComparisonRun>(`/api/runs/${id}`),
   stats: () => getJson<StatsSummary>("/api/stats")
 };

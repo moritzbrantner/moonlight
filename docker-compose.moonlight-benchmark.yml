@@ -1,0 +1,36 @@
+services:
+  primary:
+    build:
+      context: .
+      dockerfile: Dockerfile.moonlight
+    image: moonlight-benchmark:latest
+    command: moonlight-demo-services primary
+    volumes: []
+
+  candidate:
+    image: moonlight-benchmark:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.moonlight
+    command: moonlight-demo-services candidate
+    volumes: []
+
+  secondary:
+    image: moonlight-benchmark:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.moonlight
+    command: moonlight-demo-services secondary
+    volumes: []
+
+  moonlight-http:
+    image: moonlight-benchmark:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.moonlight
+    command: moonlight-http
+    environment:
+      MOONLIGHT_RESPONSE_TIMING: return_selected
+      MOONLIGHT_STORAGE_PATH: /workspace/data/moonlight/benchmark-runs.jsonl
+    volumes:
+      - .:/workspace

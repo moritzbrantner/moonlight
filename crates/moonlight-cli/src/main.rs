@@ -3,9 +3,9 @@ use bytes::Bytes;
 use chrono::Utc;
 use clap::{Args, Parser, Subcommand};
 use moonlight_core::{
-    compare::{capture_body, compare_backends, CapturedBackend, CompareConfig},
+    compare::{capture_body, compare_targets, CapturedTarget, CompareConfig},
     storage::Storage,
-    BackendCapture, RequestRecord,
+    Adapter, ComparisonRun, RunInput, TargetObservation,
 };
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 use tokio::process::Command;
@@ -22,7 +22,7 @@ const DEFAULT_IGNORED_HEADERS: &[&str] = &[
 
 #[derive(Debug, Parser)]
 #[command(name = "moonlight-cli")]
-#[command(about = "Compare command output with moonlight's shared comparison engine")]
+#[command(about = "Compare command output with Moonlight's shared comparison engine")]
 struct Cli {
     #[command(subcommand)]
     command: CliCommand,
@@ -31,14 +31,14 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum CliCommand {
     Run(RunArgs),
-    Requests(StorageArgs),
+    List(StorageArgs),
     Stats(StorageArgs),
     Show(ShowArgs),
 }
 
 #[derive(Debug, Args)]
 struct StorageArgs {
-    #[arg(long, default_value = "data/moonlight/cli-requests.jsonl")]
+    #[arg(long, default_value = "data/moonlight/cli-runs.jsonl")]
     storage_path: PathBuf,
 }
 
@@ -59,7 +59,7 @@ struct RunArgs {
     primary: String,
 
     #[arg(long)]
-    candidate: Option<String>,
+    candidate: String,
 
     #[arg(long)]
     secondary: Option<String>,
@@ -72,6 +72,9 @@ struct RunArgs {
 
     #[arg(long = "ignored-header")]
     ignored_headers: Vec<String>,
+
+    #[arg(long)]
+    ignore_stderr: bool,
 }
 
 #[tokio::main]
@@ -80,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         CliCommand::Run(args) => run(args).await,
-        CliCommand::Requests(args) => {
+        CliCommand::List(args) => {
             let storage = Storage::load(args.storage_path).await?;
             println!("{}", serde_json::to_string_pretty(&storage.list().await)?);
             Ok(())
@@ -92,11 +95,11 @@ async fn main() -> anyhow::Result<()> {
         }
         CliCommand::Show(args) => {
             let storage = Storage::load(args.storage.storage_path).await?;
-            let record = storage
+            let run = storage
                 .get(args.id)
                 .await
-                .with_context(|| format!("request record {} was not found", args.id))?;
-            println!("{}", serde_json::to_string_pretty(&record)?);
+                .with_context(|| format!("comparison run {} was not found", args.id))?;
+            println!("{}", serde_json::to_string_pretty(&run)?);
             Ok(())
         }
     }
@@ -104,10 +107,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn run(args: RunArgs) -> anyhow::Result<()> {
     let primary = run_command("primary", &args.primary, args.max_body_capture_bytes).await;
-    let candidate = match &args.candidate {
-        Some(command) => Some(run_command("candidate", command, args.max_body_capture_bytes).await),
-        None => None,
-    };
+    let candidate = run_command("candidate", &args.candidate, args.max_body_capture_bytes).await;
     let secondary = match &args.secondary {
         Some(command) => Some(run_command("secondary", command, args.max_body_capture_bytes).await),
         None => None,
@@ -115,31 +115,30 @@ async fn run(args: RunArgs) -> anyhow::Result<()> {
     let ignored_json_paths =
         values_or_defaults(&args.ignored_json_paths, DEFAULT_IGNORED_JSON_PATHS);
     let ignored_headers = values_or_defaults(&args.ignored_headers, DEFAULT_IGNORED_HEADERS);
-    let compare_config = CompareConfig::new(&ignored_json_paths, &ignored_headers);
-    let comparison = compare_backends(
-        &primary,
-        candidate.as_ref(),
-        secondary.as_ref(),
-        &compare_config,
-    );
+    let compare_config =
+        CompareConfig::new(&ignored_json_paths, &ignored_headers, args.ignore_stderr);
+    let comparison = compare_targets(&primary, &candidate, secondary.as_ref(), &compare_config);
     let id = Uuid::new_v4();
-    let record = RequestRecord {
+    let run = ComparisonRun {
         id,
         timestamp: Utc::now(),
-        method: "CLI".to_string(),
-        path: args.primary.clone(),
-        query: None,
-        request_headers: command_metadata(&args),
+        adapter: Adapter::Cli,
+        input: RunInput::Cli {
+            primary_command: args.primary.clone(),
+            candidate_command: args.candidate.clone(),
+            secondary_command: args.secondary.clone(),
+        },
+        request_headers: BTreeMap::new(),
         request_body: capture_body(&[], args.max_body_capture_bytes),
-        primary: primary.capture,
-        candidate: candidate.map(|backend| backend.capture),
-        secondary: secondary.map(|backend| backend.capture),
+        primary: primary.observation,
+        candidate: candidate.observation,
+        secondary: secondary.map(|target| target.observation),
         comparison,
     };
 
     let storage = Storage::load(args.storage.storage_path).await?;
-    storage.insert(record.clone()).await?;
-    println!("{}", serde_json::to_string_pretty(&record)?);
+    storage.insert(run.clone()).await?;
+    println!("{}", serde_json::to_string_pretty(&run)?);
     Ok(())
 }
 
@@ -147,45 +146,44 @@ async fn run_command(
     label: &'static str,
     command: &str,
     max_body_capture_bytes: usize,
-) -> CapturedBackend {
+) -> CapturedTarget {
     let started = Instant::now();
     match Command::new("sh").arg("-lc").arg(command).output().await {
         Ok(output) => {
             let stderr = capture_body(&output.stderr, max_body_capture_bytes);
-            let mut headers = BTreeMap::new();
-            if !output.stderr.is_empty() {
-                headers.insert("stderr_sha256".to_string(), stderr.sha256);
-                headers.insert("stderr_preview".to_string(), stderr.preview);
-            }
             let error = output
                 .status
                 .code()
                 .is_none()
                 .then(|| format!("{label} command terminated by signal"));
 
-            CapturedBackend {
-                capture: BackendCapture {
+            CapturedTarget {
+                observation: TargetObservation {
                     status: output
                         .status
                         .code()
                         .and_then(|code| u16::try_from(code).ok()),
-                    headers,
+                    headers: BTreeMap::new(),
                     body: capture_body(&output.stdout, max_body_capture_bytes),
+                    stderr: Some(stderr),
                     latency_ms: started.elapsed().as_millis(),
                     error,
                 },
                 body_bytes: Bytes::from(output.stdout),
+                stderr_bytes: Bytes::from(output.stderr),
             }
         }
-        Err(error) => CapturedBackend {
-            capture: BackendCapture {
+        Err(error) => CapturedTarget {
+            observation: TargetObservation {
                 status: None,
                 headers: BTreeMap::new(),
                 body: capture_body(&[], max_body_capture_bytes),
+                stderr: Some(capture_body(&[], max_body_capture_bytes)),
                 latency_ms: started.elapsed().as_millis(),
                 error: Some(format!("{label} command failed to start: {error}")),
             },
             body_bytes: Bytes::new(),
+            stderr_bytes: Bytes::new(),
         },
     }
 }
@@ -196,16 +194,4 @@ fn values_or_defaults(values: &[String], defaults: &[&str]) -> Vec<String> {
     } else {
         values.to_vec()
     }
-}
-
-fn command_metadata(args: &RunArgs) -> BTreeMap<String, String> {
-    let mut metadata = BTreeMap::new();
-    metadata.insert("primary_command".to_string(), args.primary.clone());
-    if let Some(command) = &args.candidate {
-        metadata.insert("candidate_command".to_string(), command.clone());
-    }
-    if let Some(command) = &args.secondary {
-        metadata.insert("secondary_command".to_string(), command.clone());
-    }
-    metadata
 }

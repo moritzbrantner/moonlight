@@ -6,7 +6,7 @@ services:
       - .:/workspace
       - cargo-cache:/usr/local/cargo/registry
       - target-cache:/workspace/target
-    command: cargo run -p shadowdiff-demo-services -- primary
+    command: cargo run -p moonlight-demo-services -- primary
     ports:
       - "3001:3001"
 
@@ -17,7 +17,7 @@ services:
       - .:/workspace
       - cargo-cache:/usr/local/cargo/registry
       - target-cache:/workspace/target
-    command: cargo run -p shadowdiff-demo-services -- candidate
+    command: cargo run -p moonlight-demo-services -- candidate
     ports:
       - "3002:3002"
 
@@ -28,7 +28,7 @@ services:
       - .:/workspace
       - cargo-cache:/usr/local/cargo/registry
       - target-cache:/workspace/target
-    command: cargo run -p shadowdiff-demo-services -- secondary
+    command: cargo run -p moonlight-demo-services -- secondary
     ports:
       - "3003:3003"
 
@@ -40,11 +40,11 @@ services:
       - candidate
       - secondary
     environment:
-      SHADOWDIFF_BIND_ADDR: 0.0.0.0:8080
-      SHADOWDIFF_PRIMARY_URL: http://primary:3001
-      SHADOWDIFF_CANDIDATE_URL: http://candidate:3002
-      SHADOWDIFF_SECONDARY_URL: http://secondary:3003
-      SHADOWDIFF_STORAGE_PATH: /workspace/data/shadowdiff/requests.jsonl
+      MOONLIGHT_BIND_ADDR: 0.0.0.0:8080
+      MOONLIGHT_PRIMARY_URL: http://primary:3001
+      MOONLIGHT_CANDIDATE_URL: http://candidate:3002
+      MOONLIGHT_SECONDARY_URL: http://secondary:3003
+      MOONLIGHT_STORAGE_PATH: /workspace/data/moonlight/http-runs.jsonl
     volumes:
       - .:/workspace
       - cargo-cache:/usr/local/cargo/registry
@@ -59,7 +59,7 @@ services:
     depends_on:
       - moonlight-http
     environment:
-      VITE_SHADOWDIFF_API_URL: http://127.0.0.1:8080
+      VITE_MOONLIGHT_API_URL: http://127.0.0.1:8080
     volumes:
       - .:/workspace
       - bun-cache:/root/.bun

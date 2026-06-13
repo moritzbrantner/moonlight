@@ -3,7 +3,7 @@ members = [
     "crates/moonlight-cli",
     "crates/moonlight-core",
     "crates/moonlight-http",
-    "examples/shadowdiff-demo-services",
+    "examples/moonlight-demo-services",
 ]
 resolver = "2"
 

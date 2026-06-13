@@ -1,5 +1,5 @@
 [package]
-name = "shadowdiff-demo-services"
+name = "moonlight-demo-services"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

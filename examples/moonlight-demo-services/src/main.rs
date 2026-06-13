@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new().fallback(any(handler)).with_state(role);
     let listener = TcpListener::bind(addr).await?;
     println!(
-        "shadowdiff demo {} listening on http://{addr}",
+        "moonlight demo {} listening on http://{addr}",
         role.as_str()
     );
     axum::serve(listener, app).await?;
