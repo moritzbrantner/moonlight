@@ -6,13 +6,14 @@ use futures::{stream, StreamExt};
 use moonlight_core::{
     compare::{capture_body, compare_targets, CapturedTarget, CompareConfig},
     storage::{RunWriter, Storage},
-    Adapter, Classification, ComparisonRun, RunInput, TargetObservation,
+    Adapter, BodyCapture, Classification, ComparisonRun, RunInput, TargetObservation,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Instant};
+use sha2::{Digest, Sha256};
+use std::{collections::BTreeMap, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
 use tokio::{
     fs,
-    io::{self, AsyncBufReadExt, BufReader},
+    io::{self, AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader},
     process::Command,
 };
 use uuid::Uuid;
@@ -89,6 +90,9 @@ struct RunArgs {
 
     #[arg(long)]
     quiet: bool,
+
+    #[arg(long)]
+    compact: bool,
 }
 
 #[derive(Debug, Args)]
@@ -114,21 +118,41 @@ struct BatchArgs {
 
 #[derive(Debug, Clone)]
 struct Case {
-    primary: String,
-    candidate: String,
-    secondary: Option<String>,
+    primary: TargetCommand,
+    candidate: TargetCommand,
+    secondary: Option<TargetCommand>,
     max_body_capture_bytes: usize,
     ignored_json_paths: Vec<String>,
     ignored_headers: Vec<String>,
     ignore_stderr: bool,
 }
 
+#[derive(Debug, Clone)]
+enum TargetCommand {
+    Shell(String),
+    Argv(Vec<String>),
+}
+
+#[derive(Debug, Clone)]
+struct PreparedCase {
+    case: Case,
+    compare_config: Arc<CompareConfig>,
+}
+
 #[derive(Debug, Deserialize)]
 struct BatchCase {
-    primary: String,
-    candidate: String,
+    #[serde(default)]
+    primary: Option<String>,
+    #[serde(default)]
+    candidate: Option<String>,
     #[serde(default)]
     secondary: Option<String>,
+    #[serde(default)]
+    primary_argv: Option<Vec<String>>,
+    #[serde(default)]
+    candidate_argv: Option<Vec<String>>,
+    #[serde(default)]
+    secondary_argv: Option<Vec<String>>,
     #[serde(default)]
     max_body_capture_bytes: Option<usize>,
     #[serde(default)]
@@ -189,22 +213,38 @@ async fn main() -> anyhow::Result<()> {
 
 async fn run(args: RunArgs) -> anyhow::Result<()> {
     let case = Case {
-        primary: args.primary,
-        candidate: args.candidate,
-        secondary: args.secondary,
+        primary: TargetCommand::Shell(args.primary),
+        candidate: TargetCommand::Shell(args.candidate),
+        secondary: args.secondary.map(TargetCommand::Shell),
         max_body_capture_bytes: args.max_body_capture_bytes,
         ignored_json_paths: args.ignored_json_paths,
         ignored_headers: args.ignored_headers,
         ignore_stderr: args.ignore_stderr,
     };
-    let run = execute_case(case, args.serial_targets).await;
+    let compare_config = Arc::new(build_compare_config(
+        &case.ignored_json_paths,
+        &case.ignored_headers,
+        case.ignore_stderr,
+    ));
+    let run = execute_case(
+        PreparedCase {
+            case,
+            compare_config,
+        },
+        args.serial_targets,
+    )
+    .await;
 
     let writer = RunWriter::open(args.storage.storage_path).await?;
     writer.append(&run).await?;
     writer.flush().await?;
 
     if !args.quiet {
-        println!("{}", serde_json::to_string_pretty(&run)?);
+        if args.compact {
+            println!("{}", serde_json::to_string(&run)?);
+        } else {
+            println!("{}", serde_json::to_string_pretty(&run)?);
+        }
     }
     Ok(())
 }
@@ -216,6 +256,7 @@ async fn batch(args: BatchArgs) -> anyhow::Result<()> {
 
     let jobs = args.jobs.unwrap_or_else(default_jobs).max(1);
     let cases = read_batch_cases(&args.input).await?;
+    let prepared_cases = prepare_cases(cases);
     let writer = RunWriter::open(args.storage.storage_path).await?;
     let writer = Arc::new(writer);
     let started = Instant::now();
@@ -224,7 +265,7 @@ async fn batch(args: BatchArgs) -> anyhow::Result<()> {
         ..BatchSummary::default()
     };
 
-    let mut runs = stream::iter(cases.into_iter().map(|case| {
+    let mut runs = stream::iter(prepared_cases.into_iter().map(|case| {
         let serial_targets = args.serial_targets;
         async move { execute_case(case, serial_targets).await }
     }))
@@ -266,16 +307,25 @@ async fn read_batch_cases(input: &PathBuf) -> anyhow::Result<Vec<Case>> {
         }
         let case: BatchCase = serde_json::from_str(&line)
             .with_context(|| format!("invalid batch JSONL on line {line_number}"))?;
-        if case.primary.trim().is_empty() {
-            bail!("invalid batch JSONL on line {line_number}: primary must not be empty");
-        }
-        if case.candidate.trim().is_empty() {
-            bail!("invalid batch JSONL on line {line_number}: candidate must not be empty");
-        }
         cases.push(Case {
-            primary: case.primary,
-            candidate: case.candidate,
-            secondary: case.secondary,
+            primary: parse_required_command_form(
+                line_number,
+                "primary",
+                case.primary,
+                case.primary_argv,
+            )?,
+            candidate: parse_required_command_form(
+                line_number,
+                "candidate",
+                case.candidate,
+                case.candidate_argv,
+            )?,
+            secondary: parse_optional_command_form(
+                line_number,
+                "secondary",
+                case.secondary,
+                case.secondary_argv,
+            )?,
             max_body_capture_bytes: case
                 .max_body_capture_bytes
                 .unwrap_or(DEFAULT_MAX_BODY_CAPTURE_BYTES),
@@ -288,6 +338,57 @@ async fn read_batch_cases(input: &PathBuf) -> anyhow::Result<Vec<Case>> {
     Ok(cases)
 }
 
+fn parse_required_command_form(
+    line_number: usize,
+    role: &str,
+    shell: Option<String>,
+    argv: Option<Vec<String>>,
+) -> anyhow::Result<TargetCommand> {
+    parse_command_form(line_number, role, shell, argv)?.with_context(|| {
+        format!("invalid batch JSONL on line {line_number}: {role} command form is required")
+    })
+}
+
+fn parse_optional_command_form(
+    line_number: usize,
+    role: &str,
+    shell: Option<String>,
+    argv: Option<Vec<String>>,
+) -> anyhow::Result<Option<TargetCommand>> {
+    parse_command_form(line_number, role, shell, argv)
+}
+
+fn parse_command_form(
+    line_number: usize,
+    role: &str,
+    shell: Option<String>,
+    argv: Option<Vec<String>>,
+) -> anyhow::Result<Option<TargetCommand>> {
+    match (shell, argv) {
+        (Some(_), Some(_)) => bail!(
+            "invalid batch JSONL on line {line_number}: provide exactly one of {role} or {role}_argv"
+        ),
+        (Some(command), None) => {
+            if command.trim().is_empty() {
+                bail!("invalid batch JSONL on line {line_number}: {role} must not be empty");
+            }
+            Ok(Some(TargetCommand::Shell(command)))
+        }
+        (None, Some(argv)) => {
+            if argv.is_empty() {
+                bail!("invalid batch JSONL on line {line_number}: {role}_argv must not be empty");
+            }
+            if argv[0].is_empty() {
+                bail!(
+                    "invalid batch JSONL on line {line_number}: {role}_argv command must not be empty"
+                );
+            }
+            Ok(Some(TargetCommand::Argv(argv)))
+        }
+        (None, None) => Ok(None),
+    }
+}
+
 async fn read_stdin_lines() -> anyhow::Result<Vec<String>> {
     let mut lines = BufReader::new(io::stdin()).lines();
     let mut output = Vec::new();
@@ -297,13 +398,34 @@ async fn read_stdin_lines() -> anyhow::Result<Vec<String>> {
     Ok(output)
 }
 
-async fn execute_case(case: Case, serial_targets: bool) -> ComparisonRun {
+fn prepare_cases(cases: Vec<Case>) -> Vec<PreparedCase> {
+    let default_compare_config = Arc::new(build_compare_config(&[], &[], false));
+    cases
+        .into_iter()
+        .map(|case| {
+            let compare_config = if case.uses_default_compare_config() {
+                Arc::clone(&default_compare_config)
+            } else {
+                Arc::new(build_compare_config(
+                    &case.ignored_json_paths,
+                    &case.ignored_headers,
+                    case.ignore_stderr,
+                ))
+            };
+            PreparedCase {
+                case,
+                compare_config,
+            }
+        })
+        .collect()
+}
+
+async fn execute_case(prepared: PreparedCase, serial_targets: bool) -> ComparisonRun {
+    let PreparedCase {
+        case,
+        compare_config,
+    } = prepared;
     let targets = run_targets(&case, serial_targets).await;
-    let compare_config = build_compare_config(
-        &case.ignored_json_paths,
-        &case.ignored_headers,
-        case.ignore_stderr,
-    );
     let comparison = compare_targets(
         &targets.primary,
         &targets.candidate,
@@ -316,9 +438,9 @@ async fn execute_case(case: Case, serial_targets: bool) -> ComparisonRun {
         timestamp: Utc::now(),
         adapter: Adapter::Cli,
         input: RunInput::Cli {
-            primary_command: case.primary,
-            candidate_command: case.candidate,
-            secondary_command: case.secondary,
+            primary_command: case.primary.display(),
+            candidate_command: case.candidate.display(),
+            secondary_command: case.secondary.as_ref().map(TargetCommand::display),
         },
         request_headers: BTreeMap::new(),
         request_body: capture_body(&[], case.max_body_capture_bytes),
@@ -386,48 +508,215 @@ fn build_compare_config(
 
 async fn run_command(
     label: &'static str,
-    command: &str,
+    command: &TargetCommand,
     max_body_capture_bytes: usize,
 ) -> CapturedTarget {
     let started = Instant::now();
-    match Command::new("sh").arg("-lc").arg(command).output().await {
-        Ok(output) => {
-            let stderr = capture_body(&output.stderr, max_body_capture_bytes);
-            let error = output
-                .status
-                .code()
-                .is_none()
-                .then(|| format!("{label} command terminated by signal"));
-
-            CapturedTarget {
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return CapturedTarget {
                 observation: TargetObservation {
-                    status: output
-                        .status
-                        .code()
-                        .and_then(|code| u16::try_from(code).ok()),
+                    status: None,
                     headers: BTreeMap::new(),
-                    body: capture_body(&output.stdout, max_body_capture_bytes),
-                    stderr: Some(stderr),
+                    body: capture_body(&[], max_body_capture_bytes),
+                    stderr: Some(capture_body(&[], max_body_capture_bytes)),
                     latency_ms: started.elapsed().as_millis(),
-                    error,
+                    error: Some(format!("{label} command failed to start: {error}")),
                 },
-                body_bytes: Bytes::from(output.stdout),
-                stderr_bytes: Bytes::from(output.stderr),
-            }
+                body_bytes: Bytes::new(),
+                stderr_bytes: Bytes::new(),
+            };
         }
-        Err(error) => CapturedTarget {
-            observation: TargetObservation {
-                status: None,
-                headers: BTreeMap::new(),
-                body: capture_body(&[], max_body_capture_bytes),
-                stderr: Some(capture_body(&[], max_body_capture_bytes)),
-                latency_ms: started.elapsed().as_millis(),
-                error: Some(format!("{label} command failed to start: {error}")),
-            },
-            body_bytes: Bytes::new(),
-            stderr_bytes: Bytes::new(),
+    };
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let (stdout, stderr, status) = tokio::join!(
+        read_optional_stream(stdout, max_body_capture_bytes),
+        read_optional_stream(stderr, max_body_capture_bytes),
+        child.wait(),
+    );
+
+    let stdout = match stdout {
+        Ok(stdout) => stdout,
+        Err(error) => {
+            return command_read_error(label, "stdout", error, started, max_body_capture_bytes);
+        }
+    };
+    let stderr = match stderr {
+        Ok(stderr) => stderr,
+        Err(error) => {
+            return command_read_error(label, "stderr", error, started, max_body_capture_bytes);
+        }
+    };
+    let status = match status {
+        Ok(status) => status,
+        Err(error) => {
+            return CapturedTarget {
+                observation: TargetObservation {
+                    status: None,
+                    headers: BTreeMap::new(),
+                    body: stdout.capture,
+                    stderr: Some(stderr.capture),
+                    latency_ms: started.elapsed().as_millis(),
+                    error: Some(format!("{label} command wait failed: {error}")),
+                },
+                body_bytes: stdout.bytes,
+                stderr_bytes: stderr.bytes,
+            };
+        }
+    };
+
+    let error = status
+        .code()
+        .is_none()
+        .then(|| format!("{label} command terminated by signal"));
+
+    CapturedTarget {
+        observation: TargetObservation {
+            status: status.code().and_then(|code| u16::try_from(code).ok()),
+            headers: BTreeMap::new(),
+            body: stdout.capture,
+            stderr: Some(stderr.capture),
+            latency_ms: started.elapsed().as_millis(),
+            error,
         },
+        body_bytes: stdout.bytes,
+        stderr_bytes: stderr.bytes,
     }
+}
+
+fn command_read_error(
+    label: &'static str,
+    stream: &'static str,
+    error: io::Error,
+    started: Instant,
+    max_body_capture_bytes: usize,
+) -> CapturedTarget {
+    CapturedTarget {
+        observation: TargetObservation {
+            status: None,
+            headers: BTreeMap::new(),
+            body: capture_body(&[], max_body_capture_bytes),
+            stderr: Some(capture_body(&[], max_body_capture_bytes)),
+            latency_ms: started.elapsed().as_millis(),
+            error: Some(format!("{label} command failed to read {stream}: {error}")),
+        },
+        body_bytes: Bytes::new(),
+        stderr_bytes: Bytes::new(),
+    }
+}
+
+#[derive(Debug)]
+struct CapturedStream {
+    bytes: Bytes,
+    capture: BodyCapture,
+}
+
+async fn read_optional_stream<R>(
+    reader: Option<R>,
+    max_body_capture_bytes: usize,
+) -> io::Result<CapturedStream>
+where
+    R: AsyncRead + Unpin,
+{
+    match reader {
+        Some(reader) => read_stream(reader, max_body_capture_bytes).await,
+        None => Ok(CapturedStream {
+            bytes: Bytes::new(),
+            capture: capture_body(&[], max_body_capture_bytes),
+        }),
+    }
+}
+
+async fn read_stream<R>(mut reader: R, max_body_capture_bytes: usize) -> io::Result<CapturedStream>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut hasher = Sha256::new();
+    let mut bytes = Vec::new();
+    let mut preview = Vec::with_capacity(max_body_capture_bytes.min(8192));
+    let mut buffer = [0_u8; 8192];
+    let mut size_bytes = 0;
+
+    loop {
+        let read = reader.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        let chunk = &buffer[..read];
+        hasher.update(chunk);
+        bytes.extend_from_slice(chunk);
+        size_bytes += read;
+
+        if preview.len() < max_body_capture_bytes {
+            let remaining = max_body_capture_bytes - preview.len();
+            preview.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+        }
+    }
+
+    Ok(CapturedStream {
+        bytes: Bytes::from(bytes),
+        capture: BodyCapture {
+            size_bytes,
+            sha256: hex::encode(hasher.finalize()),
+            preview: String::from_utf8_lossy(&preview).to_string(),
+            truncated: size_bytes > max_body_capture_bytes,
+        },
+    })
+}
+
+impl Case {
+    fn uses_default_compare_config(&self) -> bool {
+        self.ignored_json_paths.is_empty() && self.ignored_headers.is_empty() && !self.ignore_stderr
+    }
+}
+
+impl TargetCommand {
+    fn spawn(&self) -> io::Result<tokio::process::Child> {
+        let mut command = match self {
+            Self::Shell(command) => {
+                let mut process = Command::new("sh");
+                process.arg("-lc").arg(command);
+                process
+            }
+            Self::Argv(argv) => {
+                let mut process = Command::new(&argv[0]);
+                process.args(&argv[1..]);
+                process
+            }
+        };
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+
+    fn display(&self) -> String {
+        match self {
+            Self::Shell(command) => command.clone(),
+            Self::Argv(argv) => argv
+                .iter()
+                .map(|arg| shell_quote(arg))
+                .collect::<Vec<_>>()
+                .join(" "),
+        }
+    }
+}
+
+fn shell_quote(value: &str) -> String {
+    if value.is_empty() {
+        return "''".to_string();
+    }
+    if value
+        .bytes()
+        .all(|byte| matches!(byte, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-' | b'.' | b'/' | b':' | b'+' | b',' | b'='))
+    {
+        return value.to_string();
+    }
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn values_or_defaults(values: &[String], defaults: &[&str]) -> Vec<String> {

@@ -42,7 +42,7 @@ fn run_cli(args: &[&str]) {
 
 fn run_scenario(storage_path: &Path, args: &[&str]) {
     let storage = storage_path.to_string_lossy();
-    let mut full_args = vec!["run", "--storage-path", storage.as_ref()];
+    let mut full_args = vec!["run", "--storage-path", storage.as_ref(), "--compact"];
     full_args.extend_from_slice(args);
     run_cli(&full_args);
 }

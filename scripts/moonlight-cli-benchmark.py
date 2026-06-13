@@ -6,6 +6,7 @@ import glob
 import json
 import os
 import shutil
+import shlex
 import statistics
 import subprocess
 import time
@@ -13,6 +14,7 @@ import uuid
 from pathlib import Path
 
 
+DEFAULT_TARGETS = ["moonlight", "moonlight-argv", "trycmd", "insta", "cram", "bats", "shellspec"]
 DEFAULT_SCENARIOS = [
     "match",
     "candidate-diff",
@@ -21,11 +23,28 @@ DEFAULT_SCENARIOS = [
     "status-regression",
     "stderr-diff",
     "large-body",
+    "nested-json-diff",
+    "ignored-dynamic-json",
+    "large-json-match",
+    "large-json-diff",
+    "large-stderr-match",
+    "serial-targets",
+    "truncated-capture",
 ]
 
 
 def shell_json(value):
     return "printf '%s\\n' '{}'".format(value)
+
+
+def python_print(value):
+    return "python3 -c {}".format(
+        shlex.quote(f"print({json.dumps(value)}, end='')")
+    )
+
+
+def repeated_json(value, count):
+    return json.dumps({"items": [{"index": index, "value": value} for index in range(count)]})
 
 
 SCENARIOS = {
@@ -98,6 +117,74 @@ SCENARIOS = {
             "python3 -c 'print(\"a\" * 65536, end=\"\")'",
         ],
     },
+    "nested-json-diff": {
+        "expected": "suspicious_difference",
+        "args": [
+            "--primary",
+            shell_json('{"outer":{"items":[{"id":1,"value":"same"},{"id":2,"value":"old"}]}}'),
+            "--candidate",
+            shell_json('{"outer":{"items":[{"id":1,"value":"same"},{"id":2,"value":"new"}]}}'),
+        ],
+    },
+    "ignored-dynamic-json": {
+        "expected": "match",
+        "args": [
+            "--primary",
+            shell_json('{"dynamic":"one","stable":true}'),
+            "--candidate",
+            shell_json('{"dynamic":"two","stable":true}'),
+            "--ignored-json-path",
+            "$.dynamic",
+        ],
+    },
+    "large-json-match": {
+        "expected": "match",
+        "args": [
+            "--primary",
+            python_print(repeated_json("same", 512)),
+            "--candidate",
+            python_print(repeated_json("same", 512)),
+        ],
+    },
+    "large-json-diff": {
+        "expected": "suspicious_difference",
+        "args": [
+            "--primary",
+            python_print(repeated_json("same", 512)),
+            "--candidate",
+            python_print(repeated_json("changed", 512)),
+        ],
+    },
+    "large-stderr-match": {
+        "expected": "match",
+        "args": [
+            "--primary",
+            "python3 -c 'import sys; print(\"ok\"); sys.stderr.write(\"e\" * 65536)'",
+            "--candidate",
+            "python3 -c 'import sys; print(\"ok\"); sys.stderr.write(\"e\" * 65536)'",
+        ],
+    },
+    "serial-targets": {
+        "expected": "match",
+        "args": [
+            "--primary",
+            shell_json('{"value":42}'),
+            "--candidate",
+            shell_json('{"value":42}'),
+            "--serial-targets",
+        ],
+    },
+    "truncated-capture": {
+        "expected": "match",
+        "args": [
+            "--primary",
+            "python3 -c 'print(\"abcdef\" * 4096, end=\"\")'",
+            "--candidate",
+            "python3 -c 'print(\"abcdef\" * 4096, end=\"\")'",
+            "--max-body-capture-bytes",
+            "32",
+        ],
+    },
 }
 
 
@@ -117,7 +204,7 @@ def parse_args():
     )
     parser.add_argument(
         "--output-dir",
-        default=os.getenv("BENCHMARK_OUTPUT_DIR", "data/moonlight/cli-benchmark"),
+        default=os.getenv("BENCHMARK_OUTPUT_DIR", "data/moonlight/cli-benchmark-analysis"),
     )
     parser.add_argument(
         "--scenario",
@@ -130,7 +217,7 @@ def parse_args():
         "--target",
         dest="targets",
         action="append",
-        choices=["moonlight", "trycmd", "cram"],
+        choices=DEFAULT_TARGETS,
         help="Comparison target to include; may be specified multiple times. Defaults to all.",
     )
     parser.add_argument(
@@ -157,7 +244,7 @@ def command_env():
 def run_cli_args_once(binary, storage_path, args):
     started = time.perf_counter()
     result = subprocess.run(
-        [binary, "run", "--storage-path", str(storage_path), *args],
+        [binary, "run", "--storage-path", str(storage_path), "--compact", *args],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -371,6 +458,14 @@ def comparison_case_command():
     return "printf '%s\\n' '{\"value\":42}'"
 
 
+def comparison_case_argv():
+    return ["printf", "%s\n", comparison_expected_stdout()]
+
+
+def comparison_expected_stdout():
+    return '{"value":42}'
+
+
 def prepare_cram_fixture(output_dir, cases):
     fixture_dir = output_dir / "comparison-fixtures" / "cram"
     fixture_dir.mkdir(parents=True, exist_ok=True)
@@ -378,9 +473,54 @@ def prepare_cram_fixture(output_dir, cases):
     lines = []
     for _ in range(cases):
         lines.append(f"  $ {comparison_case_command()}")
-        lines.append('  {"value":42}')
+        lines.append(f"  {comparison_expected_stdout()}")
     fixture.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return fixture
+
+
+def prepare_bats_fixture(output_dir, cases):
+    fixture_dir = output_dir / "comparison-fixtures" / "bats"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    fixture = fixture_dir / "generated.bats"
+    command = comparison_case_command()
+    expected_stdout = comparison_expected_stdout()
+    lines = []
+    for index in range(cases):
+        lines.extend(
+            [
+                f'@test "case {index:04}" {{',
+                f"  run sh -lc {shlex.quote(command)}",
+                '  [ "$status" -eq 0 ]',
+                f'  [ "$output" = {shlex.quote(expected_stdout)} ]',
+                "}",
+                "",
+            ]
+        )
+    fixture.write_text("\n".join(lines), encoding="utf-8")
+    return fixture
+
+
+def prepare_shellspec_fixture(output_dir, cases):
+    fixture_dir = output_dir / "comparison-fixtures" / "shellspec"
+    spec_dir = fixture_dir / "spec"
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    fixture = spec_dir / "generated_spec.sh"
+    command = comparison_case_command()
+    expected_stdout = comparison_expected_stdout()
+    lines = ["Describe 'generated command-output cases'"]
+    for index in range(cases):
+        lines.extend(
+            [
+                f"  It 'case {index:04}'",
+                f"    When run command sh -lc {shlex.quote(command)}",
+                "    The status should equal 0",
+                f"    The output should equal {shlex.quote(expected_stdout)}",
+                "  End",
+            ]
+        )
+    lines.append("End")
+    fixture.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return fixture_dir
 
 
 def toml_string(value):
@@ -442,27 +582,113 @@ def prepare_trycmd_harness(output_dir, cases):
     return harness_dir
 
 
-def build_trycmd_harness(harness_dir):
+def prepare_insta_harness(output_dir, cases):
+    harness_dir = output_dir / "comparison-fixtures" / "insta"
+    tests_dir = harness_dir / "tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
+    (harness_dir / "Cargo.toml").write_text(
+        "\n".join(
+            [
+                "[package]",
+                'name = "moonlight-cli-insta-benchmark"',
+                'version = "0.0.0"',
+                'edition = "2021"',
+                "",
+                "[workspace]",
+                "",
+                "[dev-dependencies]",
+                'insta = "1.48.0"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    command = comparison_case_command()
+    expected_stdout = comparison_expected_stdout()
+    (tests_dir / "insta_cmd_tests.rs").write_text(
+        "\n".join(
+            [
+                "use std::process::Command;",
+                "",
+                "#[test]",
+                "fn generated_cases() {",
+                f"    let command = {json.dumps(command)};",
+                f"    let expected_stdout = {json.dumps(expected_stdout)};",
+                f"    for index in 0..{cases} {{",
+                '        let output = Command::new("sh")',
+                '            .arg("-lc")',
+                "            .arg(command)",
+                "            .output()",
+                '            .expect("run generated command");',
+                '        assert!(output.status.success(), "case {index:04} exited with {:?}", output.status.code());',
+                "        let stdout = String::from_utf8(output.stdout).expect(\"stdout should be UTF-8\");",
+                "        assert_eq!(stdout.trim_end(), expected_stdout);",
+                "        insta::with_settings!({ snapshot_suffix => format!(\"case_{index:04}\") }, {",
+                "            insta::allow_duplicates! {",
+                f"                insta::assert_snapshot!(stdout.trim_end(), @r###\"{expected_stdout}\"###);",
+                "            }",
+                "        });",
+                "    }",
+                "}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return harness_dir
+
+
+def build_cargo_test_harness(harness_dir, binary_prefix):
     build = run_command_once(["cargo", "test", "--quiet", "--no-run"], cwd=harness_dir)
     if build["returncode"] != 0:
         return None, build["stderr"] or build["stdout"]
     candidates = [
         Path(path)
-        for path in glob.glob(str(harness_dir / "target" / "debug" / "deps" / "cli_tests-*"))
+        for path in glob.glob(str(harness_dir / "target" / "debug" / "deps" / f"{binary_prefix}-*"))
         if not path.endswith(".d") and os.access(path, os.X_OK)
     ]
     if not candidates:
-        return None, "trycmd test binary was not produced"
+        return None, f"{binary_prefix} test binary was not produced"
     return max(candidates, key=lambda path: path.stat().st_mtime).resolve(), None
 
 
-def summarize_comparison_target(name, cases, warmup, runs, concurrency, command_factory):
+def target_latency_results(results, target_invocations_per_case, cases):
+    denominator = target_invocations_per_case * cases
+    return [
+        {**result, "latency_ms": result["latency_ms"] / denominator}
+        for result in results
+        if result["returncode"] == 0 and denominator > 0
+    ]
+
+
+def add_target_invocation_metrics(comparison, target_invocations_per_case, results=None):
+    comparison["target_invocations_per_case"] = target_invocations_per_case
+    comparison["total_target_invocations"] = (
+        comparison["success_count"]
+        * comparison["cases_per_invocation"]
+        * target_invocations_per_case
+    )
+    comparison["target_invocation_latency_ms"] = latency_summary(
+        target_latency_results(results or [], target_invocations_per_case, comparison["cases_per_invocation"])
+    )
+    return comparison
+
+
+def summarize_comparison_target(
+    name,
+    cases,
+    warmup,
+    runs,
+    concurrency,
+    command_factory,
+    target_invocations_per_case=1,
+):
     print(f"warming {name} comparison ({warmup} suite invocations)")
     warmup_results = run_command_many(command_factory, warmup, concurrency)
     warmup_errors = [result for result in warmup_results if result["returncode"] != 0]
     if warmup_errors:
         error = warmup_errors[0]
-        return {
+        return add_target_invocation_metrics({
             "status": "failed",
             "reason": (error["stderr"] or error["stdout"]).strip()[:1000],
             "cases_per_invocation": cases,
@@ -473,7 +699,7 @@ def summarize_comparison_target(name, cases, warmup, runs, concurrency, command_
             "latency_ms": latency_summary([]),
             "case_latency_ms": latency_summary([]),
             "validation_errors": [f"{name} warmup failed"],
-        }
+        }, target_invocations_per_case)
 
     print(f"measuring {name} comparison ({runs} suite invocations)")
     results = run_command_many(command_factory, runs, concurrency)
@@ -488,7 +714,7 @@ def summarize_comparison_target(name, cases, warmup, runs, concurrency, command_
         for result in results
         if result["returncode"] == 0 and cases > 0
     ]
-    return {
+    return add_target_invocation_metrics({
         "status": "ok" if not validation_errors else "failed",
         "reason": None,
         "cases_per_invocation": cases,
@@ -499,19 +725,26 @@ def summarize_comparison_target(name, cases, warmup, runs, concurrency, command_
         "latency_ms": latency_summary(results),
         "case_latency_ms": latency_summary(case_results),
         "validation_errors": validation_errors,
-    }
+    }, target_invocations_per_case, results)
 
 
-def summarize_moonlight_comparison(binary, output_dir, cases, warmup, runs, concurrency):
-    suite_dir = output_dir / "comparison-fixtures" / "moonlight"
+def summarize_moonlight_comparison(binary, output_dir, cases, warmup, runs, concurrency, command_mode):
+    suite_name = "moonlight" if command_mode == "shell" else "moonlight-argv"
+    suite_dir = output_dir / "comparison-fixtures" / suite_name
     suite_dir.mkdir(parents=True, exist_ok=True)
     for stale_storage in suite_dir.glob("*.jsonl"):
         stale_storage.unlink()
     input_path = suite_dir / "cases.jsonl"
-    case = {
-        "primary": comparison_case_command(),
-        "candidate": comparison_case_command(),
-    }
+    if command_mode == "argv":
+        case = {
+            "primary_argv": comparison_case_argv(),
+            "candidate_argv": comparison_case_argv(),
+        }
+    else:
+        case = {
+            "primary": comparison_case_command(),
+            "candidate": comparison_case_command(),
+        }
     input_path.write_text(
         "\n".join(json.dumps(case, sort_keys=True) for _ in range(cases)) + "\n",
         encoding="utf-8",
@@ -557,12 +790,12 @@ def summarize_moonlight_comparison(binary, output_dir, cases, warmup, runs, conc
                 results.append(future.result())
         return results
 
-    print(f"warming moonlight comparison ({warmup} suite invocations)")
+    print(f"warming {suite_name} comparison ({warmup} suite invocations)")
     warmup_results = many(warmup)
     warmup_errors = [result for result in warmup_results if result["returncode"] != 0]
     if warmup_errors:
         error = warmup_errors[0]
-        return {
+        return add_target_invocation_metrics({
             "status": "failed",
             "reason": (error["stderr"] or error["stdout"]).strip()[:1000],
             "cases_per_invocation": cases,
@@ -572,22 +805,22 @@ def summarize_moonlight_comparison(binary, output_dir, cases, warmup, runs, conc
             "total_cases": 0,
             "latency_ms": latency_summary([]),
             "case_latency_ms": latency_summary([]),
-            "validation_errors": ["moonlight comparison warmup failed"],
-        }
+            "validation_errors": [f"{suite_name} comparison warmup failed"],
+        }, 2)
 
-    print(f"measuring moonlight comparison ({runs} suite invocations)")
+    print(f"measuring {suite_name} comparison ({runs} suite invocations)")
     results = many(runs)
     success_count = sum(1 for result in results if result["returncode"] == 0)
     error_count = len(results) - success_count
     validation_errors = []
     if error_count:
-        validation_errors.append(f"{error_count} moonlight comparison invocation(s) exited non-zero")
+        validation_errors.append(f"{error_count} {suite_name} comparison invocation(s) exited non-zero")
     case_results = [
         {**result, "latency_ms": result["latency_ms"] / cases}
         for result in results
         if result["returncode"] == 0 and cases > 0
     ]
-    return {
+    return add_target_invocation_metrics({
         "status": "ok" if not validation_errors else "failed",
         "reason": None,
         "cases_per_invocation": cases,
@@ -598,11 +831,11 @@ def summarize_moonlight_comparison(binary, output_dir, cases, warmup, runs, conc
         "latency_ms": latency_summary(results),
         "case_latency_ms": latency_summary(case_results),
         "validation_errors": validation_errors,
-    }
+    }, 2, results)
 
 
-def skipped_comparison(reason, cases):
-    return {
+def skipped_comparison(reason, cases, target_invocations_per_case=1):
+    return add_target_invocation_metrics({
         "status": "skipped",
         "reason": reason,
         "cases_per_invocation": cases,
@@ -613,62 +846,155 @@ def skipped_comparison(reason, cases):
         "latency_ms": latency_summary([]),
         "case_latency_ms": latency_summary([]),
         "validation_errors": [],
-    }
+    }, target_invocations_per_case)
+
+
+def summarize_moonlight_target(binary, output_dir, cases, warmup, runs, concurrency):
+    comparison = summarize_moonlight_comparison(
+        str(binary), output_dir, cases, warmup, runs, concurrency, "shell"
+    )
+    comparison["version"] = f"{binary} batch"
+    return comparison
+
+
+def summarize_moonlight_argv_target(binary, output_dir, cases, warmup, runs, concurrency):
+    comparison = summarize_moonlight_comparison(
+        str(binary), output_dir, cases, warmup, runs, concurrency, "argv"
+    )
+    comparison["version"] = f"{binary} batch argv"
+    return comparison
+
+
+def summarize_cram_target(_binary, output_dir, cases, warmup, runs, concurrency):
+    version = tool_version(["cram", "--version"])
+    if not shutil.which("cram"):
+        comparison = skipped_comparison("cram executable not found on PATH", cases)
+        comparison["version"] = None
+        return comparison
+
+    fixture = prepare_cram_fixture(output_dir, cases)
+
+    def cram_command():
+        return (["cram", str(fixture)], None, command_env())
+
+    comparison = summarize_comparison_target(
+        "cram", cases, warmup, runs, concurrency, cram_command
+    )
+    comparison["version"] = version
+    return comparison
+
+
+def summarize_trycmd_target(_binary, output_dir, cases, warmup, runs, concurrency):
+    cargo_version = tool_version(["cargo", "-V"])
+    if not shutil.which("cargo"):
+        comparison = skipped_comparison("cargo executable not found on PATH", cases)
+        comparison["version"] = None
+        return comparison
+
+    harness_dir = prepare_trycmd_harness(output_dir, cases)
+    test_binary, build_error = build_cargo_test_harness(harness_dir, "cli_tests")
+    if build_error:
+        comparison = skipped_comparison(f"trycmd harness build failed: {build_error}", cases)
+        comparison["version"] = cargo_version
+        return comparison
+
+    env = command_env()
+    env.setdefault("CARGO_TERM_COLOR", "never")
+
+    def trycmd_command():
+        return ([str(test_binary)], harness_dir, env)
+
+    comparison = summarize_comparison_target(
+        "trycmd", cases, warmup, runs, concurrency, trycmd_command
+    )
+    comparison["version"] = f"trycmd 1.2.0 via {cargo_version}"
+    return comparison
+
+
+def summarize_insta_target(_binary, output_dir, cases, warmup, runs, concurrency):
+    cargo_version = tool_version(["cargo", "-V"])
+    if not shutil.which("cargo"):
+        comparison = skipped_comparison("cargo executable not found on PATH", cases)
+        comparison["version"] = None
+        return comparison
+
+    harness_dir = prepare_insta_harness(output_dir, cases)
+    test_binary, build_error = build_cargo_test_harness(harness_dir, "insta_cmd_tests")
+    if build_error:
+        comparison = skipped_comparison(f"insta harness build failed: {build_error}", cases)
+        comparison["version"] = cargo_version
+        return comparison
+
+    env = command_env()
+    env.setdefault("CARGO_TERM_COLOR", "never")
+    env.setdefault("INSTA_UPDATE", "no")
+    env.setdefault("NO_COLOR", "1")
+
+    def insta_command():
+        return ([str(test_binary)], harness_dir, env)
+
+    comparison = summarize_comparison_target(
+        "insta", cases, warmup, runs, concurrency, insta_command
+    )
+    comparison["version"] = f"insta 1.48.0 via {cargo_version}"
+    return comparison
+
+
+def summarize_bats_target(_binary, output_dir, cases, warmup, runs, concurrency):
+    version = tool_version(["bats", "--version"])
+    if not shutil.which("bats"):
+        comparison = skipped_comparison("bats executable not found on PATH", cases)
+        comparison["version"] = None
+        return comparison
+
+    fixture = prepare_bats_fixture(output_dir, cases)
+
+    def bats_command():
+        return (["bats", str(fixture)], None, command_env())
+
+    comparison = summarize_comparison_target(
+        "bats", cases, warmup, runs, concurrency, bats_command
+    )
+    comparison["version"] = version
+    return comparison
+
+
+def summarize_shellspec_target(_binary, output_dir, cases, warmup, runs, concurrency):
+    version = tool_version(["shellspec", "--version"])
+    if not shutil.which("shellspec"):
+        comparison = skipped_comparison("shellspec executable not found on PATH", cases)
+        comparison["version"] = None
+        return comparison
+
+    fixture_dir = prepare_shellspec_fixture(output_dir, cases)
+
+    def shellspec_command():
+        return (["shellspec", "--format", "dot"], fixture_dir, command_env())
+
+    comparison = summarize_comparison_target(
+        "shellspec", cases, warmup, runs, concurrency, shellspec_command
+    )
+    comparison["version"] = version
+    return comparison
+
+
+COMPARISON_TARGETS = {
+    "moonlight": summarize_moonlight_target,
+    "moonlight-argv": summarize_moonlight_argv_target,
+    "trycmd": summarize_trycmd_target,
+    "insta": summarize_insta_target,
+    "cram": summarize_cram_target,
+    "bats": summarize_bats_target,
+    "shellspec": summarize_shellspec_target,
+}
 
 
 def summarize_comparisons(binary, output_dir, targets, cases, warmup, runs, concurrency):
     comparisons = {}
-
-    if "moonlight" in targets:
-        comparison = summarize_moonlight_comparison(
-            str(binary), output_dir, cases, warmup, runs, concurrency
+    for target in targets:
+        comparisons[target] = COMPARISON_TARGETS[target](
+            binary, output_dir, cases, warmup, runs, concurrency
         )
-        comparison["version"] = f"{binary} batch"
-        comparisons["moonlight"] = comparison
-
-    if "cram" in targets:
-        version = tool_version(["cram", "--version"])
-        if shutil.which("cram"):
-            fixture = prepare_cram_fixture(output_dir, cases)
-
-            def cram_command():
-                return (["cram", str(fixture)], None, command_env())
-
-            comparison = summarize_comparison_target(
-                "cram", cases, warmup, runs, concurrency, cram_command
-            )
-            comparison["version"] = version
-            comparisons["cram"] = comparison
-        else:
-            comparison = skipped_comparison("cram executable not found on PATH", cases)
-            comparison["version"] = None
-            comparisons["cram"] = comparison
-
-    if "trycmd" in targets:
-        cargo_version = tool_version(["cargo", "-V"])
-        if not shutil.which("cargo"):
-            comparison = skipped_comparison("cargo executable not found on PATH", cases)
-            comparison["version"] = None
-            comparisons["trycmd"] = comparison
-        else:
-            harness_dir = prepare_trycmd_harness(output_dir, cases)
-            test_binary, build_error = build_trycmd_harness(harness_dir)
-            if build_error:
-                comparison = skipped_comparison(f"trycmd harness build failed: {build_error}", cases)
-                comparison["version"] = cargo_version
-                comparisons["trycmd"] = comparison
-            else:
-                env = command_env()
-                env.setdefault("CARGO_TERM_COLOR", "never")
-
-                def trycmd_command():
-                    return ([str(test_binary), "--quiet"], harness_dir, env)
-
-                comparison = summarize_comparison_target(
-                    "trycmd", cases, warmup, runs, concurrency, trycmd_command
-                )
-                comparison["version"] = f"trycmd 1.2.0 via {cargo_version}"
-                comparisons["trycmd"] = comparison
 
     return comparisons
 
@@ -730,28 +1056,33 @@ def write_markdown(report, path):
             "",
             "## Tool Comparisons",
             "",
-            "Each comparison case is a deterministic shell command-output check; moonlight runs a primary/candidate comparison, while cram and trycmd run snapshot-style assertions when available.",
+            "Each comparison case is a deterministic shell command-output check; moonlight runs a primary/candidate comparison, while the other targets run snapshot-style assertions when available.",
             "",
-            "| Target | Status | Suite Runs | Cases/Run | Total Cases | Suite p50 ms | Suite p95 ms | Per-case p50 ms | Per-case p95 ms | Version/Reason |",
-            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+            "| Target | Status | Suite Runs | Cases/Run | Target invocations/case | Total Cases | Total Target Invocations | Suite p50 ms | Suite p95 ms | Per-case p50 ms | Per-case p95 ms | Per-target p50 ms | Per-target p95 ms | Version/Reason |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
     )
     for name, comparison in report["comparisons"].items():
         suite_latency = comparison["latency_ms"]
         case_latency = comparison["case_latency_ms"]
+        target_latency = comparison["target_invocation_latency_ms"]
         detail = comparison.get("reason") or comparison.get("version") or ""
         detail = detail.replace("\n", " ")[:180]
         lines.append(
-            "| {name} | {status} | {runs} | {cases} | {total_cases} | {suite_p50} | {suite_p95} | {case_p50} | {case_p95} | {detail} |".format(
+            "| {name} | {status} | {runs} | {cases} | {target_invocations} | {total_cases} | {total_target_invocations} | {suite_p50} | {suite_p95} | {case_p50} | {case_p95} | {target_p50} | {target_p95} | {detail} |".format(
                 name=name,
                 status=comparison["status"],
                 runs=comparison["total_invocations"],
                 cases=comparison["cases_per_invocation"],
+                target_invocations=comparison["target_invocations_per_case"],
                 total_cases=comparison["total_cases"],
+                total_target_invocations=comparison["total_target_invocations"],
                 suite_p50=format_ms(suite_latency["p50"]),
                 suite_p95=format_ms(suite_latency["p95"]),
                 case_p50=format_ms(case_latency["p50"]),
                 case_p95=format_ms(case_latency["p95"]),
+                target_p50=format_ms(target_latency["p50"]),
+                target_p95=format_ms(target_latency["p95"]),
                 detail=detail,
             )
         )
@@ -794,6 +1125,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     scenarios = args.scenarios or DEFAULT_SCENARIOS
+    targets = args.targets or DEFAULT_TARGETS
 
     report = {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -803,7 +1135,7 @@ def main():
             "requests": args.requests,
             "concurrency": args.concurrency,
             "scenarios": scenarios,
-            "targets": args.targets or ["moonlight", "trycmd", "cram"],
+            "targets": targets,
             "comparison_runs": args.comparison_runs,
             "comparison_cases": args.comparison_cases,
         },
@@ -824,7 +1156,7 @@ def main():
     report["comparisons"] = summarize_comparisons(
         binary,
         output_dir,
-        args.targets or ["moonlight", "trycmd", "cram"],
+        targets,
         args.comparison_cases,
         min(args.warmup, args.comparison_runs),
         args.comparison_runs,

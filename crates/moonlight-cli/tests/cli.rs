@@ -57,6 +57,15 @@ fn read_jsonl(path: &str) -> Vec<Value> {
         .collect()
 }
 
+fn write_batch_cases(path: &Path, cases: &[Value]) {
+    let lines = cases
+        .iter()
+        .map(Value::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(path, format!("{lines}\n")).unwrap();
+}
+
 #[test]
 fn help_prints_command_surface() {
     cli()
@@ -128,6 +137,65 @@ fn run_quiet_writes_storage_without_stdout() {
     let records = read_jsonl(&storage);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["comparison"]["classification"], "match");
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_compact_outputs_single_line_json() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let primary = json_command(r#"{"value":42}"#);
+    let candidate = json_command(r#"{"value":42}"#);
+
+    let output = cli()
+        .arg("run")
+        .arg("--storage-path")
+        .arg(&storage)
+        .args([
+            "--primary",
+            &primary,
+            "--candidate",
+            &candidate,
+            "--compact",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8(output).unwrap();
+    let record: Value = serde_json::from_str(stdout.trim_end()).expect("compact JSON");
+
+    assert_eq!(stdout.lines().count(), 1);
+    assert_eq!(record["comparison"]["classification"], "match");
+    assert_eq!(read_jsonl(&storage).len(), 1);
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_quiet_with_compact_writes_storage_without_stdout() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let primary = json_command(r#"{"value":42}"#);
+    let candidate = json_command(r#"{"value":42}"#);
+
+    cli()
+        .arg("run")
+        .arg("--storage-path")
+        .arg(&storage)
+        .args([
+            "--primary",
+            &primary,
+            "--candidate",
+            &candidate,
+            "--compact",
+            "--quiet",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    assert_eq!(read_jsonl(&storage).len(), 1);
     dir.close().unwrap();
 }
 
@@ -337,6 +405,250 @@ fn batch_emit_runs_outputs_jsonl_records() {
         records[1]["comparison"]["classification"],
         "suspicious_difference"
     );
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_accepts_argv_cases() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    write_batch_cases(
+        &input_path,
+        &[serde_json::json!({
+            "primary_argv": ["printf", "%s", "{\"value\":42}"],
+            "candidate_argv": ["printf", "%s", "{\"value\":42}"]
+        })],
+    );
+
+    let summary = read_json(&[
+        "batch",
+        "--input",
+        input_path.to_str().unwrap(),
+        "--storage-path",
+        &storage,
+        "--jobs",
+        "1",
+    ]);
+
+    assert_eq!(summary["total_runs"], 1);
+    assert_eq!(summary["matches"], 1);
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_accepts_secondary_argv() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    write_batch_cases(
+        &input_path,
+        &[serde_json::json!({
+            "primary_argv": ["printf", "%s", "{\"region\":\"a\",\"value\":1}"],
+            "candidate_argv": ["printf", "%s", "{\"region\":\"a\",\"value\":1}"],
+            "secondary_argv": ["printf", "%s", "{\"region\":\"b\",\"value\":1}"]
+        })],
+    );
+
+    let summary = read_json(&[
+        "batch",
+        "--input",
+        input_path.to_str().unwrap(),
+        "--storage-path",
+        &storage,
+        "--jobs",
+        "1",
+    ]);
+
+    assert_eq!(summary["reference_noise"], 1);
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_rejects_empty_argv() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    write_batch_cases(
+        &input_path,
+        &[serde_json::json!({
+            "primary_argv": [],
+            "candidate_argv": ["printf", "%s", "{\"value\":42}"]
+        })],
+    );
+
+    cli()
+        .args([
+            "batch",
+            "--input",
+            input_path.to_str().unwrap(),
+            "--storage-path",
+            &storage,
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("line 1"))
+        .stderr(predicate::str::contains("primary_argv must not be empty"));
+
+    assert!(!Path::new(&storage).exists());
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_rejects_primary_string_and_primary_argv_together() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    write_batch_cases(
+        &input_path,
+        &[serde_json::json!({
+            "primary": "printf ok",
+            "primary_argv": ["printf", "ok"],
+            "candidate_argv": ["printf", "ok"]
+        })],
+    );
+
+    cli()
+        .args([
+            "batch",
+            "--input",
+            input_path.to_str().unwrap(),
+            "--storage-path",
+            &storage,
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("line 1"))
+        .stderr(predicate::str::contains(
+            "exactly one of primary or primary_argv",
+        ));
+
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_rejects_missing_primary_command_form() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    write_batch_cases(
+        &input_path,
+        &[serde_json::json!({
+            "candidate_argv": ["printf", "%s", "{\"value\":42}"]
+        })],
+    );
+
+    cli()
+        .args([
+            "batch",
+            "--input",
+            input_path.to_str().unwrap(),
+            "--storage-path",
+            &storage,
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("line 1"))
+        .stderr(predicate::str::contains("primary command form is required"));
+
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_argv_records_match() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    write_batch_cases(
+        &input_path,
+        &[serde_json::json!({
+            "primary_argv": ["printf", "%s", "{\"value\":42}"],
+            "candidate_argv": ["printf", "%s", "{\"value\":42}"]
+        })],
+    );
+
+    read_json(&[
+        "batch",
+        "--input",
+        input_path.to_str().unwrap(),
+        "--storage-path",
+        &storage,
+        "--jobs",
+        "1",
+    ]);
+    let records = read_jsonl(&storage);
+
+    assert_eq!(records[0]["comparison"]["classification"], "match");
+    assert!(records[0]["input"]["primary_command"]
+        .as_str()
+        .unwrap()
+        .starts_with("printf "));
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_argv_candidate_diff_records_suspicious_difference() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    write_batch_cases(
+        &input_path,
+        &[serde_json::json!({
+            "primary_argv": ["printf", "%s", "{\"value\":42}"],
+            "candidate_argv": ["printf", "%s", "{\"value\":43}"]
+        })],
+    );
+
+    read_json(&[
+        "batch",
+        "--input",
+        input_path.to_str().unwrap(),
+        "--storage-path",
+        &storage,
+        "--jobs",
+        "1",
+    ]);
+    let records = read_jsonl(&storage);
+
+    assert_eq!(
+        records[0]["comparison"]["classification"],
+        "suspicious_difference"
+    );
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_default_and_custom_compare_config_classify_expected() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    write_batch_cases(
+        &input_path,
+        &[
+            serde_json::json!({
+                "primary": "printf '%s' '{\"value\":42}'",
+                "candidate": "printf '%s' '{\"value\":42}'"
+            }),
+            serde_json::json!({
+                "primary": "printf '%s' '{\"dynamic\":\"one\",\"stable\":true}'",
+                "candidate": "printf '%s' '{\"dynamic\":\"two\",\"stable\":true}'",
+                "ignored_json_paths": ["$.dynamic"]
+            }),
+        ],
+    );
+
+    let summary = read_json(&[
+        "batch",
+        "--input",
+        input_path.to_str().unwrap(),
+        "--storage-path",
+        &storage,
+        "--jobs",
+        "1",
+    ]);
+
+    assert_eq!(summary["total_runs"], 2);
+    assert_eq!(summary["matches"], 2);
     dir.close().unwrap();
 }
 
@@ -585,6 +897,40 @@ fn run_truncates_large_body_preview() {
     assert_eq!(
         record["primary"]["body"]["preview"].as_str().unwrap().len(),
         5
+    );
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_captures_large_stdout_and_stderr_without_deadlock() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let command = "python3 -c 'import sys; sys.stdout.write(\"a\" * 131072); sys.stderr.write(\"e\" * 131072)'";
+
+    let record = run_record(&storage, &["--primary", command, "--candidate", command]);
+
+    assert_eq!(record["comparison"]["classification"], "match");
+    assert_eq!(record["primary"]["body"]["size_bytes"], 131072);
+    assert_eq!(record["primary"]["stderr"]["size_bytes"], 131072);
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_streamed_candidate_body_diff_still_records_diff() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let primary = "python3 -c 'print(\"a\" * 32768, end=\"\")'";
+    let candidate = "python3 -c 'print(\"b\" * 32768, end=\"\")'";
+
+    let record = run_record(&storage, &["--primary", primary, "--candidate", candidate]);
+
+    assert_eq!(
+        record["comparison"]["classification"],
+        "suspicious_difference"
+    );
+    assert_eq!(
+        record["comparison"]["noise_filtered_diffs"][0]["kind"],
+        "body"
     );
     dir.close().unwrap();
 }

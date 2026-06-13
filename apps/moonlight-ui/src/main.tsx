@@ -125,7 +125,10 @@ function OverviewPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const httpTargets = ["moonlight", "diffy_b", "diffy_c"]
     .map((key) => httpBenchmark.targets[key])
     .filter(Boolean);
-  const cliTools = ["moonlight", "trycmd"]
+  const configuredCliTargets = cliBenchmark.config.targets?.length
+    ? cliBenchmark.config.targets
+    : Object.keys(cliBenchmark.comparisons);
+  const cliTools = configuredCliTargets
     .map((key) => [key, cliBenchmark.comparisons[key]] as const)
     .filter((entry): entry is readonly [string, CliToolComparison] => Boolean(entry[1]));
 
@@ -251,12 +254,16 @@ function OverviewPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
                 <th>Status</th>
                 <th>Suite runs</th>
                 <th>Cases/run</th>
+                <th>Targets/case</th>
                 <th>Total cases</th>
+                <th>Total target runs</th>
                 <th>Suite p50 ms</th>
                 <th>Suite p95 ms</th>
                 <th>Per-case p50 ms</th>
                 <th>Per-case p95 ms</th>
-                <th>Version</th>
+                <th>Per-target p50 ms</th>
+                <th>Per-target p95 ms</th>
+                <th>Version/Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -307,20 +314,39 @@ function HttpBenchmarkRow({ target }: { target: HttpBenchmarkTarget }) {
 }
 
 function CliBenchmarkRow({ name, comparison }: { name: string; comparison: CliToolComparison }) {
+  const targetInvocationsPerCase =
+    comparison.target_invocations_per_case ?? (name.startsWith("moonlight") ? 2 : 1);
+  const totalTargetInvocations =
+    comparison.total_target_invocations ?? comparison.total_cases * targetInvocationsPerCase;
+  const targetP50 =
+    comparison.target_invocation_latency_ms?.p50 ??
+    divideMs(comparison.case_latency_ms.p50, targetInvocationsPerCase);
+  const targetP95 =
+    comparison.target_invocation_latency_ms?.p95 ??
+    divideMs(comparison.case_latency_ms.p95, targetInvocationsPerCase);
+
   return (
     <tr>
       <td>{name}</td>
       <td>{comparison.status}</td>
       <td>{comparison.total_invocations}</td>
       <td>{comparison.cases_per_invocation}</td>
+      <td>{targetInvocationsPerCase}</td>
       <td>{comparison.total_cases}</td>
+      <td>{totalTargetInvocations}</td>
       <td>{formatMs(comparison.latency_ms.p50)}</td>
       <td>{formatMs(comparison.latency_ms.p95)}</td>
       <td>{formatMs(comparison.case_latency_ms.p50)}</td>
       <td>{formatMs(comparison.case_latency_ms.p95)}</td>
-      <td>{comparison.version}</td>
+      <td>{formatMs(targetP50)}</td>
+      <td>{formatMs(targetP95)}</td>
+      <td>{comparison.reason ?? comparison.version ?? ""}</td>
     </tr>
   );
+}
+
+function divideMs(value: number | null, denominator: number) {
+  return value === null ? null : value / denominator;
 }
 
 function LatencyCells({ latency }: { latency: PercentileSummary }) {

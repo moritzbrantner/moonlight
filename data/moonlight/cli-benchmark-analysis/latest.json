@@ -1,104 +1,604 @@
 {
   "comparisons": {
-    "moonlight": {
+    "bats": {
       "case_latency_ms": {
-        "max": 3.7997408999945037,
-        "mean": 3.5957812862307037,
-        "min": 3.416105569995125,
-        "p50": 3.616147724969778,
-        "p90": 3.7135231319771265,
-        "p95": 3.756632015985815,
-        "p99": 3.791119123192766
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
       },
-      "cases_per_invocation": 100,
+      "cases_per_invocation": 25,
       "error_count": 0,
       "latency_ms": {
-        "max": 379.97408999945037,
-        "mean": 359.57812862307037,
-        "min": 341.6105569995125,
-        "p50": 361.6147724969778,
-        "p90": 371.35231319771265,
-        "p95": 375.6632015985815,
-        "p99": 379.1119123192766
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "reason": "bats executable not found on PATH",
+      "status": "skipped",
+      "success_count": 0,
+      "target_invocation_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 0,
+      "total_invocations": 0,
+      "total_target_invocations": 0,
+      "validation_errors": [],
+      "version": null
+    },
+    "cram": {
+      "case_latency_ms": {
+        "max": 1.8253864400321618,
+        "mean": 1.7656388779287226,
+        "min": 1.721424320130609,
+        "p50": 1.7636940997908823,
+        "p90": 1.8004524155403487,
+        "p95": 1.807401761849178,
+        "p99": 1.8217895043955648
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 45.634661000804044,
+        "mean": 44.140971948218066,
+        "min": 43.035608003265224,
+        "p50": 44.09235249477206,
+        "p90": 45.01131038850872,
+        "p95": 45.18504404622945,
+        "p99": 45.544737609889125
       },
       "reason": null,
       "status": "ok",
-      "success_count": 8,
-      "total_cases": 800,
-      "total_invocations": 8,
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 1.8253864400321618,
+        "mean": 1.7656388779287226,
+        "min": 1.721424320130609,
+        "p50": 1.7636940997908823,
+        "p90": 1.8004524155403487,
+        "p95": 1.807401761849178,
+        "p99": 1.8217895043955648
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 500,
+      "validation_errors": [],
+      "version": "Cram CLI testing framework (version 0.7)"
+    },
+    "insta": {
+      "case_latency_ms": {
+        "max": 18.570854279678315,
+        "mean": 16.302013426000485,
+        "min": 15.462014839868061,
+        "p50": 16.13831224007299,
+        "p90": 16.877778744325045,
+        "p95": 17.661971154244384,
+        "p99": 18.389077654591528
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 464.2713569919579,
+        "mean": 407.55033565001213,
+        "min": 386.55037099670153,
+        "p50": 403.4578060018248,
+        "p90": 421.9444686081261,
+        "p95": 441.5492788561096,
+        "p99": 459.7269413647882
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 18.570854279678315,
+        "mean": 16.302013426000485,
+        "min": 15.462014839868061,
+        "p50": 16.13831224007299,
+        "p90": 16.877778744325045,
+        "p95": 17.661971154244384,
+        "p99": 18.389077654591528
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 500,
+      "validation_errors": [],
+      "version": "insta 1.48.0 via cargo 1.96.0 (30a34c682 2026-05-25)"
+    },
+    "moonlight": {
+      "case_latency_ms": {
+        "max": 5.504631719668396,
+        "mean": 4.401163820002694,
+        "min": 4.026982720242813,
+        "p50": 4.320159239869099,
+        "p90": 4.607875671877991,
+        "p95": 4.661579413514119,
+        "p99": 5.3360212584375395
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 137.6157929917099,
+        "mean": 110.02909550006734,
+        "min": 100.67456800607033,
+        "p50": 108.00398099672748,
+        "p90": 115.19689179694979,
+        "p95": 116.53948533785298,
+        "p99": 133.40053146093848
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 2.752315859834198,
+        "mean": 2.200581910001347,
+        "min": 2.0134913601214066,
+        "p50": 2.1600796199345496,
+        "p90": 2.3039378359389957,
+        "p95": 2.3307897067570593,
+        "p99": 2.6680106292187697
+      },
+      "target_invocations_per_case": 2,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 1000,
       "validation_errors": [],
       "version": "target/release/moonlight-cli batch"
     },
-    "trycmd": {
+    "moonlight-argv": {
       "case_latency_ms": {
-        "max": 1.8809317499835743,
-        "mean": 1.862327019989607,
-        "min": 1.8239367700152798,
-        "p50": 1.8654967999827932,
-        "p90": 1.87876467598835,
-        "p95": 1.8798482129859622,
-        "p99": 1.8807150425840518
+        "max": 1.5047724801115692,
+        "mean": 1.2512039160064887,
+        "min": 1.017431000364013,
+        "p50": 1.219212039723061,
+        "p90": 1.4522292758920232,
+        "p95": 1.5028003563347738,
+        "p99": 1.5043780553562103
       },
-      "cases_per_invocation": 100,
+      "cases_per_invocation": 25,
       "error_count": 0,
       "latency_ms": {
-        "max": 188.09317499835743,
-        "mean": 186.2327019989607,
-        "min": 182.39367700152798,
-        "p50": 186.54967999827932,
-        "p90": 187.876467598835,
-        "p95": 187.98482129859622,
-        "p99": 188.07150425840518
+        "max": 37.61931200278923,
+        "mean": 31.280097900162218,
+        "min": 25.435775009100325,
+        "p50": 30.480300993076526,
+        "p90": 36.305731897300575,
+        "p95": 37.570008908369346,
+        "p99": 37.60945138390525
       },
       "reason": null,
       "status": "ok",
-      "success_count": 8,
-      "total_cases": 800,
-      "total_invocations": 8,
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 0.7523862400557846,
+        "mean": 0.6256019580032444,
+        "min": 0.5087155001820065,
+        "p50": 0.6096060198615305,
+        "p90": 0.7261146379460116,
+        "p95": 0.7514001781673869,
+        "p99": 0.7521890276781051
+      },
+      "target_invocations_per_case": 2,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 1000,
+      "validation_errors": [],
+      "version": "target/release/moonlight-cli batch argv"
+    },
+    "shellspec": {
+      "case_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "reason": "shellspec executable not found on PATH",
+      "status": "skipped",
+      "success_count": 0,
+      "target_invocation_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 0,
+      "total_invocations": 0,
+      "total_target_invocations": 0,
+      "validation_errors": [],
+      "version": null
+    },
+    "trycmd": {
+      "case_latency_ms": {
+        "max": 2.897798119811341,
+        "mean": 2.665807614044752,
+        "min": 2.1465189999435097,
+        "p50": 2.6582165202125907,
+        "p90": 2.8845214400207624,
+        "p95": 2.893013653898379,
+        "p99": 2.896841226628749
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 72.44495299528353,
+        "mean": 66.6451903511188,
+        "min": 53.66297499858774,
+        "p50": 66.45541300531477,
+        "p90": 72.11303600051906,
+        "p95": 72.32534134745947,
+        "p99": 72.42103066571872
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 2.897798119811341,
+        "mean": 2.665807614044752,
+        "min": 2.1465189999435097,
+        "p50": 2.6582165202125907,
+        "p90": 2.8845214400207624,
+        "p95": 2.893013653898379,
+        "p99": 2.896841226628749
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 500,
       "validation_errors": [],
       "version": "trycmd 1.2.0 via cargo 1.96.0 (30a34c682 2026-05-25)"
     }
   },
   "config": {
-    "comparison_cases": 100,
-    "comparison_runs": 8,
+    "comparison_cases": 25,
+    "comparison_runs": 20,
     "concurrency": 1,
-    "requests": 1,
+    "requests": 200,
     "scenarios": [
-      "match"
+      "match",
+      "candidate-diff",
+      "noise",
+      "noisy-regression",
+      "status-regression",
+      "stderr-diff",
+      "large-body",
+      "nested-json-diff",
+      "ignored-dynamic-json",
+      "large-json-match",
+      "large-json-diff",
+      "large-stderr-match",
+      "serial-targets",
+      "truncated-capture"
     ],
     "targets": [
       "moonlight",
-      "trycmd"
+      "moonlight-argv",
+      "trycmd",
+      "insta",
+      "cram",
+      "bats",
+      "shellspec"
     ],
-    "warmup": 3
+    "warmup": 20
   },
   "environment": {
     "binary": "target/release/moonlight-cli",
     "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
-    "git_sha": "fa6688fa2d660f57363463348c035f1b4bebeb93",
+    "git_sha": "b86cc427b5eb83ce5907d050630964daa4259927",
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)"
   },
-  "generated_at": "2026-06-13T16:44:51.130686+00:00",
+  "generated_at": "2026-06-13T22:22:38.468250+00:00",
   "scenarios": {
-    "match": {
+    "candidate-diff": {
       "classifications": {
-        "match": 1
+        "suspicious_difference": 200
       },
       "error_count": 0,
       "latency_ms": {
-        "max": 19.602027998189442,
-        "mean": 19.602027998189442,
-        "min": 19.602027998189442,
-        "p50": 19.602027998189442,
-        "p90": 19.602027998189442,
-        "p95": 19.602027998189442,
-        "p99": 19.602027998189442
+        "max": 19.923126994399354,
+        "mean": 18.01570334486314,
+        "min": 16.63585899223108,
+        "p50": 17.97250950767193,
+        "p90": 18.9059380965773,
+        "p95": 19.24081319448305,
+        "p99": 19.565339494438373
       },
-      "records_written": 1,
-      "storage_bytes": 1674,
-      "success_count": 1,
-      "total_invocations": 1,
+      "records_written": 200,
+      "storage_bytes": 323600,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "ignored-dynamic-json": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 30.476273997919634,
+        "mean": 20.487437755145947,
+        "min": 17.60729700617958,
+        "p50": 19.557633997465018,
+        "p90": 23.665269791672472,
+        "p95": 25.501738606544663,
+        "p99": 28.972318124287984
+      },
+      "records_written": 200,
+      "storage_bytes": 281197,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "large-body": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 68.27350999810733,
+        "mean": 50.095921490428736,
+        "min": 44.33651699218899,
+        "p50": 49.16416599735385,
+        "p90": 56.29720850411104,
+        "p95": 58.19612500345101,
+        "p99": 65.2166416993714
+      },
+      "records_written": 200,
+      "storage_bytes": 3538797,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "large-json-diff": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 105.77863699290901,
+        "mean": 56.92569435952464,
+        "min": 47.88049799390137,
+        "p50": 54.02162550308276,
+        "p90": 64.71082390780794,
+        "p95": 83.98469465610103,
+        "p99": 104.40267079786281
+      },
+      "records_written": 200,
+      "storage_bytes": 51817197,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "large-json-match": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 65.8352600003127,
+        "mean": 47.510194239221164,
+        "min": 44.98956601310056,
+        "p50": 46.576053493481595,
+        "p90": 50.9188057956635,
+        "p95": 52.96534520966814,
+        "p99": 60.14560360184984
+      },
+      "records_written": 200,
+      "storage_bytes": 14550800,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "large-stderr-match": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 140.34514100058004,
+        "mean": 51.30912889035244,
+        "min": 43.87548899103422,
+        "p50": 47.491085999354254,
+        "p90": 60.69840959389694,
+        "p95": 67.3765942447062,
+        "p99": 105.12028404133156
+      },
+      "records_written": 200,
+      "storage_bytes": 3551601,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "match": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 29.150718997698277,
+        "mean": 21.558725364957354,
+        "min": 18.16099999996368,
+        "p50": 21.294518999638967,
+        "p90": 23.577676501008682,
+        "p95": 25.212905448279344,
+        "p99": 27.257133111124844
+      },
+      "records_written": 200,
+      "storage_bytes": 334800,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "nested-json-diff": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 30.330380002851598,
+        "mean": 18.945201714523137,
+        "min": 16.854028988745995,
+        "p50": 18.770056500216015,
+        "p90": 19.84849570435472,
+        "p95": 20.747779250814347,
+        "p99": 23.742337969888432
+      },
+      "records_written": 200,
+      "storage_bytes": 395597,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "noise": {
+      "classifications": {
+        "reference_noise": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 28.76374000334181,
+        "mean": 19.504706579973572,
+        "min": 17.60086500144098,
+        "p50": 19.115240502287634,
+        "p90": 21.14476888818899,
+        "p95": 22.247735092241783,
+        "p99": 24.737400526646503
+      },
+      "records_written": 200,
+      "storage_bytes": 386597,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "noisy-regression": {
+      "classifications": {
+        "suspicious_with_noise": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 41.00311100773979,
+        "mean": 21.059449749955093,
+        "min": 18.02018500166014,
+        "p50": 20.039866998558864,
+        "p90": 24.547951201384418,
+        "p95": 27.426712698070318,
+        "p99": 32.775927810580434
+      },
+      "records_written": 200,
+      "storage_bytes": 446600,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "serial-targets": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 48.58144799072761,
+        "mean": 33.98260725502041,
+        "min": 30.86265099409502,
+        "p50": 33.404421497834846,
+        "p90": 36.094681805116124,
+        "p95": 39.82120824075536,
+        "p99": 44.52864714345194
+      },
+      "records_written": 200,
+      "storage_bytes": 262800,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "status-regression": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 26.26528601103928,
+        "mean": 18.39481089009496,
+        "min": 16.68298699951265,
+        "p50": 18.176904995925725,
+        "p90": 19.445879000704732,
+        "p95": 20.537796647840878,
+        "p99": 23.991071744094366
+      },
+      "records_written": 200,
+      "storage_bytes": 319597,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "stderr-diff": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 21.083351006382145,
+        "mean": 17.998012054522405,
+        "min": 16.48666699475143,
+        "p50": 17.880050996609498,
+        "p90": 19.02320108929416,
+        "p95": 19.301105542399455,
+        "p99": 19.929780434467826
+      },
+      "records_written": 200,
+      "storage_bytes": 337200,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "truncated-capture": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 147.18580899352673,
+        "mean": 52.668177994855796,
+        "min": 43.84510101226624,
+        "p50": 47.742043003381696,
+        "p90": 62.07349490287015,
+        "p95": 84.84962000002251,
+        "p99": 102.4672076651768
+      },
+      "records_written": 200,
+      "storage_bytes": 276402,
+      "success_count": 200,
+      "total_invocations": 200,
       "validation_errors": []
     }
   }

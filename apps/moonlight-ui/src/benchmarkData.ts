@@ -43,9 +43,12 @@ export type CliToolComparison = {
   total_invocations: number;
   cases_per_invocation: number;
   total_cases: number;
+  target_invocations_per_case?: number;
+  total_target_invocations?: number;
   latency_ms: PercentileSummary;
   case_latency_ms: PercentileSummary;
-  version: string;
+  target_invocation_latency_ms?: PercentileSummary;
+  version: string | null;
   reason: string | null;
 };
 

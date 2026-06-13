@@ -80,7 +80,7 @@ cargo run -p moonlight-cli -- run \
   --candidate 'printf "{\"value\":43}\n"'
 ```
 
-`run` compares two or three target commands: primary, candidate, and optionally secondary. Targets run concurrently by default. Use `--serial-targets` when command order matters, and `--quiet` when only the stored JSONL record is needed:
+`run` compares two or three target commands: primary, candidate, and optionally secondary. Targets run concurrently by default. Use `--serial-targets` when command order matters, `--compact` when a machine consumer wants one-line JSON on stdout, and `--quiet` when only the stored JSONL record is needed:
 
 ```sh
 cargo run -p moonlight-cli -- run \
@@ -101,7 +101,17 @@ JSONL
 cargo run -p moonlight-cli -- batch --input cases.jsonl --jobs 8
 ```
 
-Each JSONL case accepts `primary`, `candidate`, optional `secondary`, optional `max_body_capture_bytes`, optional `ignored_json_paths`, optional `ignored_headers`, and optional `ignore_stderr`. Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or `--emit-runs` to print compact JSONL run records as cases complete.
+Each JSONL case accepts `primary`, `candidate`, optional `secondary`, optional `max_body_capture_bytes`, optional `ignored_json_paths`, optional `ignored_headers`, and optional `ignore_stderr`. Shell string commands remain the default and run through `sh -lc`.
+
+Trusted deterministic batch fixtures can use direct argv fields to avoid shell startup and parsing:
+
+```json
+{"primary_argv":["printf","%s\n","{\"value\":42}"],"candidate_argv":["printf","%s\n","{\"value\":42}"]}
+```
+
+For each target role, provide exactly one form: `primary` or `primary_argv`, `candidate` or `candidate_argv`, and optionally `secondary` or `secondary_argv`. Argv arrays must be non-empty. Stored CLI run input remains backward compatible by recording a display string for argv commands.
+
+Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or `--emit-runs` to print compact JSONL run records as cases complete.
 
 The CLI stores comparison runs in the same JSONL format as the HTTP proxy. Use `cargo run -p moonlight-cli -- list` or `cargo run -p moonlight-cli -- stats` to inspect them.
 
@@ -213,16 +223,22 @@ scripts/moonlight-cli-benchmark.sh
 
 The scenario runner builds the release CLI binary, invokes deterministic local command comparisons, validates the JSONL records and classification counts, and writes reports to:
 
-- `data/moonlight/cli-benchmark/latest.json`
-- `data/moonlight/cli-benchmark/latest.md`
+- `data/moonlight/cli-benchmark-analysis/latest.json`
+- `data/moonlight/cli-benchmark-analysis/latest.md`
 
 The report also includes a tool comparison table for simple command-output checks:
 
 - `moonlight`, measured through `moonlight-cli batch` with primary/candidate command cases.
+- `moonlight-argv`, measured through `moonlight-cli batch` with direct argv primary/candidate cases.
 - `trycmd`, measured through a generated throwaway Cargo test harness.
+- `insta`, measured through a generated throwaway Cargo test harness with inline snapshots.
 - `cram`, measured when a `cram` executable is available on `PATH`; otherwise it is reported as skipped.
+- `bats`, measured when a `bats` executable is available on `PATH`; otherwise it is reported as skipped.
+- `shellspec`, measured when a `shellspec` executable is available on `PATH`; otherwise it is reported as skipped.
 
-`moonlight-cli batch` still compares primary and candidate behavior for every case, while `trycmd` generally checks one command against a stored stdout/stderr snapshot.
+`moonlight-cli batch` still compares primary and candidate behavior for every case, while snapshot-style targets generally check one command against stored stdout/stderr expectations. The report keeps raw per-case latency and also includes normalized per-target latency columns so Moonlight's two target invocations per case are visible.
+
+Performance improvement candidates for the CLI and shared core are tracked in [`cli-performance-ideas.md`](cli-performance-ideas.md).
 
 Useful overrides:
 
@@ -230,7 +246,7 @@ Useful overrides:
 BENCHMARK_REQUESTS=500 BENCHMARK_CONCURRENCY=1 scripts/moonlight-cli-benchmark.sh
 BENCHMARK_COMPARISON_RUNS=50 BENCHMARK_COMPARISON_CASES=100 scripts/moonlight-cli-benchmark.sh
 python3 scripts/moonlight-cli-benchmark.py --bin target/release/moonlight-cli --scenario candidate-diff
-python3 scripts/moonlight-cli-benchmark.py --target moonlight --target trycmd --target cram
+python3 scripts/moonlight-cli-benchmark.py --target moonlight --target moonlight-argv --target trycmd --target insta --target cram --target bats --target shellspec
 ```
 
 ## Admin API
