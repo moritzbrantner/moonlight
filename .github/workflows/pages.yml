@@ -1,0 +1,33 @@
+name: Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+  pages: write
+  id-token: write
+  packages: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-pages:
+    name: Deploy GitHub Pages example
+    uses: moritzbrantner/reusable-workflows/.github/workflows/deploy-pages.yml@workflow-standard-v1.2
+    with:
+      node_version: "24"
+      bun_version: "1.3.14"
+      install_command: bun install --frozen-lockfile
+      build_command: VITE_MOONLIGHT_DEMO=true VITE_MOONLIGHT_BASE_PATH=/moonlight/ bun run build
+      artifact_path: apps/moonlight-ui/dist
+      timeout_minutes: 10
+      bun_cache_dependency_path: bun.lock
+      concurrency_group: pages
+      cancel_in_progress: false

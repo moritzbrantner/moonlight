@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Activity, AlertTriangle, CheckCircle2, Clock, RefreshCw, Settings } from "lucide-react";
-import { api } from "./api";
+import { api, usesDemoData } from "./api";
 import type { AppConfig, Classification, ComparisonRun, ComparisonRunListItem, DiffEntry, RunInput, StatsSummary, TargetObservation } from "./types";
 import "./styles.css";
 
@@ -69,6 +69,7 @@ function App() {
       </header>
 
       {error && <div className="banner">{error}</div>}
+      {usesDemoData && <div className="banner muted">Demo data for the GitHub Pages example.</div>}
       {loading && <div className="banner muted">Loading admin API data...</div>}
 
       <section className="dashboard">

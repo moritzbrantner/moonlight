@@ -48,6 +48,28 @@ bun run dev
 
 Open `http://127.0.0.1:5173`.
 
+## GitHub Pages Example
+
+The repository includes a static GitHub Pages example workflow at `.github/workflows/pages.yml`. It deploys the Vite UI with bundled demo comparison runs, so the page works without a live Moonlight admin API.
+
+The workflow uses the shared Pages deployment workflow from `moritzbrantner/reusable-workflows`:
+
+```yaml
+jobs:
+  deploy-pages:
+    uses: moritzbrantner/reusable-workflows/.github/workflows/deploy-pages.yml@workflow-standard-v1.2
+    with:
+      node_version: "24"
+      bun_version: "1.3.14"
+      install_command: bun install --frozen-lockfile
+      build_command: VITE_MOONLIGHT_DEMO=true VITE_MOONLIGHT_BASE_PATH=/moonlight/ bun run build
+      artifact_path: apps/moonlight-ui/dist
+      timeout_minutes: 10
+      bun_cache_dependency_path: bun.lock
+```
+
+For a different repository name, change `VITE_MOONLIGHT_BASE_PATH` to the repository path used by GitHub Pages. To deploy against a live API instead of the bundled example data, remove `VITE_MOONLIGHT_DEMO=true` and set `VITE_MOONLIGHT_API_URL` to the public admin API origin.
+
 Run a CLI comparison:
 
 ```sh
@@ -55,6 +77,29 @@ cargo run -p moonlight-cli -- run \
   --primary 'printf "{\"value\":42}\n"' \
   --candidate 'printf "{\"value\":43}\n"'
 ```
+
+`run` compares two or three target commands: primary, candidate, and optionally secondary. Targets run concurrently by default. Use `--serial-targets` when command order matters, and `--quiet` when only the stored JSONL record is needed:
+
+```sh
+cargo run -p moonlight-cli -- run \
+  --primary 'printf primary\n' \
+  --candidate 'printf candidate\n' \
+  --serial-targets \
+  --quiet
+```
+
+For trycmd-like command suites, use `batch` so many cases run inside one `moonlight-cli` process with bounded concurrency:
+
+```sh
+cat > cases.jsonl <<'JSONL'
+{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":42}'"}
+{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":43}'"}
+JSONL
+
+cargo run -p moonlight-cli -- batch --input cases.jsonl --jobs 8
+```
+
+Each JSONL case accepts `primary`, `candidate`, optional `secondary`, optional `max_body_capture_bytes`, optional `ignored_json_paths`, optional `ignored_headers`, and optional `ignore_stderr`. Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or `--emit-runs` to print compact JSONL run records as cases complete.
 
 The CLI stores comparison runs in the same JSONL format as the HTTP proxy. Use `cargo run -p moonlight-cli -- list` or `cargo run -p moonlight-cli -- stats` to inspect them.
 
@@ -171,9 +216,11 @@ The scenario runner builds the release CLI binary, invokes deterministic local c
 
 The report also includes a tool comparison table for simple command-output checks:
 
-- `moonlight`, always measured through `moonlight-cli run` with primary/candidate commands.
+- `moonlight`, measured through `moonlight-cli batch` with primary/candidate command cases.
 - `trycmd`, measured through a generated throwaway Cargo test harness.
 - `cram`, measured when a `cram` executable is available on `PATH`; otherwise it is reported as skipped.
+
+`moonlight-cli batch` still compares primary and candidate behavior for every case, while `trycmd` generally checks one command against a stored stdout/stderr snapshot.
 
 Useful overrides:
 

@@ -328,9 +328,10 @@ def summarize_scenario(binary, output_dir, scenario, warmup, requests, concurren
         validation_errors.append(
             f"expected {success_count} JSONL records, found {len(records)}"
         )
-    if classifications != {expected: success_count}:
+    expected_classifications = {} if success_count == 0 else {expected: success_count}
+    if classifications != expected_classifications:
         validation_errors.append(
-            f"expected classifications {{{expected!r}: {success_count}}}, found {classifications}"
+            f"expected classifications {expected_classifications}, found {classifications}"
         )
     if stats.get("total_runs") != len(records):
         validation_errors.append(
@@ -506,45 +507,46 @@ def summarize_moonlight_comparison(binary, output_dir, cases, warmup, runs, conc
     suite_dir.mkdir(parents=True, exist_ok=True)
     for stale_storage in suite_dir.glob("*.jsonl"):
         stale_storage.unlink()
-    primary = comparison_case_command()
-    candidate = comparison_case_command()
-    args = ["--primary", primary, "--candidate", candidate]
+    input_path = suite_dir / "cases.jsonl"
+    case = {
+        "primary": comparison_case_command(),
+        "candidate": comparison_case_command(),
+    }
+    input_path.write_text(
+        "\n".join(json.dumps(case, sort_keys=True) for _ in range(cases)) + "\n",
+        encoding="utf-8",
+    )
 
     def run_suite():
         storage = suite_dir / f"{uuid.uuid4()}.jsonl"
-        for _ in range(cases):
-            result = run_cli_args_once(binary, storage, args)
-            if result["returncode"] != 0:
-                return result
-            record = result["record"]
-            if record is None or record["comparison"]["classification"] != "match":
-                result["returncode"] = 1
-                result["stderr"] = "moonlight comparison did not produce match"
-                return result
+        result = run_command_once(
+            [
+                binary,
+                "batch",
+                "--input",
+                str(input_path),
+                "--storage-path",
+                str(storage),
+                "--quiet",
+            ]
+        )
+        if result["returncode"] != 0:
+            return result
         records = read_jsonl(storage)
         if len(records) != cases:
-            return {
-                "returncode": 1,
-                "latency_ms": 0,
-                "stdout": "",
-                "stderr": f"expected {cases} JSONL records, found {len(records)}",
-            }
-        return {"returncode": 0, "latency_ms": 0, "stdout": "", "stderr": ""}
-
-    def command_factory():
-        def command():
-            started = time.perf_counter()
-            result = run_suite()
-            result["latency_ms"] = (time.perf_counter() - started) * 1000
+            result["returncode"] = 1
+            result["stderr"] = f"expected {cases} JSONL records, found {len(records)}"
             return result
-
-        return command
+        classifications = classify_counts(records)
+        if classifications != {"match": cases}:
+            result["returncode"] = 1
+            result["stderr"] = f"expected {cases} match records, found {classifications}"
+            return result
+        return result
 
     def runner():
-        return command_factory()()
+        return run_suite()
 
-    # `run_command_many` executes external commands; moonlight's comparison suite
-    # is a Python-level loop so it can validate each JSON record as it goes.
     def many(total):
         results = []
         if total == 0:
@@ -621,7 +623,7 @@ def summarize_comparisons(binary, output_dir, targets, cases, warmup, runs, conc
         comparison = summarize_moonlight_comparison(
             str(binary), output_dir, cases, warmup, runs, concurrency
         )
-        comparison["version"] = str(binary)
+        comparison["version"] = f"{binary} batch"
         comparisons["moonlight"] = comparison
 
     if "cram" in targets:

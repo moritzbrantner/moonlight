@@ -4,9 +4,9 @@ use std::{
     sync::Arc,
 };
 use tokio::{
-    fs::{self, OpenOptions},
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    sync::RwLock,
+    fs::{self, File, OpenOptions},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
+    sync::{Mutex, RwLock},
 };
 use uuid::Uuid;
 
@@ -15,6 +15,41 @@ pub struct Storage {
     write_path: PathBuf,
     scan_dir: PathBuf,
     runs: Arc<RwLock<Vec<ComparisonRun>>>,
+}
+
+#[derive(Clone)]
+pub struct RunWriter {
+    file: Arc<Mutex<BufWriter<File>>>,
+}
+
+impl RunWriter {
+    pub async fn open(write_path: PathBuf) -> anyhow::Result<Self> {
+        if let Some(parent) = write_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(write_path)
+            .await?;
+
+        Ok(Self {
+            file: Arc::new(Mutex::new(BufWriter::new(file))),
+        })
+    }
+
+    pub async fn append(&self, run: &ComparisonRun) -> anyhow::Result<()> {
+        let line = serde_json::to_string(run)?;
+        let mut file = self.file.lock().await;
+        file.write_all(line.as_bytes()).await?;
+        file.write_all(b"\n").await?;
+        Ok(())
+    }
+
+    pub async fn flush(&self) -> anyhow::Result<()> {
+        self.file.lock().await.flush().await?;
+        Ok(())
+    }
 }
 
 impl Storage {
@@ -36,15 +71,9 @@ impl Storage {
     }
 
     pub async fn insert(&self, run: ComparisonRun) -> anyhow::Result<()> {
-        let line = serde_json::to_string(&run)?;
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.write_path)
-            .await?;
-        file.write_all(line.as_bytes()).await?;
-        file.write_all(b"\n").await?;
-        file.flush().await?;
+        let writer = RunWriter::open(self.write_path.clone()).await?;
+        writer.append(&run).await?;
+        writer.flush().await?;
         self.runs.write().await.push(run);
         Ok(())
     }
@@ -237,6 +266,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn run_writer_creates_parent_directory() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("nested").join("cli-runs.jsonl");
+
+        let writer = RunWriter::open(path.clone()).await.unwrap();
+        writer
+            .append(&run("writer", 1, Classification::Match, false))
+            .await
+            .unwrap();
+        writer.flush().await.unwrap();
+
+        assert!(path.exists());
+    }
+
+    #[tokio::test]
+    async fn run_writer_appends_without_loading_existing_files() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("cli-runs.jsonl");
+        std::fs::write(dir.path().join("corrupt.jsonl"), "not-json\n").unwrap();
+
+        let writer = RunWriter::open(path.clone()).await.unwrap();
+        writer
+            .append(&run("writer", 1, Classification::Match, false))
+            .await
+            .unwrap();
+        writer.flush().await.unwrap();
+
+        let lines = std::fs::read_to_string(path).unwrap();
+        assert_eq!(lines.lines().count(), 1);
+    }
+
+    #[tokio::test]
     async fn load_skips_empty_and_corrupt_jsonl_lines() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("http-runs.jsonl");
@@ -305,6 +366,37 @@ mod tests {
         assert_eq!(stats.total_runs, 2);
         assert_eq!(stats.matches, 1);
         assert_eq!(stats.reference_noise, 1);
+    }
+
+    #[tokio::test]
+    async fn storage_load_still_scans_directory_for_admin_views() {
+        let dir = tempdir().unwrap();
+        let http_path = dir.path().join("http-runs.jsonl");
+        let cli_path = dir.path().join("cli-runs.jsonl");
+        std::fs::write(
+            &http_path,
+            format!(
+                "{}\n",
+                serde_json::to_string(&run("http", 1, Classification::Match, false)).unwrap()
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            &cli_path,
+            format!(
+                "{}\n",
+                serde_json::to_string(&run("cli", 2, Classification::SuspiciousDifference, false))
+                    .unwrap()
+            ),
+        )
+        .unwrap();
+
+        let storage = Storage::load(http_path).await.unwrap();
+        let stats = storage.stats().await;
+
+        assert_eq!(stats.total_runs, 2);
+        assert_eq!(stats.matches, 1);
+        assert_eq!(stats.suspicious_differences, 1);
     }
 
     #[tokio::test]

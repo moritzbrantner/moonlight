@@ -1122,6 +1122,7 @@ dependencies = [
  "chrono",
  "clap",
  "criterion",
+ "futures",
  "moonlight-core",
  "predicates",
  "serde",

@@ -2,7 +2,13 @@ use assert_cmd::prelude::*;
 use assert_fs::TempDir;
 use predicates::prelude::*;
 use serde_json::Value;
-use std::{path::Path, process::Command};
+use std::{
+    fs,
+    io::Write,
+    path::Path,
+    process::{Command, Stdio},
+    time::Instant,
+};
 use uuid::Uuid;
 
 fn cli() -> Command {
@@ -42,6 +48,15 @@ fn read_json(args: &[&str]) -> Value {
     serde_json::from_slice(&output).expect("stdout should be JSON")
 }
 
+fn read_jsonl(path: &str) -> Vec<Value> {
+    let content = fs::read_to_string(path).expect("storage should be readable");
+    content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).expect("storage line should be JSON"))
+        .collect()
+}
+
 #[test]
 fn help_prints_command_surface() {
     cli()
@@ -49,6 +64,7 @@ fn help_prints_command_surface() {
         .assert()
         .success()
         .stdout(predicate::str::contains("run"))
+        .stdout(predicate::str::contains("batch"))
         .stdout(predicate::str::contains("list"))
         .stdout(predicate::str::contains("stats"))
         .stdout(predicate::str::contains("show"));
@@ -94,6 +110,74 @@ fn run_records_match() {
 }
 
 #[test]
+fn run_quiet_writes_storage_without_stdout() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let primary = json_command(r#"{"value":42}"#);
+    let candidate = json_command(r#"{"value":42}"#);
+
+    cli()
+        .arg("run")
+        .arg("--storage-path")
+        .arg(&storage)
+        .args(["--primary", &primary, "--candidate", &candidate, "--quiet"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let records = read_jsonl(&storage);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["comparison"]["classification"], "match");
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_serial_targets_preserves_order() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let order_path = dir.path().join("order.txt");
+    let order = order_path.to_string_lossy();
+    let primary = format!("printf '%s\\n' primary >> '{order}'");
+    let candidate = format!("printf '%s\\n' candidate >> '{order}'");
+
+    run_record(
+        &storage,
+        &[
+            "--primary",
+            &primary,
+            "--candidate",
+            &candidate,
+            "--serial-targets",
+        ],
+    );
+
+    assert_eq!(
+        fs::read_to_string(order_path).unwrap(),
+        "primary\ncandidate\n"
+    );
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_parallel_targets_is_default() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let primary = "sleep 0.5; printf '%s\\n' ok";
+    let candidate = "sleep 0.5; printf '%s\\n' ok";
+
+    let started = Instant::now();
+    let record = run_record(&storage, &["--primary", primary, "--candidate", candidate]);
+    let elapsed = started.elapsed();
+
+    assert_eq!(record["comparison"]["classification"], "match");
+    assert!(
+        elapsed.as_millis() < 900,
+        "expected parallel target execution, elapsed {elapsed:?}"
+    );
+    dir.close().unwrap();
+}
+
+#[test]
 fn run_records_suspicious_difference() {
     let dir = TempDir::new().unwrap();
     let storage = storage_path(&dir);
@@ -113,6 +197,195 @@ fn run_records_suspicious_difference() {
         record["comparison"]["noise_filtered_diffs"][0]["path"],
         "$.value"
     );
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_records_multiple_cases() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    fs::write(
+        &input_path,
+        [
+            r#"{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":42}'"}"#,
+            r#"{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":43}'"}"#,
+            r#"{"primary":"printf '%s\n' '{\"region\":\"a\",\"value\":1}'","candidate":"printf '%s\n' '{\"region\":\"a\",\"value\":1}'","secondary":"printf '%s\n' '{\"region\":\"b\",\"value\":1}'"}"#,
+        ]
+        .join("\n"),
+    )
+    .unwrap();
+
+    let summary = read_json(&[
+        "batch",
+        "--input",
+        input_path.to_str().unwrap(),
+        "--storage-path",
+        &storage,
+        "--jobs",
+        "1",
+    ]);
+
+    assert_eq!(summary["total_runs"], 3);
+    assert_eq!(summary["matches"], 1);
+    assert_eq!(summary["suspicious_differences"], 1);
+    assert_eq!(summary["reference_noise"], 1);
+    assert_eq!(read_jsonl(&storage).len(), 3);
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_reads_stdin() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let mut child = cli()
+        .args(["batch", "--storage-path", &storage, "--jobs", "1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn moonlight-cli");
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(
+            br#"{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":42}'"}"#,
+        )
+        .unwrap();
+    let output = child.wait_with_output().expect("wait for moonlight-cli");
+    assert!(
+        output.status.success(),
+        "moonlight-cli failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let summary: Value = serde_json::from_slice(&output.stdout).expect("summary should be JSON");
+
+    assert_eq!(summary["total_runs"], 1);
+    assert_eq!(summary["matches"], 1);
+    assert_eq!(read_jsonl(&storage).len(), 1);
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_quiet_suppresses_stdout() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    fs::write(
+        &input_path,
+        r#"{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":42}'"}"#,
+    )
+    .unwrap();
+
+    cli()
+        .args([
+            "batch",
+            "--input",
+            input_path.to_str().unwrap(),
+            "--storage-path",
+            &storage,
+            "--quiet",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    assert_eq!(read_jsonl(&storage).len(), 1);
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_emit_runs_outputs_jsonl_records() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    fs::write(
+        &input_path,
+        [
+            r#"{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":42}'"}"#,
+            r#"{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":43}'"}"#,
+        ]
+        .join("\n"),
+    )
+    .unwrap();
+
+    let output = cli()
+        .args([
+            "batch",
+            "--input",
+            input_path.to_str().unwrap(),
+            "--storage-path",
+            &storage,
+            "--emit-runs",
+            "--jobs",
+            "1",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let lines = String::from_utf8(output).unwrap();
+    let records: Vec<Value> = lines
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("emitted line should be JSON"))
+        .collect();
+
+    assert_eq!(records.len(), 2);
+    assert_eq!(records[0]["comparison"]["classification"], "match");
+    assert_eq!(
+        records[1]["comparison"]["classification"],
+        "suspicious_difference"
+    );
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_invalid_json_exits_nonzero_and_writes_no_records() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    fs::write(&input_path, "not-json\n").unwrap();
+
+    cli()
+        .args([
+            "batch",
+            "--input",
+            input_path.to_str().unwrap(),
+            "--storage-path",
+            &storage,
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("line 1"));
+
+    assert!(!Path::new(&storage).exists());
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_jobs_one_is_valid() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    fs::write(
+        &input_path,
+        r#"{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":42}'"}"#,
+    )
+    .unwrap();
+
+    let summary = read_json(&[
+        "batch",
+        "--input",
+        input_path.to_str().unwrap(),
+        "--storage-path",
+        &storage,
+        "--jobs",
+        "1",
+    ]);
+
+    assert_eq!(summary["jobs"], 1);
+    assert_eq!(summary["total_runs"], 1);
     dir.close().unwrap();
 }
 

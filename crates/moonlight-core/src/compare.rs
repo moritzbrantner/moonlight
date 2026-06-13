@@ -272,6 +272,10 @@ fn diff_bodies(
     config: &CompareConfig,
     diffs: &mut Vec<DiffEntry>,
 ) {
+    if primary.body_bytes == other.body_bytes {
+        return;
+    }
+
     let primary_json = serde_json::from_slice::<Value>(&primary.body_bytes);
     let other_json = serde_json::from_slice::<Value>(&other.body_bytes);
 
@@ -307,6 +311,10 @@ fn diff_stderr(
     if config.ignore_stderr {
         return;
     }
+    if primary.stderr_bytes == other.stderr_bytes {
+        return;
+    }
+
     let primary_text = normalize_text(&primary.stderr_bytes);
     let other_text = normalize_text(&other.stderr_bytes);
     if primary_text != other_text {
@@ -486,6 +494,15 @@ mod tests {
             &[("content-type", "application/json")],
             r#"{"ok":true}"#,
         );
+        let result = compare_targets(&primary, &candidate, None, &config());
+        assert_eq!(result.classification, Classification::Match);
+        assert!(result.raw_candidate_diffs.is_empty());
+    }
+
+    #[test]
+    fn identical_non_json_bodies_match() {
+        let primary = target(200, &[], "plain text");
+        let candidate = target(200, &[], "plain text");
         let result = compare_targets(&primary, &candidate, None, &config());
         assert_eq!(result.classification, Classification::Match);
         assert!(result.raw_candidate_diffs.is_empty());
