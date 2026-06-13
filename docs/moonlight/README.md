@@ -4,6 +4,8 @@ Moonlight is a small Rust + React behavior comparer. A client sends traffic to t
 
 Each stored comparison run captures adapter input, target status codes, selected/redacted headers, body previews and hashes, stderr for CLI targets, latency, raw candidate diffs, reference noise, noise-filtered diffs, and classification.
 
+GitHub Pages overview and latest benchmark snapshot: <https://moritzbrantner.github.io/moonlight/?page=overview>
+
 ## Why Primary And Secondary Exist
 
 The candidate is the target being evaluated. The primary and secondary references are two instances of the established reference behavior. If primary and secondary disagree on a field, header, status, stderr stream, or body area, that area is treated as reference noise. Candidate behavior is only filtered on a noisy field when it matches one of the references; if it differs from both references, Moonlight marks it as a suspicious difference.
@@ -50,7 +52,7 @@ Open `http://127.0.0.1:5173`.
 
 ## GitHub Pages Example
 
-The repository includes a static GitHub Pages example workflow at `.github/workflows/pages.yml`. It deploys the Vite UI with bundled demo comparison runs, so the page works without a live Moonlight admin API.
+The repository includes a static GitHub Pages example workflow at `.github/workflows/pages.yml`. It deploys the Vite UI with a repository overview page, latest HTTP and CLI benchmark snapshots, and bundled demo comparison runs, so the page works without a live Moonlight admin API.
 
 The workflow uses the shared Pages deployment workflow from `moritzbrantner/reusable-workflows`:
 

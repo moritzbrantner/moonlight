@@ -1,6 +1,14 @@
 target/
 node_modules/
 dist/
-data/
+data/**
+!data/
+!data/moonlight/
+!data/moonlight/benchmark/
+!data/moonlight/benchmark/latest.json
+!data/moonlight/benchmark/latest.md
+!data/moonlight/cli-benchmark-analysis/
+!data/moonlight/cli-benchmark-analysis/latest.json
+!data/moonlight/cli-benchmark-analysis/latest.md
 *.tsbuildinfo
 *.log

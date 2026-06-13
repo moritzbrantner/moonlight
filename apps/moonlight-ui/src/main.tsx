@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, AlertTriangle, CheckCircle2, Clock, RefreshCw, Settings } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Clock, Github, RefreshCw, Settings } from "lucide-react";
 import { api, usesDemoData } from "./api";
+import { cliBenchmark, httpBenchmark, type CliToolComparison, type HttpBenchmarkTarget, type PercentileSummary } from "./benchmarkData";
 import type { AppConfig, Classification, ComparisonRun, ComparisonRunListItem, DiffEntry, RunInput, StatsSummary, TargetObservation } from "./types";
 import "./styles.css";
 
 function App() {
+  const [page, setPage] = useState(() => currentPage());
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [runs, setRuns] = useState<ComparisonRunListItem[]>([]);
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -36,10 +38,20 @@ function App() {
   }
 
   useEffect(() => {
+    const handlePopState = () => setPage(currentPage());
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (page !== "dashboard") {
+      setLoading(false);
+      return;
+    }
     void refresh();
     const timer = window.setInterval(() => void refresh(), 3500);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -59,15 +71,29 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <h1>Moonlight</h1>
-          <p>Behavior comparison for primary and secondary references against candidate targets.</p>
-        </div>
-        <button className="icon-button" onClick={() => void refresh()} title="Refresh data">
-          <RefreshCw size={18} />
+        <button className="brand" onClick={() => navigate("overview", setPage)} aria-label="Moonlight overview">
+          <span className="brand__mark" aria-hidden="true">ML</span>
+          <span>Moonlight</span>
         </button>
+        <nav className="top-actions" aria-label="Pages">
+          <button className={`nav-button ${page === "overview" ? "active" : ""}`} onClick={() => navigate("overview", setPage)}>
+            Overview
+          </button>
+          <button className={`nav-button ${page === "dashboard" ? "active" : ""}`} onClick={() => navigate("dashboard", setPage)}>
+            Dashboard
+          </button>
+          {page === "dashboard" && (
+            <button className="icon-button" onClick={() => void refresh()} title="Refresh data">
+              <RefreshCw size={18} />
+            </button>
+          )}
+        </nav>
       </header>
 
+      {page === "overview" ? (
+        <OverviewPage onNavigate={setPage} />
+      ) : (
+        <>
       {error && <div className="banner">{error}</div>}
       {usesDemoData && <div className="banner muted">Demo data for the GitHub Pages example.</div>}
       {loading && <div className="banner muted">Loading admin API data...</div>}
@@ -89,7 +115,223 @@ function App() {
           <LatencyPanel run={selected} />
         </aside>
       </section>
+        </>
+      )}
     </main>
+  );
+}
+
+function OverviewPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
+  const httpTargets = ["moonlight", "diffy_b", "diffy_c"]
+    .map((key) => httpBenchmark.targets[key])
+    .filter(Boolean);
+  const cliTools = ["moonlight", "trycmd"]
+    .map((key) => [key, cliBenchmark.comparisons[key]] as const)
+    .filter((entry): entry is readonly [string, CliToolComparison] => Boolean(entry[1]));
+
+  return (
+    <section className="overview-page">
+      <section className="overview-hero">
+        <div className="hero__content">
+          <p className="eyebrow">Behavior comparison</p>
+          <h1>Reference and candidate checks for HTTP and CLI targets.</h1>
+          <p className="hero__lede">
+            Moonlight fans out an input to a primary reference, a candidate, and optionally a secondary reference. It stores target observations, filters known reference noise, and classifies the remaining candidate behavior.
+          </p>
+          <div className="hero__actions" aria-label="Repository resources">
+            <a className="button button--primary" href="https://github.com/moritzbrantner/moonlight">
+              <Github aria-hidden="true" />
+              Repository
+            </a>
+            <button className="button button--secondary" onClick={() => navigate("dashboard", onNavigate)}>
+              <Activity aria-hidden="true" />
+              Demo dashboard
+            </button>
+          </div>
+        </div>
+
+        <div className="signal-board" aria-label="Latest benchmark summary">
+          <ul className="signal-board__stats" aria-label="Benchmark metrics">
+            <li className="signal-board__stat">
+              <span className="signal-board__stat-value">{formatNumber(httpBenchmark.targets.moonlight.requests_per_second)}</span>
+              <span className="signal-board__stat-description">HTTP requests/sec</span>
+            </li>
+            <li className="signal-board__stat">
+              <span className="signal-board__stat-value">{formatMs(httpBenchmark.targets.moonlight.latency_ms.p95)}</span>
+              <span className="signal-board__stat-description">HTTP p95 ms</span>
+            </li>
+            <li className="signal-board__stat">
+              <span className="signal-board__stat-value">{formatMs(cliBenchmark.comparisons.moonlight.case_latency_ms.p95)}</span>
+              <span className="signal-board__stat-description">CLI p95 ms/case</span>
+            </li>
+          </ul>
+          <div className="pipeline" aria-hidden="true">
+            <span>primary</span>
+            <span>candidate</span>
+            <span>secondary</span>
+            <span>classify</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="section section--split" id="repository">
+        <div>
+          <p className="eyebrow">Repository</p>
+          <h2>One core comparer, two adapters, one inspection UI.</h2>
+        </div>
+        <div className="copy">
+          <ul className="feature-list">
+            <li><strong>moonlight-core</strong><span>Shared comparison, diffing, classification, and JSONL storage primitives.</span></li>
+            <li><strong>moonlight-http</strong><span>An Axum proxy that shadows HTTP traffic to reference and candidate services.</span></li>
+            <li><strong>moonlight-cli</strong><span>A command runner for direct comparisons and batch command-output suites.</span></li>
+            <li><strong>moonlight-ui</strong><span>A Vite admin UI for inspecting comparison runs and configuration.</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <section className="section section--split" id="references">
+        <div>
+          <p className="eyebrow">Reference noise</p>
+          <h2>Secondary references turn instability into signal.</h2>
+        </div>
+        <div className="copy">
+          <p>
+            Primary and secondary references expose unstable reference behavior such as timestamps, generated IDs, host-specific headers, and randomized ordering. Candidate differences are treated as suspicious only when they differ from stable reference behavior.
+          </p>
+        </div>
+      </section>
+
+      <BenchmarkSection
+        title="HTTP Benchmark"
+        generatedAt={httpBenchmark.generated_at}
+        details={`${httpBenchmark.config.requests} requests, concurrency ${httpBenchmark.config.concurrency}, ${httpBenchmark.config.endpoints.length} endpoints`}
+      >
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Target</th>
+                <th>Requests</th>
+                <th>Success</th>
+                <th>Errors</th>
+                <th>Req/s</th>
+                <th>p50 ms</th>
+                <th>p95 ms</th>
+                <th>p99 ms</th>
+                <th>Mean ms</th>
+                <th>Max ms</th>
+              </tr>
+            </thead>
+            <tbody>
+              {httpTargets.map((target) => (
+                <HttpBenchmarkRow key={target.name} target={target} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="validity-strip">
+          {httpBenchmark.validity.map((entry) => (
+            <span key={entry.endpoint} className={`validity ${entry.match ? "match" : "target_error"}`}>
+              {entry.endpoint}: {entry.match ? "match" : `${entry.mismatches.length} mismatches`}
+            </span>
+          ))}
+        </div>
+      </BenchmarkSection>
+
+      <BenchmarkSection
+        title="CLI Benchmark"
+        generatedAt={cliBenchmark.generated_at}
+        details={`${cliBenchmark.config.comparison_runs} suite runs, ${cliBenchmark.config.comparison_cases} cases/run, rustc ${cliBenchmark.environment.rustc}`}
+      >
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Suite runs</th>
+                <th>Cases/run</th>
+                <th>Total cases</th>
+                <th>Suite p50 ms</th>
+                <th>Suite p95 ms</th>
+                <th>Per-case p50 ms</th>
+                <th>Per-case p95 ms</th>
+                <th>Version</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cliTools.map(([name, comparison]) => (
+                <CliBenchmarkRow key={name} name={name} comparison={comparison} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="validity-strip">
+          {Object.entries(cliBenchmark.scenarios).map(([scenario, result]) => (
+            <span key={scenario} className={`validity ${result.validation_errors.length === 0 ? "match" : "target_error"}`}>
+              {scenario}: {JSON.stringify(result.classifications)}
+            </span>
+          ))}
+        </div>
+      </BenchmarkSection>
+    </section>
+  );
+}
+
+function BenchmarkSection({ title, generatedAt, details, children }: { title: string; generatedAt: string; details: string; children: React.ReactNode }) {
+  return (
+    <section className="benchmark-section">
+      <div className="benchmark-heading">
+        <div>
+          <h3>{title}</h3>
+          <p>{details}</p>
+        </div>
+        <time dateTime={generatedAt}>{new Date(generatedAt).toLocaleString()}</time>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function HttpBenchmarkRow({ target }: { target: HttpBenchmarkTarget }) {
+  return (
+    <tr>
+      <td>{target.name}</td>
+      <td>{target.total_requests}</td>
+      <td>{target.success_count}</td>
+      <td>{target.error_count}</td>
+      <td>{formatNumber(target.requests_per_second)}</td>
+      <LatencyCells latency={target.latency_ms} />
+    </tr>
+  );
+}
+
+function CliBenchmarkRow({ name, comparison }: { name: string; comparison: CliToolComparison }) {
+  return (
+    <tr>
+      <td>{name}</td>
+      <td>{comparison.status}</td>
+      <td>{comparison.total_invocations}</td>
+      <td>{comparison.cases_per_invocation}</td>
+      <td>{comparison.total_cases}</td>
+      <td>{formatMs(comparison.latency_ms.p50)}</td>
+      <td>{formatMs(comparison.latency_ms.p95)}</td>
+      <td>{formatMs(comparison.case_latency_ms.p50)}</td>
+      <td>{formatMs(comparison.case_latency_ms.p95)}</td>
+      <td>{comparison.version}</td>
+    </tr>
+  );
+}
+
+function LatencyCells({ latency }: { latency: PercentileSummary }) {
+  return (
+    <>
+      <td>{formatMs(latency.p50)}</td>
+      <td>{formatMs(latency.p95)}</td>
+      <td>{formatMs(latency.p99)}</td>
+      <td>{formatMs(latency.mean)}</td>
+      <td>{formatMs(latency.max)}</td>
+    </>
   );
 }
 
@@ -294,6 +536,31 @@ function labelFor(classification: Classification) {
     .split("_")
     .map((word) => word[0].toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+type Page = "overview" | "dashboard";
+
+function currentPage(): Page {
+  return new URLSearchParams(window.location.search).get("page") === "overview" ? "overview" : "dashboard";
+}
+
+function navigate(page: Page, setPage: (page: Page) => void) {
+  const url = new URL(window.location.href);
+  if (page === "overview") {
+    url.searchParams.set("page", "overview");
+  } else {
+    url.searchParams.delete("page");
+  }
+  window.history.pushState({}, "", url);
+  setPage(page);
+}
+
+function formatMs(value: number | null) {
+  return value === null ? "-" : value.toFixed(2);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(value);
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

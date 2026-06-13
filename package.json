@@ -8,5 +8,8 @@
     "dev": "cd apps/moonlight-ui && bun run dev",
     "build": "cd apps/moonlight-ui && bun run build",
     "typecheck": "cd apps/moonlight-ui && bun run typecheck"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
   }
 }

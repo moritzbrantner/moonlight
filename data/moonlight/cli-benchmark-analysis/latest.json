@@ -1,0 +1,105 @@
+{
+  "comparisons": {
+    "moonlight": {
+      "case_latency_ms": {
+        "max": 3.7997408999945037,
+        "mean": 3.5957812862307037,
+        "min": 3.416105569995125,
+        "p50": 3.616147724969778,
+        "p90": 3.7135231319771265,
+        "p95": 3.756632015985815,
+        "p99": 3.791119123192766
+      },
+      "cases_per_invocation": 100,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 379.97408999945037,
+        "mean": 359.57812862307037,
+        "min": 341.6105569995125,
+        "p50": 361.6147724969778,
+        "p90": 371.35231319771265,
+        "p95": 375.6632015985815,
+        "p99": 379.1119123192766
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 8,
+      "total_cases": 800,
+      "total_invocations": 8,
+      "validation_errors": [],
+      "version": "target/release/moonlight-cli batch"
+    },
+    "trycmd": {
+      "case_latency_ms": {
+        "max": 1.8809317499835743,
+        "mean": 1.862327019989607,
+        "min": 1.8239367700152798,
+        "p50": 1.8654967999827932,
+        "p90": 1.87876467598835,
+        "p95": 1.8798482129859622,
+        "p99": 1.8807150425840518
+      },
+      "cases_per_invocation": 100,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 188.09317499835743,
+        "mean": 186.2327019989607,
+        "min": 182.39367700152798,
+        "p50": 186.54967999827932,
+        "p90": 187.876467598835,
+        "p95": 187.98482129859622,
+        "p99": 188.07150425840518
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 8,
+      "total_cases": 800,
+      "total_invocations": 8,
+      "validation_errors": [],
+      "version": "trycmd 1.2.0 via cargo 1.96.0 (30a34c682 2026-05-25)"
+    }
+  },
+  "config": {
+    "comparison_cases": 100,
+    "comparison_runs": 8,
+    "concurrency": 1,
+    "requests": 1,
+    "scenarios": [
+      "match"
+    ],
+    "targets": [
+      "moonlight",
+      "trycmd"
+    ],
+    "warmup": 3
+  },
+  "environment": {
+    "binary": "target/release/moonlight-cli",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "git_sha": "fa6688fa2d660f57363463348c035f1b4bebeb93",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  },
+  "generated_at": "2026-06-13T16:44:51.130686+00:00",
+  "scenarios": {
+    "match": {
+      "classifications": {
+        "match": 1
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 19.602027998189442,
+        "mean": 19.602027998189442,
+        "min": 19.602027998189442,
+        "p50": 19.602027998189442,
+        "p90": 19.602027998189442,
+        "p95": 19.602027998189442,
+        "p99": 19.602027998189442
+      },
+      "records_written": 1,
+      "storage_bytes": 1674,
+      "success_count": 1,
+      "total_invocations": 1,
+      "validation_errors": []
+    }
+  }
+}
