@@ -296,8 +296,12 @@ def classify_counts(records):
 
 
 def summarize_scenario(binary, output_dir, scenario, warmup, requests, concurrency):
-    warmup_storage = output_dir / f"{scenario}.warmup.jsonl"
-    storage_path = output_dir / f"{scenario}.jsonl"
+    scenario_dir = output_dir / "scenarios" / scenario
+    warmup_dir = output_dir / "warmup" / scenario
+    scenario_dir.mkdir(parents=True, exist_ok=True)
+    warmup_dir.mkdir(parents=True, exist_ok=True)
+    warmup_storage = warmup_dir / "runs.jsonl"
+    storage_path = scenario_dir / "runs.jsonl"
     for path in (warmup_storage, storage_path):
         if path.exists():
             path.unlink()

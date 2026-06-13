@@ -76,15 +76,15 @@ services:
       - diffy-b
       - diffy-c
     command:
-      - -candidate=moonlight-http:8080
-      - -master.primary=diffy-b:8880
-      - -master.secondary=diffy-c:8880
-      - -service.protocol=http
-      - -serviceName=Moonlight-vs-Diffy
-      - -proxy.port=:8880
-      - -admin.port=:8881
-      - -http.port=:8888
-      - -rootUrl=localhost:8888
+      - --candidate=moonlight-http:8080
+      - --master.primary=diffy-b:8880
+      - --master.secondary=diffy-c:8880
+      - --service.protocol=http
+      - --serviceName=Moonlight-vs-Diffy
+      - --proxy.port=8880
+      - --admin.port=8881
+      - --http.port=8888
+      - --rootUrl=localhost:8888
     ports:
       - "8880:8880"
       - "8881:8881"
@@ -99,15 +99,15 @@ services:
       - candidate
       - secondary
     command:
-      - -candidate=candidate:3002
-      - -master.primary=primary:3001
-      - -master.secondary=secondary:3003
-      - -service.protocol=http
-      - -serviceName=Diffy-B-Demo
-      - -proxy.port=:8880
-      - -admin.port=:8881
-      - -http.port=:8888
-      - -rootUrl=localhost:8898
+      - --candidate=candidate:3002
+      - --master.primary=primary:3001
+      - --master.secondary=secondary:3003
+      - --service.protocol=http
+      - --serviceName=Diffy-B-Demo
+      - --proxy.port=8880
+      - --admin.port=8881
+      - --http.port=8888
+      - --rootUrl=localhost:8898
     ports:
       - "8890:8880"
       - "8891:8881"
@@ -122,15 +122,15 @@ services:
       - candidate
       - secondary
     command:
-      - -candidate=candidate:3002
-      - -master.primary=primary:3001
-      - -master.secondary=secondary:3003
-      - -service.protocol=http
-      - -serviceName=Diffy-C-Demo
-      - -proxy.port=:8880
-      - -admin.port=:8881
-      - -http.port=:8888
-      - -rootUrl=localhost:8908
+      - --candidate=candidate:3002
+      - --master.primary=primary:3001
+      - --master.secondary=secondary:3003
+      - --service.protocol=http
+      - --serviceName=Diffy-C-Demo
+      - --proxy.port=8880
+      - --admin.port=8881
+      - --http.port=8888
+      - --rootUrl=localhost:8908
     ports:
       - "8900:8880"
       - "8901:8881"
