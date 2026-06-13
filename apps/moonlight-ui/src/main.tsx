@@ -153,7 +153,7 @@ function OverviewPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         <div className="signal-board" aria-label="Latest benchmark summary">
           <ul className="signal-board__stats" aria-label="Benchmark metrics">
             <li className="signal-board__stat">
-              <span className="signal-board__stat-value">{formatNumber(httpBenchmark.targets.moonlight.requests_per_second)}</span>
+              <span className="signal-board__stat-value">{formatNumber(httpBenchmark.targets.moonlight.requests_per_second, 0)}</span>
               <span className="signal-board__stat-description">HTTP requests/sec</span>
             </li>
             <li className="signal-board__stat">
@@ -559,8 +559,8 @@ function formatMs(value: number | null) {
   return value === null ? "-" : value.toFixed(2);
 }
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(value);
+function formatNumber(value: number, maximumFractionDigits = 2) {
+  return new Intl.NumberFormat("en", { maximumFractionDigits }).format(value);
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
