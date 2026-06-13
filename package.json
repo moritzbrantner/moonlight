@@ -2,11 +2,11 @@
   "name": "moonlight",
   "private": true,
   "workspaces": [
-    "apps/shadowdiff-ui"
+    "apps/moonlight-ui"
   ],
   "scripts": {
-    "dev": "cd apps/shadowdiff-ui && bun run dev",
-    "build": "cd apps/shadowdiff-ui && bun run build",
-    "typecheck": "cd apps/shadowdiff-ui && bun run typecheck"
+    "dev": "cd apps/moonlight-ui && bun run dev",
+    "build": "cd apps/moonlight-ui && bun run build",
+    "typecheck": "cd apps/moonlight-ui && bun run typecheck"
   }
 }

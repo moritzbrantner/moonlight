@@ -94,6 +94,7 @@ export interface AppConfig {
   enable_candidate: boolean;
   enable_secondary: boolean;
   return_backend: "primary";
+  response_mode: "wait_all" | "primary_then_shadow";
   max_body_capture_bytes: number;
   redact_headers: string[];
   ignored_json_paths: string[];

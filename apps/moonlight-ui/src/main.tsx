@@ -229,6 +229,8 @@ function ConfigPanel({ config }: { config: AppConfig | null }) {
           <dd>{config.enable_candidate ? config.candidate_url : "disabled"}</dd>
           <dt>Secondary</dt>
           <dd>{config.enable_secondary ? config.secondary_url : "disabled"}</dd>
+          <dt>Response mode</dt>
+          <dd>{config.response_mode}</dd>
           <dt>Capture</dt>
           <dd>{config.max_body_capture_bytes} bytes</dd>
           <dt>Ignored JSON</dt>

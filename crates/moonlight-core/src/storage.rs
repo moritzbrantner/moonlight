@@ -1,6 +1,4 @@
-use shadowdiff_types::{
-    Classification, LatencyStats, RequestListItem, RequestRecord, StatsSummary,
-};
+use crate::{Classification, LatencyStats, RequestListItem, RequestRecord, StatsSummary};
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
     fs::{self, OpenOptions},

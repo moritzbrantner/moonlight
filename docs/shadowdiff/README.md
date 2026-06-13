@@ -36,7 +36,7 @@ cargo run -p shadowdiff-demo-services -- secondary
 Start the proxy:
 
 ```sh
-cargo run -p shadowdiff-server
+cargo run -p moonlight-http
 ```
 
 Start the UI:
@@ -47,6 +47,16 @@ bun run dev
 ```
 
 Open `http://127.0.0.1:5173`.
+
+Run a CLI comparison:
+
+```sh
+cargo run -p moonlight-cli -- run \
+  --primary 'printf "{\"value\":42}\n"' \
+  --candidate 'printf "{\"value\":43}\n"'
+```
+
+The CLI stores records in the same JSONL format as the HTTP proxy. Use `cargo run -p moonlight-cli -- requests` or `cargo run -p moonlight-cli -- stats` to inspect them.
 
 ## Send Sample Traffic
 
@@ -74,19 +84,59 @@ Run the demo stack:
 docker compose -f docker-compose.shadowdiff.yml up
 ```
 
-Run the optional reference Diffy service too:
+Run the optional Diffy comparison stack too:
 
 ```sh
 docker compose -f docker-compose.shadowdiff.yml --profile reference up
 ```
 
-Then send traffic to both proxies:
+This starts three Diffy instances alongside moonlight:
+
+- Diffy A: outer comparator at `http://127.0.0.1:8880`, UI at `http://127.0.0.1:8888`
+- Diffy B: primary reference for Diffy A at `http://127.0.0.1:8890`, UI at `http://127.0.0.1:8898`
+- Diffy C: secondary reference for Diffy A at `http://127.0.0.1:8900`, UI at `http://127.0.0.1:8908`
+
+Diffy B and Diffy C compare the demo primary, candidate, and secondary services directly. Diffy A uses Diffy B and Diffy C as its primary and secondary references, and uses moonlight (`moonlight-http`) as its candidate, so traffic through Diffy A compares moonlight behavior against two independent Diffy proxies.
+
+Then send traffic to moonlight and Diffy A:
 
 ```sh
 INCLUDE_DIFFY=1 scripts/shadowdiff-send-sample-traffic.sh
 ```
 
-The reference service uses the public `diffy/diffy` Docker image. It is intentionally optional because image availability and runtime behavior can vary by platform.
+The Diffy services use the public `diffy/diffy` Docker image. They are intentionally optional because image availability and runtime behavior can vary by platform.
+
+## Benchmark
+
+Run the benchmark stack:
+
+```sh
+scripts/shadowdiff-benchmark.sh
+```
+
+This uses `docker-compose.shadowdiff-benchmark.yml` to run the Rust services from release-built containers and configures moonlight with `SHADOWDIFF_RESPONSE_MODE=primary_then_shadow`.
+
+Diffy A is a correctness harness, not the latency baseline. Its proxy adds another fan-out layer, so the benchmark compares latency by sending measured traffic directly to:
+
+- moonlight at `http://127.0.0.1:8080`
+- Diffy B at `http://127.0.0.1:8890`
+- Diffy C at `http://127.0.0.1:8900`
+
+The runner also sends a smaller validation pass through Diffy A at `http://127.0.0.1:8880` so its UI can be used to inspect moonlight-vs-Diffy response differences.
+
+Benchmark outputs:
+
+- `data/shadowdiff/benchmark/latest.json`
+- `data/shadowdiff/benchmark/latest.md`
+
+Useful overrides:
+
+```sh
+BENCHMARK_REQUESTS=1200 BENCHMARK_CONCURRENCY=16 scripts/shadowdiff-benchmark.sh
+DIFFY_IMAGE=diffy/diffy:latest scripts/shadowdiff-benchmark.sh
+```
+
+Results are most meaningful after warmup and with the release-built benchmark containers. The benchmark mode returns the primary response before shadow comparison storage completes, so in-flight comparison records can be lost if the process exits immediately.
 
 ## Admin API
 
@@ -108,6 +158,7 @@ Environment variables:
 - `SHADOWDIFF_SECONDARY_URL`, default `http://127.0.0.1:3003`
 - `SHADOWDIFF_ENABLE_CANDIDATE`, default `true`
 - `SHADOWDIFF_ENABLE_SECONDARY`, default `true`
+- `SHADOWDIFF_RESPONSE_MODE`, default `wait_all`; use `primary_then_shadow` to return the primary response before candidate/secondary comparison finishes
 - `SHADOWDIFF_MAX_BODY_CAPTURE_BYTES`, default `8192`
 - `SHADOWDIFF_REDACT_HEADERS`, comma-separated
 - `SHADOWDIFF_IGNORED_JSON_PATHS`, comma-separated
@@ -119,6 +170,7 @@ The exposed config also includes:
 - `enable_candidate = true`
 - `enable_secondary = true`
 - `return_backend = "primary"`
+- `response_mode = "wait_all"`
 - `max_body_capture_bytes`
 - `redact_headers`
 - `ignored_json_paths`
@@ -135,13 +187,14 @@ The exposed config also includes:
 - Ignored JSON paths and ignored headers.
 - Noise filtering using primary-secondary differences.
 - React dashboard, request list, detail view, diff viewer, and config panel.
+- CLI command comparison through `moonlight-cli`.
 - Rust demo services and sample traffic generator.
-- Optional Docker Compose Diffy reference profile.
+- Optional Docker Compose profile with Diffy A comparing moonlight against Diffy B and Diffy C.
+- Release-container benchmark profile and JSON/Markdown benchmark report generator.
 
 ## Left For Later
 
 - SQLite persistence and pagination for large histories.
-- Async shadow completion that returns the primary response without waiting for slow candidate/secondary requests.
 - Replay API.
 - Richer JSONPath matching with wildcards.
 - Order-insensitive array comparison for set-like arrays.

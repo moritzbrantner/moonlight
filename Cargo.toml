@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "crates/shadowdiff-server",
-    "crates/shadowdiff-types",
+    "crates/moonlight-cli",
+    "crates/moonlight-core",
+    "crates/moonlight-http",
     "examples/shadowdiff-demo-services",
 ]
 resolver = "2"
@@ -16,6 +17,7 @@ anyhow = "1"
 axum = "0.7"
 bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
 futures = "0.3"
 hex = "0.4"
 http = "1"

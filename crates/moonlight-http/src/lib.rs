@@ -1,12 +1,8 @@
-pub mod compare;
-pub mod config;
 pub mod proxy;
-pub mod storage;
 
-use crate::config::AppConfig;
 use crate::proxy::{get_config, get_health, get_request, get_requests, get_stats, proxy_handler};
-use crate::storage::Storage;
 use axum::{routing::get, Router};
+use moonlight_core::{config::AppConfig, storage::Storage};
 use reqwest::Client;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;

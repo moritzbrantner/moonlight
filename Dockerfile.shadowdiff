@@ -1,0 +1,21 @@
+FROM rust:1.85-bookworm AS builder
+
+WORKDIR /workspace
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY examples ./examples
+
+RUN cargo build --release -p moonlight-http -p moonlight-cli -p shadowdiff-demo-services
+
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /workspace/target/release/moonlight-http /usr/local/bin/moonlight-http
+COPY --from=builder /workspace/target/release/moonlight-cli /usr/local/bin/moonlight-cli
+COPY --from=builder /workspace/target/release/shadowdiff-demo-services /usr/local/bin/shadowdiff-demo-services
+
+WORKDIR /workspace

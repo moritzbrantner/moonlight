@@ -1,10 +1,8 @@
+use crate::{BackendCapture, BodyCapture, Classification, ComparisonSummary, DiffEntry, DiffKind};
 use bytes::Bytes;
 use http::HeaderMap;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use shadowdiff_types::{
-    BackendCapture, BodyCapture, Classification, ComparisonSummary, DiffEntry, DiffKind,
-};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 #[derive(Debug, Clone)]

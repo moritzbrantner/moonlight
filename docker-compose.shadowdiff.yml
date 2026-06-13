@@ -32,7 +32,7 @@ services:
     ports:
       - "3003:3003"
 
-  shadowdiff-server:
+  moonlight-http:
     image: rust:1.85-bookworm
     working_dir: /workspace
     depends_on:
@@ -49,26 +49,49 @@ services:
       - .:/workspace
       - cargo-cache:/usr/local/cargo/registry
       - target-cache:/workspace/target
-    command: cargo run -p shadowdiff-server
+    command: cargo run -p moonlight-http
     ports:
       - "8080:8080"
 
-  shadowdiff-ui:
+  moonlight-ui:
     image: oven/bun:1.1
     working_dir: /workspace
     depends_on:
-      - shadowdiff-server
+      - moonlight-http
     environment:
       VITE_SHADOWDIFF_API_URL: http://127.0.0.1:8080
     volumes:
       - .:/workspace
       - bun-cache:/root/.bun
-    command: sh -lc "bun install && cd apps/shadowdiff-ui && bun run dev --host 0.0.0.0"
+    command: sh -lc "bun install && cd apps/moonlight-ui && bun run dev --host 0.0.0.0"
     ports:
       - "5173:5173"
 
-  diffy-reference:
-    image: diffy/diffy:latest
+  diffy-a:
+    image: ${DIFFY_IMAGE:-diffy/diffy:latest}
+    profiles:
+      - reference
+    depends_on:
+      - moonlight-http
+      - diffy-b
+      - diffy-c
+    command:
+      - -candidate=moonlight-http:8080
+      - -master.primary=diffy-b:8880
+      - -master.secondary=diffy-c:8880
+      - -service.protocol=http
+      - -serviceName=Moonlight-vs-Diffy
+      - -proxy.port=:8880
+      - -admin.port=:8881
+      - -http.port=:8888
+      - -rootUrl=localhost:8888
+    ports:
+      - "8880:8880"
+      - "8881:8881"
+      - "8888:8888"
+
+  diffy-b:
+    image: ${DIFFY_IMAGE:-diffy/diffy:latest}
     profiles:
       - reference
     depends_on:
@@ -80,15 +103,38 @@ services:
       - -master.primary=primary:3001
       - -master.secondary=secondary:3003
       - -service.protocol=http
-      - -serviceName=Shadowdiff-Demo
+      - -serviceName=Diffy-B-Demo
       - -proxy.port=:8880
       - -admin.port=:8881
       - -http.port=:8888
-      - -rootUrl=localhost:8888
+      - -rootUrl=localhost:8898
     ports:
-      - "8880:8880"
-      - "8881:8881"
-      - "8888:8888"
+      - "8890:8880"
+      - "8891:8881"
+      - "8898:8888"
+
+  diffy-c:
+    image: ${DIFFY_IMAGE:-diffy/diffy:latest}
+    profiles:
+      - reference
+    depends_on:
+      - primary
+      - candidate
+      - secondary
+    command:
+      - -candidate=candidate:3002
+      - -master.primary=primary:3001
+      - -master.secondary=secondary:3003
+      - -service.protocol=http
+      - -serviceName=Diffy-C-Demo
+      - -proxy.port=:8880
+      - -admin.port=:8881
+      - -http.port=:8888
+      - -rootUrl=localhost:8908
+    ports:
+      - "8900:8880"
+      - "8901:8881"
+      - "8908:8888"
 
 volumes:
   cargo-cache:
