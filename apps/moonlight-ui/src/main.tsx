@@ -314,8 +314,9 @@ function HttpBenchmarkRow({ target }: { target: HttpBenchmarkTarget }) {
 }
 
 function CliBenchmarkRow({ name, comparison }: { name: string; comparison: CliToolComparison }) {
-  const targetInvocationsPerCase =
-    comparison.target_invocations_per_case ?? (name.startsWith("moonlight") ? 2 : 1);
+  const targetInvocationsPerCase = normalizePositiveCount(
+    comparison.target_invocations_per_case ?? (name.startsWith("moonlight") ? 2 : 1),
+  );
   const totalTargetInvocations =
     comparison.total_target_invocations ?? comparison.total_cases * targetInvocationsPerCase;
   const targetP50 =
@@ -346,7 +347,11 @@ function CliBenchmarkRow({ name, comparison }: { name: string; comparison: CliTo
 }
 
 function divideMs(value: number | null, denominator: number) {
-  return value === null ? null : value / denominator;
+  return value === null || denominator < 1 ? null : value / denominator;
+}
+
+function normalizePositiveCount(value: number) {
+  return Number.isFinite(value) && value >= 1 ? value : 1;
 }
 
 function LatencyCells({ latency }: { latency: PercentileSummary }) {

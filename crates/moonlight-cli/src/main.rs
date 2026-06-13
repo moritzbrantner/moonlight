@@ -378,7 +378,7 @@ fn parse_command_form(
             if argv.is_empty() {
                 bail!("invalid batch JSONL on line {line_number}: {role}_argv must not be empty");
             }
-            if argv[0].is_empty() {
+            if argv[0].trim().is_empty() {
                 bail!(
                     "invalid batch JSONL on line {line_number}: {role}_argv command must not be empty"
                 );

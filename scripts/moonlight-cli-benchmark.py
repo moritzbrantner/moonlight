@@ -654,14 +654,18 @@ def build_cargo_test_harness(harness_dir, binary_prefix):
 
 def target_latency_results(results, target_invocations_per_case, cases):
     denominator = target_invocations_per_case * cases
+    if denominator <= 0:
+        return []
     return [
         {**result, "latency_ms": result["latency_ms"] / denominator}
         for result in results
-        if result["returncode"] == 0 and denominator > 0
+        if result["returncode"] == 0
     ]
 
 
 def add_target_invocation_metrics(comparison, target_invocations_per_case, results=None):
+    if target_invocations_per_case < 1:
+        raise ValueError("target_invocations_per_case must be at least 1")
     comparison["target_invocations_per_case"] = target_invocations_per_case
     comparison["total_target_invocations"] = (
         comparison["success_count"]
@@ -1019,6 +1023,10 @@ def format_ms(value):
     return "-" if value is None else f"{value:.2f}"
 
 
+def markdown_cell(value):
+    return str(value).replace("\\", "\\\\").replace("|", "\\|")
+
+
 def write_markdown(report, path):
     lines = [
         "# moonlight-cli Benchmark",
@@ -1068,6 +1076,7 @@ def write_markdown(report, path):
         target_latency = comparison["target_invocation_latency_ms"]
         detail = comparison.get("reason") or comparison.get("version") or ""
         detail = detail.replace("\n", " ")[:180]
+        detail = markdown_cell(detail)
         lines.append(
             "| {name} | {status} | {runs} | {cases} | {target_invocations} | {total_cases} | {total_target_invocations} | {suite_p50} | {suite_p95} | {case_p50} | {case_p95} | {target_p50} | {target_p95} | {detail} |".format(
                 name=name,
