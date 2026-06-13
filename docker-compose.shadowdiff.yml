@@ -1,0 +1,96 @@
+services:
+  primary:
+    image: rust:1.85-bookworm
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/workspace/target
+    command: cargo run -p shadowdiff-demo-services -- primary
+    ports:
+      - "3001:3001"
+
+  candidate:
+    image: rust:1.85-bookworm
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/workspace/target
+    command: cargo run -p shadowdiff-demo-services -- candidate
+    ports:
+      - "3002:3002"
+
+  secondary:
+    image: rust:1.85-bookworm
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/workspace/target
+    command: cargo run -p shadowdiff-demo-services -- secondary
+    ports:
+      - "3003:3003"
+
+  shadowdiff-server:
+    image: rust:1.85-bookworm
+    working_dir: /workspace
+    depends_on:
+      - primary
+      - candidate
+      - secondary
+    environment:
+      SHADOWDIFF_BIND_ADDR: 0.0.0.0:8080
+      SHADOWDIFF_PRIMARY_URL: http://primary:3001
+      SHADOWDIFF_CANDIDATE_URL: http://candidate:3002
+      SHADOWDIFF_SECONDARY_URL: http://secondary:3003
+      SHADOWDIFF_STORAGE_PATH: /workspace/data/shadowdiff/requests.jsonl
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/workspace/target
+    command: cargo run -p shadowdiff-server
+    ports:
+      - "8080:8080"
+
+  shadowdiff-ui:
+    image: oven/bun:1.1
+    working_dir: /workspace
+    depends_on:
+      - shadowdiff-server
+    environment:
+      VITE_SHADOWDIFF_API_URL: http://127.0.0.1:8080
+    volumes:
+      - .:/workspace
+      - bun-cache:/root/.bun
+    command: sh -lc "bun install && cd apps/shadowdiff-ui && bun run dev --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+
+  diffy-reference:
+    image: diffy/diffy:latest
+    profiles:
+      - reference
+    depends_on:
+      - primary
+      - candidate
+      - secondary
+    command:
+      - -candidate=candidate:3002
+      - -master.primary=primary:3001
+      - -master.secondary=secondary:3003
+      - -service.protocol=http
+      - -serviceName=Shadowdiff-Demo
+      - -proxy.port=:8880
+      - -admin.port=:8881
+      - -http.port=:8888
+      - -rootUrl=localhost:8888
+    ports:
+      - "8880:8880"
+      - "8881:8881"
+      - "8888:8888"
+
+volumes:
+  cargo-cache:
+  target-cache:
+  bun-cache:

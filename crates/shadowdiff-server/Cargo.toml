@@ -1,0 +1,25 @@
+[package]
+name = "shadowdiff-server"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+futures.workspace = true
+hex.workspace = true
+http.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+shadowdiff-types = { path = "../shadowdiff-types" }
+tokio.workspace = true
+tower-http.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
