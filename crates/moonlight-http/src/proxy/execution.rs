@@ -9,14 +9,17 @@ use crate::AppState;
 use axum::{
     extract::{OriginalUri, State},
     http::Method,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use bytes::Bytes;
 use chrono::Utc;
 use futures::future::{join3, BoxFuture};
 use moonlight_core::{
-    compare::{capture_body, capture_headers, compare_targets, CapturedTarget, CompareConfig},
-    config::{ResponseTiming, ReturnFallback, ReturnTarget},
+    compare::{
+        capture_body_with_redactions, capture_headers, compare_targets, CapturedTarget,
+        CompareConfig,
+    },
+    config::{AppConfig, ResponseTiming, ReturnFallback, ReturnTarget},
     Adapter, ComparisonRun, RunInput,
 };
 use std::sync::Arc;
@@ -30,10 +33,16 @@ pub async fn proxy_handler(
     headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> Response {
+    if body.len() > state.config.max_request_body_bytes {
+        return axum::http::StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    }
+
     let id = Uuid::new_v4();
     let timestamp = Utc::now();
     let path = uri.path().to_string();
-    let query = uri.query().map(ToString::to_string);
+    let query = uri
+        .query()
+        .map(|query| redact_query(query, &state.config.redact_query_params));
     let path_and_query = uri
         .path_and_query()
         .map(|value| value.as_str().to_string())
@@ -46,7 +55,11 @@ pub async fn proxy_handler(
         path,
         query,
         request_headers: capture_headers(&headers, &state.config.redact_headers),
-        request_body: capture_body(&body, state.config.max_body_capture_bytes),
+        request_body: capture_body_with_redactions(
+            &body,
+            state.config.max_body_capture_bytes,
+            &state.config.redact_json_paths,
+        ),
     };
     let target_request = TargetRequest {
         method,
@@ -100,9 +113,7 @@ async fn proxy_wait_all(
         &primary,
         &candidate,
         secondary.as_ref(),
-        &state.config.ignored_json_paths,
-        &state.config.ignored_headers,
-        state.config.ignore_stderr,
+        &state.config,
     );
 
     if let Err(error) = state.storage.insert(run).await {
@@ -200,9 +211,7 @@ async fn persist_run_with_targets(
         &primary,
         &candidate,
         secondary.as_ref(),
-        &state.config.ignored_json_paths,
-        &state.config.ignored_headers,
-        state.config.ignore_stderr,
+        &state.config,
     );
 
     if let Err(error) = state.storage.insert(run).await {
@@ -215,11 +224,14 @@ fn build_run(
     primary: &CapturedTarget,
     candidate: &CapturedTarget,
     secondary: Option<&CapturedTarget>,
-    ignored_json_paths: &[String],
-    ignored_headers: &[String],
-    ignore_stderr: bool,
+    config: &AppConfig,
 ) -> ComparisonRun {
-    let compare_config = CompareConfig::new(ignored_json_paths, ignored_headers, ignore_stderr);
+    let compare_config = CompareConfig::new_with_redactions(
+        &config.ignored_json_paths,
+        &config.redact_json_paths,
+        &config.ignored_headers,
+        config.ignore_stderr,
+    );
     let comparison = compare_targets(primary, candidate, secondary, &compare_config);
 
     ComparisonRun {
@@ -238,4 +250,27 @@ fn build_run(
         secondary: secondary.map(|target| target.observation.clone()),
         comparison,
     }
+}
+
+fn redact_query(query: &str, redact_query_params: &[String]) -> String {
+    query
+        .split('&')
+        .map(|part| {
+            let (key, separator, value) = match part.split_once('=') {
+                Some((key, value)) => (key, "=", value),
+                None => (part, "", ""),
+            };
+            if redact_query_params
+                .iter()
+                .any(|redacted| redacted.eq_ignore_ascii_case(key))
+            {
+                format!("{key}{separator}[redacted]")
+            } else if separator.is_empty() {
+                key.to_string()
+            } else {
+                format!("{key}={value}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("&")
 }

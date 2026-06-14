@@ -14,6 +14,9 @@ use uuid::Uuid;
 pub struct Storage {
     write_path: PathBuf,
     scan_dir: PathBuf,
+    writer: RunWriter,
+    options: StorageOptions,
+    insert_lock: Arc<Mutex<()>>,
     runs: Arc<RwLock<Vec<ComparisonRun>>>,
 }
 
@@ -52,8 +55,21 @@ impl RunWriter {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StorageOptions {
+    pub retention_max_runs: Option<usize>,
+    pub retention_max_bytes: Option<u64>,
+}
+
 impl Storage {
     pub async fn load(write_path: PathBuf) -> anyhow::Result<Self> {
+        Self::load_with_options(write_path, StorageOptions::default()).await
+    }
+
+    pub async fn load_with_options(
+        write_path: PathBuf,
+        options: StorageOptions,
+    ) -> anyhow::Result<Self> {
         if let Some(parent) = write_path.parent() {
             fs::create_dir_all(parent).await?;
         }
@@ -62,19 +78,24 @@ impl Storage {
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
         let runs = load_runs_from_dir(&scan_dir).await?;
+        let writer = RunWriter::open(write_path.clone()).await?;
 
         Ok(Self {
             write_path,
             scan_dir,
+            writer,
+            options,
+            insert_lock: Arc::new(Mutex::new(())),
             runs: Arc::new(RwLock::new(runs)),
         })
     }
 
     pub async fn insert(&self, run: ComparisonRun) -> anyhow::Result<()> {
-        let writer = RunWriter::open(self.write_path.clone()).await?;
-        writer.append(&run).await?;
-        writer.flush().await?;
+        let _guard = self.insert_lock.lock().await;
+        self.writer.append(&run).await?;
+        self.writer.flush().await?;
         self.runs.write().await.push(run);
+        self.apply_retention().await?;
         Ok(())
     }
 
@@ -85,8 +106,17 @@ impl Storage {
     }
 
     pub async fn list(&self) -> Vec<ComparisonRunListItem> {
+        self.list_page(usize::MAX, 0).await
+    }
+
+    pub async fn list_page(&self, limit: usize, offset: usize) -> Vec<ComparisonRunListItem> {
         let runs = self.runs.read().await;
-        runs.iter().rev().map(ComparisonRunListItem::from).collect()
+        runs.iter()
+            .rev()
+            .skip(offset)
+            .take(limit)
+            .map(ComparisonRunListItem::from)
+            .collect()
     }
 
     pub async fn get(&self, id: Uuid) -> Option<ComparisonRun> {
@@ -140,6 +170,53 @@ impl Storage {
                 .map(ComparisonRunListItem::from)
                 .collect(),
         }
+    }
+
+    async fn apply_retention(&self) -> anyhow::Result<()> {
+        if self.options.retention_max_runs.is_none() && self.options.retention_max_bytes.is_none() {
+            return Ok(());
+        }
+
+        let mut active_runs = Vec::new();
+        load_runs_from_file(&self.write_path, &mut active_runs).await?;
+        active_runs.sort_by_key(|run| run.timestamp);
+
+        if let Some(max_runs) = self.options.retention_max_runs {
+            if active_runs.len() > max_runs {
+                active_runs = active_runs
+                    .into_iter()
+                    .rev()
+                    .take(max_runs)
+                    .collect::<Vec<_>>();
+                active_runs.reverse();
+            }
+        }
+
+        if let Some(max_bytes) = self.options.retention_max_bytes {
+            let mut retained = Vec::new();
+            let mut total_bytes = 0_u64;
+            for run in active_runs.into_iter().rev() {
+                let line = serde_json::to_string(&run)?;
+                let line_bytes = line.len() as u64 + 1;
+                if total_bytes + line_bytes <= max_bytes || retained.is_empty() {
+                    total_bytes += line_bytes;
+                    retained.push(run);
+                } else {
+                    break;
+                }
+            }
+            retained.reverse();
+            active_runs = retained;
+        }
+
+        let mut content = String::new();
+        for run in active_runs {
+            content.push_str(&serde_json::to_string(&run)?);
+            content.push('\n');
+        }
+        fs::write(&self.write_path, content).await?;
+        self.refresh().await?;
+        Ok(())
     }
 }
 

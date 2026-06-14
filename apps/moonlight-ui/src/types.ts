@@ -111,9 +111,15 @@ export interface AppConfig {
   return_fallback: "none" | "primary";
   response_timing: "wait_all" | "return_selected";
   max_body_capture_bytes: number;
+  max_request_body_bytes: number;
   redact_headers: string[];
+  redact_json_paths: string[];
+  redact_query_params: string[];
   ignored_json_paths: string[];
   ignored_headers: string[];
   ignore_stderr: boolean;
   storage_path: string;
+  cors_origins: string[];
+  retention_max_runs: number | null;
+  retention_max_bytes: number | null;
 }

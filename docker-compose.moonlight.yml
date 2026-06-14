@@ -1,6 +1,6 @@
 services:
   primary:
-    image: rust:1.85-bookworm
+    image: rust:1.87-bookworm
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -11,7 +11,7 @@ services:
       - "3001:3001"
 
   candidate:
-    image: rust:1.85-bookworm
+    image: rust:1.87-bookworm
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -22,7 +22,7 @@ services:
       - "3002:3002"
 
   secondary:
-    image: rust:1.85-bookworm
+    image: rust:1.87-bookworm
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -33,7 +33,7 @@ services:
       - "3003:3003"
 
   moonlight-http:
-    image: rust:1.85-bookworm
+    image: rust:1.87-bookworm
     working_dir: /workspace
     depends_on:
       - primary

@@ -194,6 +194,12 @@ fn diff_json(
     if config.ignored_json_paths.contains(path) {
         return;
     }
+    if config.redact_json_paths.contains(path) {
+        if primary != other {
+            push_redacted_json_diff(path.to_string(), role, diffs);
+        }
+        return;
+    }
 
     match (primary, other) {
         (Value::Object(primary_map), Value::Object(other_map)) => {
@@ -250,6 +256,19 @@ fn push_json_diff(
         kind: DiffKind::Body,
         path: path.clone(),
         primary: primary.map(json_preview),
+        candidate,
+        secondary,
+        message: format!("primary body value {path} differs from {}", role.label()),
+    });
+}
+
+fn push_redacted_json_diff(path: String, role: TargetRole, diffs: &mut Vec<DiffEntry>) {
+    let redacted = Some("\"[redacted]\"".to_string());
+    let (candidate, secondary) = role.values(redacted.clone());
+    diffs.push(DiffEntry {
+        kind: DiffKind::Body,
+        path: path.clone(),
+        primary: redacted,
         candidate,
         secondary,
         message: format!("primary body value {path} differs from {}", role.label()),

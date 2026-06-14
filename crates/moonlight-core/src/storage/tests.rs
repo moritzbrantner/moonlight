@@ -138,6 +138,104 @@ async fn list_returns_newest_first() {
 }
 
 #[tokio::test]
+async fn list_page_returns_newest_first_window() {
+    let dir = tempdir().unwrap();
+    let storage = Storage::load(dir.path().join("http-runs.jsonl"))
+        .await
+        .unwrap();
+    for index in 0..5 {
+        storage
+            .insert(run(
+                format!("run-{index}"),
+                index,
+                Classification::Match,
+                false,
+            ))
+            .await
+            .unwrap();
+    }
+
+    let runs = storage.list_page(2, 1).await;
+
+    assert_eq!(runs.len(), 2);
+    assert!(matches!(
+        runs[0].input,
+        RunInput::Http { ref path, .. } if path == "run-3"
+    ));
+    assert!(matches!(
+        runs[1].input,
+        RunInput::Http { ref path, .. } if path == "run-2"
+    ));
+}
+
+#[tokio::test]
+async fn retention_by_max_runs_keeps_newest_active_runs() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("http-runs.jsonl");
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(2),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+    for index in 0..4 {
+        storage
+            .insert(run(
+                format!("run-{index}"),
+                index,
+                Classification::Match,
+                false,
+            ))
+            .await
+            .unwrap();
+    }
+
+    let lines = std::fs::read_to_string(path).unwrap();
+    let stored = storage.list().await;
+
+    assert_eq!(lines.lines().count(), 2);
+    assert_eq!(stored.len(), 2);
+    assert!(matches!(
+        stored[0].input,
+        RunInput::Http { ref path, .. } if path == "run-3"
+    ));
+    assert!(matches!(
+        stored[1].input,
+        RunInput::Http { ref path, .. } if path == "run-2"
+    ));
+}
+
+#[tokio::test]
+async fn concurrent_inserts_are_serialized() {
+    let dir = tempdir().unwrap();
+    let storage = Storage::load(dir.path().join("http-runs.jsonl"))
+        .await
+        .unwrap();
+    let first = storage.clone();
+    let second = storage.clone();
+
+    let (first_result, second_result) = tokio::join!(
+        async move {
+            first
+                .insert(run("first", 1, Classification::Match, false))
+                .await
+        },
+        async move {
+            second
+                .insert(run("second", 2, Classification::Match, false))
+                .await
+        }
+    );
+
+    first_result.unwrap();
+    second_result.unwrap();
+    assert_eq!(storage.list().await.len(), 2);
+}
+
+#[tokio::test]
 async fn load_merges_jsonl_files_in_same_directory() {
     let dir = tempdir().unwrap();
     let http_path = dir.path().join("http-runs.jsonl");

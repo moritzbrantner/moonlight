@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::{env, net::SocketAddr, path::PathBuf, str::FromStr};
 
+pub const DEFAULT_MAX_REQUEST_BODY_BYTES: usize = 10 * 1024 * 1024;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub bind_addr: SocketAddr,
@@ -12,11 +14,19 @@ pub struct AppConfig {
     pub return_fallback: ReturnFallback,
     pub response_timing: ResponseTiming,
     pub max_body_capture_bytes: usize,
+    pub max_request_body_bytes: usize,
     pub redact_headers: Vec<String>,
+    pub redact_json_paths: Vec<String>,
+    pub redact_query_params: Vec<String>,
     pub ignored_json_paths: Vec<String>,
     pub ignored_headers: Vec<String>,
     pub ignore_stderr: bool,
     pub storage_path: PathBuf,
+    pub cors_origins: Vec<String>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub admin_token: Option<String>,
+    pub retention_max_runs: Option<usize>,
+    pub retention_max_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -111,10 +121,38 @@ impl AppConfig {
             response_timing: env_or(&get, "MOONLIGHT_RESPONSE_TIMING", "wait_all").parse()?,
             max_body_capture_bytes: env_or(&get, "MOONLIGHT_MAX_BODY_CAPTURE_BYTES", "8192")
                 .parse()?,
+            max_request_body_bytes: env_or(
+                &get,
+                "MOONLIGHT_MAX_REQUEST_BODY_BYTES",
+                &DEFAULT_MAX_REQUEST_BODY_BYTES.to_string(),
+            )
+            .parse()?,
             redact_headers: env_list(
                 &get,
                 "MOONLIGHT_REDACT_HEADERS",
-                &["authorization", "cookie", "set-cookie", "x-api-key"],
+                &[
+                    "authorization",
+                    "cookie",
+                    "set-cookie",
+                    "x-api-key",
+                    "proxy-authorization",
+                    "x-auth-token",
+                    "x-csrf-token",
+                ],
+            ),
+            redact_json_paths: env_list(&get, "MOONLIGHT_REDACT_JSON_PATHS", &[]),
+            redact_query_params: env_list(
+                &get,
+                "MOONLIGHT_REDACT_QUERY_PARAMS",
+                &[
+                    "token",
+                    "access_token",
+                    "id_token",
+                    "api_key",
+                    "key",
+                    "secret",
+                    "password",
+                ],
             ),
             ignored_json_paths: env_list(
                 &get,
@@ -138,6 +176,14 @@ impl AppConfig {
                 "MOONLIGHT_STORAGE_PATH",
                 "data/moonlight/http-runs.jsonl",
             )),
+            cors_origins: env_list(
+                &get,
+                "MOONLIGHT_CORS_ORIGINS",
+                &["http://127.0.0.1:5173", "http://localhost:5173"],
+            ),
+            admin_token: get("MOONLIGHT_ADMIN_TOKEN").filter(|value| !value.trim().is_empty()),
+            retention_max_runs: env_optional(&get, "MOONLIGHT_RETENTION_MAX_RUNS")?,
+            retention_max_bytes: env_optional(&get, "MOONLIGHT_RETENTION_MAX_BYTES")?,
         })
     }
 }
@@ -154,6 +200,18 @@ fn env_bool(get: &impl Fn(&str) -> Option<String>, key: &str, default: bool) -> 
             _ => None,
         })
         .unwrap_or(default)
+}
+
+fn env_optional<T>(get: &impl Fn(&str) -> Option<String>, key: &str) -> anyhow::Result<Option<T>>
+where
+    T: FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    get(key)
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| value.parse())
+        .transpose()
+        .map_err(Into::into)
 }
 
 fn env_list(get: &impl Fn(&str) -> Option<String>, key: &str, defaults: &[&str]) -> Vec<String> {
@@ -215,5 +273,44 @@ mod tests {
     fn return_fallback_defaults_to_none() {
         let config = config_from(&[]).unwrap();
         assert_eq!(config.return_fallback, ReturnFallback::None);
+    }
+
+    #[test]
+    fn parses_local_first_hardening_env_vars() {
+        let config = config_from(&[
+            ("MOONLIGHT_CORS_ORIGINS", "http://example.test,*"),
+            ("MOONLIGHT_ADMIN_TOKEN", "secret"),
+            ("MOONLIGHT_MAX_REQUEST_BODY_BYTES", "128"),
+            ("MOONLIGHT_REDACT_JSON_PATHS", "$.token,$.items[0].secret"),
+            ("MOONLIGHT_REDACT_QUERY_PARAMS", "token,key"),
+            ("MOONLIGHT_RETENTION_MAX_RUNS", "50"),
+            ("MOONLIGHT_RETENTION_MAX_BYTES", "2048"),
+        ])
+        .unwrap();
+
+        assert_eq!(
+            config.cors_origins,
+            vec!["http://example.test".to_string(), "*".to_string()]
+        );
+        assert_eq!(config.admin_token, Some("secret".to_string()));
+        assert_eq!(config.max_request_body_bytes, 128);
+        assert_eq!(
+            config.redact_json_paths,
+            vec!["$.token".to_string(), "$.items[0].secret".to_string()]
+        );
+        assert_eq!(
+            config.redact_query_params,
+            vec!["token".to_string(), "key".to_string()]
+        );
+        assert_eq!(config.retention_max_runs, Some(50));
+        assert_eq!(config.retention_max_bytes, Some(2048));
+    }
+
+    #[test]
+    fn serialized_config_omits_admin_token() {
+        let config = config_from(&[("MOONLIGHT_ADMIN_TOKEN", "secret")]).unwrap();
+        let json = serde_json::to_value(config).unwrap();
+
+        assert!(json.get("admin_token").is_none());
     }
 }

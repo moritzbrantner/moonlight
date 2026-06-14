@@ -4,12 +4,15 @@ mod diff;
 use crate::{Classification, ComparisonSummary, DiffEntry};
 use std::collections::HashSet;
 
-pub use capture::{capture_body, capture_headers, is_hop_by_hop_header};
+pub use capture::{
+    capture_body, capture_body_with_redactions, capture_headers, is_hop_by_hop_header,
+};
 pub use diff::CapturedTarget;
 
 #[derive(Debug, Clone)]
 pub struct CompareConfig {
     pub ignored_json_paths: HashSet<String>,
+    pub redact_json_paths: HashSet<String>,
     pub ignored_headers: HashSet<String>,
     pub ignore_stderr: bool,
 }
@@ -20,8 +23,18 @@ impl CompareConfig {
         ignored_headers: &[String],
         ignore_stderr: bool,
     ) -> Self {
+        Self::new_with_redactions(ignored_json_paths, &[], ignored_headers, ignore_stderr)
+    }
+
+    pub fn new_with_redactions(
+        ignored_json_paths: &[String],
+        redact_json_paths: &[String],
+        ignored_headers: &[String],
+        ignore_stderr: bool,
+    ) -> Self {
         Self {
             ignored_json_paths: ignored_json_paths.iter().cloned().collect(),
+            redact_json_paths: redact_json_paths.iter().cloned().collect(),
             ignored_headers: ignored_headers
                 .iter()
                 .map(|value| value.to_ascii_lowercase())

@@ -72,3 +72,27 @@ jobs:
       cache_bun: false
       cache_cargo: true
       cargo_cache_dependency_path: Cargo.lock
+
+  security-validation:
+    name: Dependency security policy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install security tools
+        run: |
+          cargo install cargo-audit --locked
+          cargo install cargo-deny --locked
+
+      - name: Rust advisory check
+        run: cargo audit
+
+      - name: Rust dependency policy
+        run: cargo deny check

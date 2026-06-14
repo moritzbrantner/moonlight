@@ -28,10 +28,22 @@ export function ConfigPanel({ config }: ConfigPanelProps) {
           <dd>{config.response_timing}</dd>
           <dt>Capture</dt>
           <dd>{config.max_body_capture_bytes} bytes</dd>
+          <dt>Request limit</dt>
+          <dd>{config.max_request_body_bytes} bytes</dd>
+          <dt>Redacted JSON</dt>
+          <dd>{config.redact_json_paths.length ? config.redact_json_paths.join(", ") : "none"}</dd>
+          <dt>Redacted query</dt>
+          <dd>{config.redact_query_params.join(", ")}</dd>
           <dt>Ignored JSON</dt>
           <dd>{config.ignored_json_paths.join(", ")}</dd>
           <dt>Ignored headers</dt>
           <dd>{config.ignored_headers.join(", ")}</dd>
+          <dt>CORS</dt>
+          <dd>{config.cors_origins.join(", ")}</dd>
+          <dt>Retention</dt>
+          <dd>
+            {config.retention_max_runs ?? "unbounded"} runs / {config.retention_max_bytes ?? "unbounded"} bytes
+          </dd>
           <dt>Stderr</dt>
           <dd>{config.ignore_stderr ? "ignored" : "compared"}</dd>
         </dl>

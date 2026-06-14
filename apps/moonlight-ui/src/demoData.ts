@@ -34,11 +34,25 @@ export const demoConfig: AppConfig = {
   return_fallback: "none",
   response_timing: "wait_all",
   max_body_capture_bytes: 8192,
-  redact_headers: ["authorization", "cookie", "set-cookie", "x-api-key"],
+  max_request_body_bytes: 10485760,
+  redact_headers: [
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key",
+    "proxy-authorization",
+    "x-auth-token",
+    "x-csrf-token"
+  ],
+  redact_json_paths: [],
+  redact_query_params: ["token", "access_token", "id_token", "api_key", "key", "secret", "password"],
   ignored_json_paths: ["$.generated_at"],
   ignored_headers: ["date"],
   ignore_stderr: false,
-  storage_path: "data/moonlight/http-runs.jsonl"
+  storage_path: "data/moonlight/http-runs.jsonl",
+  cors_origins: ["http://127.0.0.1:5173", "http://localhost:5173"],
+  retention_max_runs: null,
+  retention_max_bytes: null
 };
 
 export const demoRuns: ComparisonRun[] = [

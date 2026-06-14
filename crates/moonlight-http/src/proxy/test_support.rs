@@ -1,5 +1,11 @@
 use crate::{build_router, build_state};
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::any, Router};
+use axum::{
+    extract::{OriginalUri, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::any,
+    Router,
+};
 use moonlight_core::{
     config::{AppConfig, ResponseTiming, ReturnFallback, ReturnTarget},
     ComparisonRunListItem,
@@ -38,6 +44,22 @@ pub(super) async fn spawn_target_with_status_and_delay(
     addr
 }
 
+pub(super) async fn spawn_uri_target() -> SocketAddr {
+    async fn handler(OriginalUri(uri): OriginalUri) -> impl IntoResponse {
+        uri.path_and_query()
+            .map(|value| value.as_str().to_string())
+            .unwrap_or_else(|| uri.path().to_string())
+    }
+
+    let app = Router::new().fallback(any(handler));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    addr
+}
+
 pub(super) fn test_config(
     primary: SocketAddr,
     candidate: SocketAddr,
@@ -54,11 +76,25 @@ pub(super) fn test_config(
         return_fallback: ReturnFallback::None,
         response_timing,
         max_body_capture_bytes: 1024,
+        max_request_body_bytes: 1024 * 1024,
         redact_headers: vec![
             "authorization".into(),
             "cookie".into(),
             "set-cookie".into(),
             "x-api-key".into(),
+            "proxy-authorization".into(),
+            "x-auth-token".into(),
+            "x-csrf-token".into(),
+        ],
+        redact_json_paths: Vec::new(),
+        redact_query_params: vec![
+            "token".into(),
+            "access_token".into(),
+            "id_token".into(),
+            "api_key".into(),
+            "key".into(),
+            "secret".into(),
+            "password".into(),
         ],
         ignored_json_paths: vec![
             "$.timestamp".into(),
@@ -75,6 +111,13 @@ pub(super) fn test_config(
         ],
         ignore_stderr: false,
         storage_path: PathBuf::from(dir.path()).join("http-runs.jsonl"),
+        cors_origins: vec![
+            "http://127.0.0.1:5173".into(),
+            "http://localhost:5173".into(),
+        ],
+        admin_token: None,
+        retention_max_runs: None,
+        retention_max_bytes: None,
     }
 }
 

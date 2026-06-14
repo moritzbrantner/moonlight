@@ -189,3 +189,62 @@ fn ignored_headers_do_not_diff() {
     let result = compare_targets(&primary, &candidate, None, &config());
     assert_eq!(result.classification, Classification::Match);
 }
+
+#[test]
+fn json_body_redaction_redacts_exact_diff_values() {
+    let primary = target(200, &[], r#"{"token":"primary","value":1}"#);
+    let candidate = target(200, &[], r#"{"token":"candidate","value":1}"#);
+    let config = CompareConfig::new_with_redactions(&[], &["$.token".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert_eq!(result.noise_filtered_diffs[0].path, "$.token");
+    assert_eq!(
+        result.noise_filtered_diffs[0].primary.as_deref(),
+        Some("\"[redacted]\"")
+    );
+    assert_eq!(
+        result.noise_filtered_diffs[0].candidate.as_deref(),
+        Some("\"[redacted]\"")
+    );
+}
+
+#[test]
+fn json_body_redaction_handles_arrays() {
+    let primary = target(200, &[], r#"{"items":[{"secret":"primary"}]}"#);
+    let candidate = target(200, &[], r#"{"items":[{"secret":"candidate"}]}"#);
+    let config = CompareConfig::new_with_redactions(&[], &["$.items[0].secret".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert_eq!(result.noise_filtered_diffs[0].path, "$.items[0].secret");
+    assert_eq!(
+        result.noise_filtered_diffs[0].candidate.as_deref(),
+        Some("\"[redacted]\"")
+    );
+}
+
+#[test]
+fn capture_body_redacts_json_preview_but_keeps_original_hash_and_size() {
+    let body = br#"{"token":"secret","value":1}"#;
+    let capture = capture_body_with_redactions(body, 1024, &["$.token".into()]);
+
+    assert_eq!(capture.size_bytes, body.len());
+    assert!(capture.preview.contains(r#""token":"[redacted]""#));
+    assert!(!capture.preview.contains("secret"));
+    assert_eq!(
+        capture.sha256,
+        capture_body(body, 1024).sha256,
+        "hash should stay tied to original body bytes"
+    );
+}
+
+#[test]
+fn non_json_body_redaction_is_unchanged() {
+    let body = b"token=secret";
+    let capture = capture_body_with_redactions(body, 1024, &["$.token".into()]);
+
+    assert_eq!(capture.preview, "token=secret");
+}

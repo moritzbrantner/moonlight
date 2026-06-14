@@ -2,10 +2,12 @@ import type { AppConfig, ComparisonRun, ComparisonRunListItem, StatsSummary } fr
 import { demoConfig, demoRunList, demoRuns, demoStats } from "./demoData";
 
 const API_BASE = import.meta.env.VITE_MOONLIGHT_API_URL ?? "";
+const ADMIN_TOKEN = import.meta.env.VITE_MOONLIGHT_ADMIN_TOKEN;
 export const usesDemoData = import.meta.env.VITE_MOONLIGHT_DEMO === "true";
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`);
+  const headers = ADMIN_TOKEN ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : undefined;
+  const response = await fetch(`${API_BASE}${path}`, { headers });
   if (!response.ok) {
     throw new Error(`${path} failed with ${response.status}`);
   }

@@ -22,8 +22,18 @@ Sensitive headers are redacted by default:
 - `cookie`
 - `set-cookie`
 - `x-api-key`
+- `proxy-authorization`
+- `x-auth-token`
+- `x-csrf-token`
 
-Large bodies are captured as a SHA-256 hash plus a preview. Full secrets should never be sent to the UI or logs.
+Large bodies are captured as a SHA-256 hash plus a preview. Configure
+`MOONLIGHT_REDACT_JSON_PATHS` to redact exact JSON body paths from stored
+previews and diff values. Hashes still represent the original body bytes, and
+non-JSON bodies are not rewritten by JSON path redaction.
+
+Moonlight is not a data-loss-prevention system. Full secrets should never be
+sent to the UI, logs, or comparison storage, and sensitive write traffic should
+not be shadowed.
 
 ## Install The CLI
 
@@ -300,11 +310,19 @@ python3 scripts/moonlight-cli-benchmark.py --target moonlight --target moonlight
 
 - `GET /api/health`
 - `GET /api/config`
-- `GET /api/runs`
+- `GET /api/runs?limit=100&offset=0`
 - `GET /api/runs/:id`
 - `GET /api/stats`
 
 All other routes are treated as proxy routes and forwarded to the configured targets.
+
+`GET /api/runs` returns a JSON array for backwards compatibility. `limit`
+defaults to `100` and is capped at `1000`; `offset` defaults to `0`.
+
+Set `MOONLIGHT_ADMIN_TOKEN` to require admin requests, except `GET
+/api/health`, to include either `Authorization: Bearer <token>` or
+`X-Moonlight-Admin-Token: <token>`. Proxy fallback routes remain unauthenticated
+because they represent the traffic under comparison.
 
 ## Configuration
 
@@ -319,11 +337,18 @@ Environment variables:
 - `MOONLIGHT_RETURN_FALLBACK`, default `none`; use `primary` to fall back when candidate return has a target error
 - `MOONLIGHT_RESPONSE_TIMING`, default `wait_all`; use `return_selected` to return the selected response before remaining comparison work finishes
 - `MOONLIGHT_MAX_BODY_CAPTURE_BYTES`, default `8192`
+- `MOONLIGHT_MAX_REQUEST_BODY_BYTES`, default `10485760`
 - `MOONLIGHT_REDACT_HEADERS`, comma-separated
+- `MOONLIGHT_REDACT_JSON_PATHS`, comma-separated exact paths such as `$.token` or `$.items[0].secret`
+- `MOONLIGHT_REDACT_QUERY_PARAMS`, comma-separated, default `token,access_token,id_token,api_key,key,secret,password`
 - `MOONLIGHT_IGNORED_JSON_PATHS`, comma-separated
 - `MOONLIGHT_IGNORED_HEADERS`, comma-separated
 - `MOONLIGHT_IGNORE_STDERR`, default `false`
 - `MOONLIGHT_STORAGE_PATH`, default `data/moonlight/http-runs.jsonl`
+- `MOONLIGHT_CORS_ORIGINS`, comma-separated, default `http://127.0.0.1:5173,http://localhost:5173`; use `*` only for intentionally permissive local setups
+- `MOONLIGHT_ADMIN_TOKEN`, optional admin API bearer token
+- `MOONLIGHT_RETENTION_MAX_RUNS`, optional maximum active JSONL runs to retain
+- `MOONLIGHT_RETENTION_MAX_BYTES`, optional maximum active JSONL bytes to retain
 
 The exposed config also includes:
 
@@ -332,10 +357,18 @@ The exposed config also includes:
 - `return_fallback = "none"`
 - `response_timing = "wait_all"`
 - `max_body_capture_bytes`
+- `max_request_body_bytes`
 - `redact_headers`
+- `redact_json_paths`
+- `redact_query_params`
 - `ignored_json_paths`
 - `ignored_headers`
 - `ignore_stderr`
+- `cors_origins`
+- `retention_max_runs`
+- `retention_max_bytes`
+
+`MOONLIGHT_ADMIN_TOKEN` is intentionally omitted from `GET /api/config`.
 
 ## Implemented
 
@@ -344,6 +377,8 @@ The exposed config also includes:
 - Hop-by-hop request/response header stripping.
 - JSONL append-only storage plus in-memory index over `data/moonlight/*.jsonl`.
 - Body previews and SHA-256 hashes.
+- Optional exact JSON body path redaction for stored previews and diff values.
+- Query parameter redaction for stored HTTP run input.
 - JSON structural diff with simple JSON path tracking.
 - Ignored JSON paths and ignored headers.
 - Noise filtering using primary-secondary differences and candidate-must-match-reference semantics.
@@ -359,6 +394,4 @@ The exposed config also includes:
 - Replay API.
 - Richer JSONPath matching with wildcards.
 - Order-insensitive array comparison for set-like arrays.
-- Request and response body redaction rules beyond headers.
-- Authentication for the admin API.
-- Production deployment hardening and bounded storage retention.
+- Production deployment hardening beyond the local-first admin token and CORS controls.

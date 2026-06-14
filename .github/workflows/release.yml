@@ -21,6 +21,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve release version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=${version#v}" >> "$GITHUB_ENV"
+
+      - name: Check release version consistency
+        run: node scripts/release/check-release-version.mjs "$VERSION"
+
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal --component rustfmt --component clippy
@@ -61,13 +73,10 @@ jobs:
           rustup default stable
 
       - name: Dry-run moonlight-core
-        run: cargo publish -p moonlight-core --dry-run
+        run: cargo publish -p moonlight-core --dry-run --locked
 
-      - name: Check moonlight-cli package file list
-        run: cargo package -p moonlight-cli --list
-
-      - name: Build moonlight-cli
-        run: cargo build -p moonlight-cli --locked
+      - name: Dry-run moonlight-cli
+        run: cargo publish -p moonlight-cli --dry-run --locked
 
   build-native:
     name: Build ${{ matrix.target }}
@@ -117,7 +126,7 @@ jobs:
       - name: Upload native binary
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.package_dir }}
+          name: ${{ matrix.package_dir }}__${{ matrix.target }}
           path: packages/npm/platforms/${{ matrix.package_dir }}/bin/*
           if-no-files-found: error
           retention-days: 7
@@ -142,7 +151,8 @@ jobs:
         run: |
           set -euo pipefail
           for artifact_dir in artifacts/moonlight-*; do
-            package_dir="$(basename "$artifact_dir")"
+            artifact_name="$(basename "$artifact_dir")"
+            package_dir="${artifact_name%%__*}"
             install -d "packages/npm/platforms/${package_dir}/bin"
             cp "$artifact_dir"/* "packages/npm/platforms/${package_dir}/bin/"
             chmod +x "packages/npm/platforms/${package_dir}/bin/"*
@@ -244,6 +254,9 @@ jobs:
           fi
           echo "VERSION=${version#v}" >> "$GITHUB_ENV"
 
+      - name: Check release version consistency
+        run: node scripts/release/check-release-version.mjs "$VERSION"
+
       - name: Download native binaries
         uses: actions/download-artifact@v4
         with:
@@ -253,7 +266,8 @@ jobs:
         run: |
           set -euo pipefail
           for artifact_dir in artifacts/moonlight-*; do
-            package_dir="$(basename "$artifact_dir")"
+            artifact_name="$(basename "$artifact_dir")"
+            package_dir="${artifact_name%%__*}"
             install -d "packages/npm/platforms/${package_dir}/bin"
             cp "$artifact_dir"/* "packages/npm/platforms/${package_dir}/bin/"
             chmod +x "packages/npm/platforms/${package_dir}/bin/"*
@@ -314,9 +328,29 @@ jobs:
       - name: Create checksums and notes
         run: |
           set -euo pipefail
-          find artifacts -type f -print0 | sort -z | xargs -0 sha256sum > checksums.txt
+          mkdir -p release-assets
+          : > release-targets.txt
+          for artifact_dir in artifacts/moonlight-*; do
+            artifact_name="$(basename "$artifact_dir")"
+            package_dir="${artifact_name%%__*}"
+            target="${artifact_name#*__}"
+            source_file="$(find "$artifact_dir" -type f | head -n 1)"
+            extension=""
+            if [[ "$source_file" == *.exe ]]; then
+              extension=".exe"
+            fi
+            asset="release-assets/moonlight-${target}${extension}"
+            cp "$source_file" "$asset"
+            chmod +x "$asset"
+            printf '%s\n' "- ${package_dir}: ${target}" >> release-targets.txt
+          done
+          find release-assets -type f -print0 | sort -z | xargs -0 sha256sum > checksums.txt
           printf '%s\n' \
             "Moonlight ${VERSION}" \
+            "" \
+            "Native binary targets:" \
+            "" \
+            "$(cat release-targets.txt)" \
             "" \
             "Install with:" \
             "" \
@@ -333,7 +367,7 @@ jobs:
           files=(checksums.txt)
           while IFS= read -r file; do
             files+=("$file")
-          done < <(find artifacts -type f | sort)
+          done < <(find release-assets -type f | sort)
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" --clobber
