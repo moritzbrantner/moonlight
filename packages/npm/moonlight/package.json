@@ -1,0 +1,32 @@
+{
+  "name": "@moritzbrantner/moonlight",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Compare command behavior against one or two reference commands.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://moritzbrantner.github.io/moonlight/?page=overview",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moritzbrantner/moonlight.git"
+  },
+  "bin": {
+    "moonlight": "./bin/moonlight.js",
+    "moonlight-cli": "./bin/moonlight.js"
+  },
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@moritzbrantner/moonlight-darwin-arm64": "0.1.0",
+    "@moritzbrantner/moonlight-darwin-x64": "0.1.0",
+    "@moritzbrantner/moonlight-linux-arm64-gnu": "0.1.0",
+    "@moritzbrantner/moonlight-linux-x64-gnu": "0.1.0",
+    "@moritzbrantner/moonlight-win32-x64-msvc": "0.1.0"
+  }
+}

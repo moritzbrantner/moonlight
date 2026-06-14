@@ -1,0 +1,342 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer version to release, with or without a leading v"
+        required: true
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Rust format
+        run: cargo fmt --all -- --check
+
+      - name: Rust lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: UI typecheck
+        run: bun run typecheck
+
+      - name: UI build
+        run: bun run build
+
+  crate-dry-run:
+    name: Crates.io package checks
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Dry-run moonlight-core
+        run: cargo publish -p moonlight-core --dry-run
+
+      - name: Check moonlight-cli package file list
+        run: cargo package -p moonlight-cli --list
+
+      - name: Build moonlight-cli
+        run: cargo build -p moonlight-cli --locked
+
+  build-native:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            package_name: "@moritzbrantner/moonlight-linux-x64-gnu"
+            package_dir: moonlight-linux-x64-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            package_name: "@moritzbrantner/moonlight-linux-arm64-gnu"
+            package_dir: moonlight-linux-arm64-gnu
+          - os: macos-13
+            target: x86_64-apple-darwin
+            package_name: "@moritzbrantner/moonlight-darwin-x64"
+            package_dir: moonlight-darwin-x64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            package_name: "@moritzbrantner/moonlight-darwin-arm64"
+            package_dir: moonlight-darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            package_name: "@moritzbrantner/moonlight-win32-x64-msvc"
+            package_dir: moonlight-win32-x64-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --target "${{ matrix.target }}"
+          rustup default stable
+
+      - name: Build release binary
+        shell: bash
+        run: cargo build --release -p moonlight-cli --target "${{ matrix.target }}"
+
+      - name: Populate npm platform package
+        shell: bash
+        run: scripts/release/build-npm-binary-package.sh "${{ matrix.target }}" "${{ matrix.package_name }}"
+
+      - name: Upload native binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package_dir }}
+          path: packages/npm/platforms/${{ matrix.package_dir }}/bin/*
+          if-no-files-found: error
+          retention-days: 7
+
+  npm-pack-dry-run:
+    name: npm pack dry run
+    runs-on: ubuntu-latest
+    needs: build-native
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Download native binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Populate platform packages from artifacts
+        run: |
+          set -euo pipefail
+          for artifact_dir in artifacts/moonlight-*; do
+            package_dir="$(basename "$artifact_dir")"
+            install -d "packages/npm/platforms/${package_dir}/bin"
+            cp "$artifact_dir"/* "packages/npm/platforms/${package_dir}/bin/"
+            chmod +x "packages/npm/platforms/${package_dir}/bin/"*
+          done
+
+      - name: Pack platform packages
+        run: |
+          set -euo pipefail
+          for package_dir in packages/npm/platforms/*; do
+            (cd "$package_dir" && npm pack --dry-run)
+          done
+
+      - name: Pack main package
+        run: cd packages/npm/moonlight && npm pack --dry-run
+
+      - name: Smoke-test npm wrapper
+        run: MOONLIGHT_BIN="$PWD/packages/npm/platforms/moonlight-linux-x64-gnu/bin/moonlight" node scripts/release/verify-npm-wrapper.mjs
+
+  publish-crates:
+    name: Publish crates
+    runs-on: ubuntu-latest
+    needs:
+      - validate
+      - crate-dry-run
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Resolve release version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=${version#v}" >> "$GITHUB_ENV"
+
+      - name: Publish crates in dependency order
+        run: |
+          set -euo pipefail
+
+          crate_exists() {
+            curl -fsS "https://crates.io/api/v1/crates/$1/$VERSION" >/dev/null
+          }
+
+          publish_crate() {
+            local crate="$1"
+            if crate_exists "$crate"; then
+              echo "$crate $VERSION is already published; skipping"
+            else
+              cargo publish -p "$crate" --token "$CARGO_REGISTRY_TOKEN"
+            fi
+          }
+
+          publish_crate moonlight-core
+
+          for attempt in {1..30}; do
+            if cargo search moonlight-core --limit 1 | grep -F "moonlight-core = \"$VERSION\"" >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "moonlight-core $VERSION did not appear in the crates.io index in time" >&2
+              exit 1
+            fi
+            sleep 10
+          done
+
+          cargo publish -p moonlight-cli --dry-run --token "$CARGO_REGISTRY_TOKEN"
+          publish_crate moonlight-cli
+
+  publish-npm:
+    name: Publish npm packages
+    runs-on: ubuntu-latest
+    needs:
+      - build-native
+      - npm-pack-dry-run
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Resolve release version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=${version#v}" >> "$GITHUB_ENV"
+
+      - name: Download native binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Populate platform packages from artifacts
+        run: |
+          set -euo pipefail
+          for artifact_dir in artifacts/moonlight-*; do
+            package_dir="$(basename "$artifact_dir")"
+            install -d "packages/npm/platforms/${package_dir}/bin"
+            cp "$artifact_dir"/* "packages/npm/platforms/${package_dir}/bin/"
+            chmod +x "packages/npm/platforms/${package_dir}/bin/"*
+          done
+
+      - name: Configure npm token
+        if: env.NPM_TOKEN != ''
+        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+
+      - name: Publish packages
+        run: |
+          set -euo pipefail
+
+          publish_dir() {
+            local dir="$1"
+            local name
+            name="$(node -p "require('./${dir}/package.json').name")"
+            if npm view "${name}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${name} ${VERSION} is already published; skipping"
+            else
+              (cd "$dir" && npm publish --access public --provenance)
+            fi
+          }
+
+          for package_dir in packages/npm/platforms/*; do
+            publish_dir "$package_dir"
+          done
+
+          publish_dir packages/npm/moonlight
+
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - build-native
+      - publish-crates
+      - publish-npm
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=${version#v}" >> "$GITHUB_ENV"
+          echo "TAG=v${version#v}" >> "$GITHUB_ENV"
+
+      - name: Download native binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create checksums and notes
+        run: |
+          set -euo pipefail
+          find artifacts -type f -print0 | sort -z | xargs -0 sha256sum > checksums.txt
+          printf '%s\n' \
+            "Moonlight ${VERSION}" \
+            "" \
+            "Install with:" \
+            "" \
+            '```sh' \
+            "cargo install moonlight-cli --locked" \
+            "npx @moritzbrantner/moonlight@${VERSION} --help" \
+            "bunx @moritzbrantner/moonlight@${VERSION} --help" \
+            '```' \
+            > release-notes.md
+
+      - name: Publish GitHub Release
+        run: |
+          set -euo pipefail
+          files=(checksums.txt)
+          while IFS= read -r file; do
+            files+=("$file")
+          done < <(find artifacts -type f | sort)
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" --target "$GITHUB_SHA" --title "Moonlight ${VERSION}" --notes-file release-notes.md
+          fi

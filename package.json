@@ -2,7 +2,9 @@
   "name": "moonlight",
   "private": true,
   "workspaces": [
-    "apps/moonlight-ui"
+    "apps/moonlight-ui",
+    "packages/npm/moonlight",
+    "packages/npm/platforms/*"
   ],
   "scripts": {
     "dev": "cd apps/moonlight-ui && bun run dev",

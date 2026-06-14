@@ -1,7 +1,17 @@
 [package]
 name = "moonlight-cli"
+autobins = false
+categories = ["command-line-utilities", "development-tools::testing"]
+default-run = "moonlight-cli"
+description = "Compare command behavior against one or two reference commands."
 edition.workspace = true
+homepage.workspace = true
+include = ["src/**", "Cargo.toml", "benches/**", "../../README.md", "../../LICENSE"]
+keywords = ["cli", "testing", "diff", "snapshot", "comparison"]
 license.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
@@ -10,7 +20,7 @@ bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
 hex.workspace = true
-moonlight-core = { path = "../moonlight-core" }
+moonlight-core = { version = "0.1.0", path = "../moonlight-core" }
 futures.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -25,6 +35,14 @@ criterion = { version = "0.8.2", features = ["html_reports"] }
 predicates = "3.1.4"
 serde.workspace = true
 tempfile.workspace = true
+
+[[bin]]
+name = "moonlight-cli"
+path = "src/main.rs"
+
+[[bin]]
+name = "moonlight"
+path = "src/bin/moonlight.rs"
 
 [[bench]]
 name = "moonlight_cli"

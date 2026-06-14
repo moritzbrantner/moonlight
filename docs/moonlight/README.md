@@ -25,6 +25,34 @@ Sensitive headers are redacted by default:
 
 Large bodies are captured as a SHA-256 hash plus a preview. Full secrets should never be sent to the UI or logs.
 
+## Install The CLI
+
+Install with Cargo:
+
+```sh
+cargo install moonlight-cli --locked
+moonlight run --primary 'printf "{\"value\":42}\n"' --candidate 'printf "{\"value\":43}\n"'
+```
+
+Run through npm:
+
+```sh
+npx @moritzbrantner/moonlight run \
+  --primary 'printf "{\"value\":42}\n"' \
+  --candidate 'printf "{\"value\":43}\n"'
+```
+
+Run through Bun:
+
+```sh
+bunx @moritzbrantner/moonlight run \
+  --primary 'printf "{\"value\":42}\n"' \
+  --candidate 'printf "{\"value\":43}\n"'
+```
+
+The installed commands are `moonlight` and `moonlight-cli`. They run the same
+CLI; `moonlight-cli` is kept as a compatibility alias.
+
 ## Run Locally
 
 Start the three demo services:
@@ -72,18 +100,21 @@ jobs:
 
 For a different repository name, change `VITE_MOONLIGHT_BASE_PATH` to the repository path used by GitHub Pages. To deploy against a live API instead of the bundled example data, remove `VITE_MOONLIGHT_DEMO=true` and set `VITE_MOONLIGHT_API_URL` to the public admin API origin.
 
-Run a CLI comparison:
+Run an installed CLI comparison:
 
 ```sh
-cargo run -p moonlight-cli -- run \
+moonlight run \
   --primary 'printf "{\"value\":42}\n"' \
   --candidate 'printf "{\"value\":43}\n"'
 ```
 
+For contributor builds from this repository, use `cargo run -p moonlight-cli --`
+before the subcommand.
+
 `run` compares two or three target commands: primary, candidate, and optionally secondary. Targets run concurrently by default. Use `--serial-targets` when command order matters, `--compact` when a machine consumer wants one-line JSON on stdout, and `--quiet` when only the stored JSONL record is needed:
 
 ```sh
-cargo run -p moonlight-cli -- run \
+moonlight run \
   --primary 'printf primary\n' \
   --candidate 'printf candidate\n' \
   --serial-targets \
@@ -98,7 +129,7 @@ cat > cases.jsonl <<'JSONL'
 {"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":43}'"}
 JSONL
 
-cargo run -p moonlight-cli -- batch --input cases.jsonl --jobs 8
+moonlight batch --input cases.jsonl --jobs 8
 ```
 
 Each JSONL case accepts `primary`, `candidate`, optional `secondary`, optional `max_body_capture_bytes`, optional `ignored_json_paths`, optional `ignored_headers`, and optional `ignore_stderr`. Shell string commands remain the default and run through `sh -lc`.
@@ -113,7 +144,23 @@ For each target role, provide exactly one form: `primary` or `primary_argv`, `ca
 
 Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or `--emit-runs` to print compact JSONL run records as cases complete.
 
-The CLI stores comparison runs in the same JSONL format as the HTTP proxy. Use `cargo run -p moonlight-cli -- list` or `cargo run -p moonlight-cli -- stats` to inspect them.
+The CLI stores comparison runs in the same JSONL format as the HTTP proxy. Use `moonlight list` or `moonlight stats` to inspect them.
+
+### Install Troubleshooting
+
+If npm reports that the optional native package is missing, reinstall with
+optional dependencies enabled. npm users should avoid `--omit=optional`; Bun
+users should retry with a clean install cache if `bunx` reused an incomplete
+download.
+
+If your platform is unsupported by the npm package, install with Cargo instead:
+
+```sh
+cargo install moonlight-cli --locked
+```
+
+Set `MOONLIGHT_BIN=/path/to/moonlight` to make the npm launcher use a local or
+manually installed binary.
 
 ## Send Sample Traffic
 

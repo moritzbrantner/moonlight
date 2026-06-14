@@ -1,7 +1,16 @@
 [package]
 name = "moonlight-http"
+categories = ["command-line-utilities", "web-programming::http-server"]
+description = "HTTP shadow proxy for comparing candidate service behavior against reference targets."
 edition.workspace = true
+homepage.workspace = true
+include = ["src/**", "Cargo.toml", "../../README.md", "../../LICENSE"]
+keywords = ["http", "proxy", "testing", "diff", "comparison"]
 license.workspace = true
+publish = false
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 version.workspace = true
 
 [dependencies]

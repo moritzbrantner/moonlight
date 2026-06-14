@@ -1,0 +1,21 @@
+{
+  "name": "@moritzbrantner/moonlight-linux-x64-gnu",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Native Moonlight CLI binary for Linux x64 glibc.",
+  "license": "MIT",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ]
+}
