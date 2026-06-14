@@ -12,3 +12,6 @@ data/**
 !data/moonlight/cli-benchmark-analysis/latest.md
 *.tsbuildinfo
 *.log
+performance-results/
+apps/moonlight-ui/storybook-static/
+apps/moonlight-ui/.unlighthouse/

@@ -6,7 +6,13 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "storybook": "VITE_MOONLIGHT_DEMO=true storybook dev -p 6006 --host 127.0.0.1",
+    "storybook:build": "VITE_MOONLIGHT_DEMO=true storybook build",
+    "benchmark:ui": "../../scripts/ui-unlighthouse.sh",
+    "benchmark:ui:live": "../../scripts/ui-unlighthouse-live.sh"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",

@@ -10,7 +10,15 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 bun install --frozen-lockfile
 bun run typecheck
+bun run test:run
 bun run build
+bun run storybook:build
+```
+
+For UI performance and accessibility-oriented review, run:
+
+```sh
+scripts/ui-unlighthouse.sh
 ```
 
 The CI workflow also runs dependency and advisory checks with `cargo audit` and

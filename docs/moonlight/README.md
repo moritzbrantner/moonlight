@@ -88,6 +88,21 @@ bun run dev
 
 Open `http://127.0.0.1:5173`.
 
+Run the UI component test suite:
+
+```sh
+bun run test:run
+```
+
+Review components in Storybook:
+
+```sh
+bun run storybook
+bun run storybook:build
+```
+
+Storybook includes the accessibility addon, so component stories expose local WCAG A/AA checks while reviewing UI changes.
+
 ## GitHub Pages Example
 
 The repository includes a static GitHub Pages example workflow at `.github/workflows/pages.yml`. It deploys the Vite UI with a repository overview page, latest HTTP and CLI benchmark snapshots, and bundled demo comparison runs, so the page works without a live Moonlight admin API.
@@ -305,6 +320,41 @@ BENCHMARK_COMPARISON_RUNS=50 BENCHMARK_COMPARISON_CASES=100 scripts/moonlight-cl
 python3 scripts/moonlight-cli-benchmark.py --bin target/release/moonlight-cli --scenario candidate-diff
 python3 scripts/moonlight-cli-benchmark.py --target moonlight --target moonlight-argv --target trycmd --target insta --target cram --target bats --target shellspec
 ```
+
+## UI Testing And Benchmarking
+
+Run the Vitest and React Testing Library component suite:
+
+```sh
+bun run test:run
+```
+
+Build the production UI and Storybook:
+
+```sh
+bun run build
+bun run storybook:build
+```
+
+Run the static demo UI benchmark used by CI:
+
+```sh
+scripts/ui-unlighthouse.sh
+```
+
+This builds the Vite UI with `VITE_MOONLIGHT_DEMO=true`, serves the production build locally, and runs Unlighthouse against the overview and dashboard routes. Reports are written to:
+
+- `performance-results/unlighthouse`
+- `performance-results/unlighthouse-summary.md`
+
+Run an optional benchmark against a live UI and admin API:
+
+```sh
+bun run dev
+MOONLIGHT_UI_URL=http://127.0.0.1:5173 scripts/ui-unlighthouse-live.sh
+```
+
+The live benchmark is intended for local or manual runs because it depends on a running UI and API. Required CI benchmarks only the static demo UI through `moritzbrantner/reusable-workflows` performance validation.
 
 ## Admin API
 

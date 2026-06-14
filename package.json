@@ -9,9 +9,26 @@
   "scripts": {
     "dev": "cd apps/moonlight-ui && bun run dev",
     "build": "cd apps/moonlight-ui && bun run build",
-    "typecheck": "cd apps/moonlight-ui && bun run typecheck"
+    "typecheck": "cd apps/moonlight-ui && bun run typecheck",
+    "test": "cd apps/moonlight-ui && bun run test",
+    "test:run": "cd apps/moonlight-ui && bun run test:run",
+    "storybook": "cd apps/moonlight-ui && bun run storybook",
+    "storybook:build": "cd apps/moonlight-ui && bun run storybook:build",
+    "benchmark:ui": "scripts/ui-unlighthouse.sh",
+    "benchmark:ui:live": "scripts/ui-unlighthouse-live.sh"
   },
   "dependencies": {
     "playwright": "^1.60.0"
+  },
+  "devDependencies": {
+    "@storybook/addon-a11y": "^10.4.4",
+    "@storybook/react-vite": "^10.4.4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "jsdom": "^29.1.1",
+    "storybook": "^10.4.4",
+    "unlighthouse": "^0.17.10",
+    "vitest": "^4.1.8"
   }
 }
