@@ -39,13 +39,22 @@ pub(crate) struct RunArgs {
     pub(crate) storage: StorageArgs,
 
     #[arg(long)]
-    pub(crate) primary: String,
+    pub(crate) primary: Option<String>,
 
     #[arg(long)]
-    pub(crate) candidate: String,
+    pub(crate) primary_argv: Option<String>,
+
+    #[arg(long)]
+    pub(crate) candidate: Option<String>,
+
+    #[arg(long)]
+    pub(crate) candidate_argv: Option<String>,
 
     #[arg(long)]
     pub(crate) secondary: Option<String>,
+
+    #[arg(long)]
+    pub(crate) secondary_argv: Option<String>,
 
     #[arg(long, default_value_t = DEFAULT_MAX_BODY_CAPTURE_BYTES)]
     pub(crate) max_body_capture_bytes: usize,

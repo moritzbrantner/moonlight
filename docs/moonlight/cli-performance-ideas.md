@@ -6,7 +6,9 @@ This list ranks likely speedups for `moonlight-cli` and `moonlight-core`. Items 
 
 - `run --compact` prints one-line JSON for machine consumers while preserving pretty JSON by default.
 - `batch` accepts direct `*_argv` command forms for trusted deterministic fixtures.
+- `run` accepts direct `--primary-argv`, `--candidate-argv`, and `--secondary-argv` command forms.
 - Default batch cases reuse a shared `CompareConfig`.
+- `batch` writes completed runs through a dedicated writer task.
 - CLI command capture now reads stdout and stderr concurrently while computing SHA-256 and previews in one pass, while still retaining full bytes for current diff compatibility.
 - CLI benchmark reports include normalized per-target invocation latency and a `moonlight-argv` comparison target.
 
@@ -38,8 +40,8 @@ This list ranks likely speedups for `moonlight-cli` and `moonlight-core`. Items 
 
 ## 4. Add Direct Argv Execution Mode
 
-- Current behavior: every CLI target command runs through `sh -lc`, including deterministic benchmark fixtures.
-- Current status: batch JSONL supports `primary_argv`, `candidate_argv`, and `secondary_argv`; `run` remains shell-string based.
+- Previous behavior: every `run` target command ran through `sh -lc`, including deterministic benchmark fixtures.
+- Current status: batch JSONL supports `primary_argv`, `candidate_argv`, and `secondary_argv`; `run` supports matching `--primary-argv`, `--candidate-argv`, and `--secondary-argv` flags.
 - Expected impact: Medium for small fast commands where shell startup dominates the command body.
 - Risk level: Medium. Shell strings are flexible and user-facing; argv execution should be additive rather than replacing the current interface.
 - Metric to watch: `match`, `candidate-diff`, `moonlight` tool-comparison per-case latency, and direct process startup time.
@@ -47,7 +49,8 @@ This list ranks likely speedups for `moonlight-cli` and `moonlight-core`. Items 
 
 ## 5. Single Writer Task For Batch
 
-- Current behavior: each completed batch run awaits `RunWriter::append`, which serializes access through a mutex around a buffered file.
+- Previous behavior: each completed batch run awaited `RunWriter::append`, which serialized access through a mutex around a buffered file.
+- Current status: completed batch runs are sent to a dedicated writer task, so the polling loop can continue driving ready cases while storage writes are serialized by that task.
 - Expected impact: Medium when `--jobs` is high and target commands complete quickly.
 - Risk level: Low to medium. Ordering may remain completion-order unless the product requires input-order persistence.
 - Metric to watch: `moonlight-cli batch --jobs N` suite latency across `N = 1, 4, 8, 16`.

@@ -1,6 +1,7 @@
 mod args;
 mod batch;
 mod command;
+mod command_form;
 mod config;
 mod execute;
 mod input;

@@ -146,6 +146,17 @@ moonlight run \
   --quiet
 ```
 
+Trusted deterministic `run` commands can use direct argv flags to avoid shell startup and parsing:
+
+```sh
+moonlight run \
+  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
+  --candidate-argv '["printf","%s\n","{\"value\":43}"]' \
+  --compact
+```
+
+For each required target role, provide exactly one shell string flag or argv flag: `--primary` or `--primary-argv`, and `--candidate` or `--candidate-argv`. For the optional secondary target, provide at most one of `--secondary` or `--secondary-argv`. Argv values must be JSON string arrays with a nonblank executable as the first element. Stored CLI run input remains backward compatible by recording the argv command as a shell-escaped display string.
+
 For trycmd-like command suites, use `batch` so many cases run inside one `moonlight-cli` process with bounded concurrency:
 
 ```sh
@@ -165,11 +176,13 @@ Trusted deterministic batch fixtures can use direct argv fields to avoid shell s
 {"primary_argv":["printf","%s\n","{\"value\":42}"],"candidate_argv":["printf","%s\n","{\"value\":42}"]}
 ```
 
-For each target role, provide exactly one form: `primary` or `primary_argv`, `candidate` or `candidate_argv`, and optionally `secondary` or `secondary_argv`. Argv arrays must be non-empty. Stored CLI run input remains backward compatible by recording a display string for argv commands.
+For each target role, provide exactly one form: `primary` or `primary_argv`, `candidate` or `candidate_argv`, and optionally `secondary` or `secondary_argv`. Argv arrays must be non-empty and start with a nonblank executable. Stored CLI run input remains backward compatible by recording a display string for argv commands.
 
 Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or `--emit-runs` to print compact JSONL run records as cases complete.
 
 The CLI stores comparison runs in the same JSONL format as the HTTP proxy. Use `moonlight list` or `moonlight stats` to inspect them.
+
+CLI non-zero exit statuses and HTTP 4xx/5xx response statuses are observed target statuses, so Moonlight compares and stores them like other target output. `target_error` is reserved for invocation or capture failures such as spawn, read, wait, signal, transport, or body-read failures that prevent a complete target observation.
 
 ### Install Troubleshooting
 

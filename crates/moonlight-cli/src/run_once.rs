@@ -1,17 +1,33 @@
 use crate::{
     args::RunArgs,
+    command_form::{
+        parse_json_argv_flag, parse_optional_command_form, parse_required_command_form,
+        CommandFormLabels,
+    },
     config::build_compare_config,
     execute::execute_case,
-    types::{Case, PreparedCase, TargetCommand},
+    types::{Case, PreparedCase},
 };
 use moonlight_core::storage::RunWriter;
 use std::sync::Arc;
 
 pub(crate) async fn run(args: RunArgs) -> anyhow::Result<()> {
     let case = Case {
-        primary: TargetCommand::Shell(args.primary),
-        candidate: TargetCommand::Shell(args.candidate),
-        secondary: args.secondary.map(TargetCommand::Shell),
+        primary: parse_required_command_form(
+            run_labels("primary"),
+            args.primary,
+            parse_json_argv_flag("--primary-argv", args.primary_argv)?,
+        )?,
+        candidate: parse_required_command_form(
+            run_labels("candidate"),
+            args.candidate,
+            parse_json_argv_flag("--candidate-argv", args.candidate_argv)?,
+        )?,
+        secondary: parse_optional_command_form(
+            run_labels("secondary"),
+            args.secondary,
+            parse_json_argv_flag("--secondary-argv", args.secondary_argv)?,
+        )?,
         max_body_capture_bytes: args.max_body_capture_bytes,
         ignored_json_paths: args.ignored_json_paths,
         ignored_headers: args.ignored_headers,
@@ -43,4 +59,20 @@ pub(crate) async fn run(args: RunArgs) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn run_labels(role: &'static str) -> CommandFormLabels {
+    let (shell, argv) = match role {
+        "primary" => ("--primary", "--primary-argv"),
+        "candidate" => ("--candidate", "--candidate-argv"),
+        "secondary" => ("--secondary", "--secondary-argv"),
+        _ => unreachable!("unknown target role"),
+    };
+
+    CommandFormLabels {
+        role,
+        shell,
+        argv,
+        reject_empty_shell: false,
+    }
 }

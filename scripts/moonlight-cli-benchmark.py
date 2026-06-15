@@ -17,6 +17,7 @@ from pathlib import Path
 DEFAULT_TARGETS = ["moonlight", "moonlight-argv", "trycmd", "insta", "cram", "bats", "shellspec"]
 DEFAULT_SCENARIOS = [
     "match",
+    "match-argv",
     "candidate-diff",
     "noise",
     "noisy-regression",
@@ -35,6 +36,10 @@ DEFAULT_SCENARIOS = [
 
 def shell_json(value):
     return "printf '%s\\n' '{}'".format(value)
+
+
+def argv_json(*args):
+    return json.dumps(list(args))
 
 
 def python_print(value):
@@ -57,6 +62,17 @@ SCENARIOS = {
             shell_json('{"value":42}'),
             "--secondary",
             shell_json('{"value":42}'),
+        ],
+    },
+    "match-argv": {
+        "expected": "match",
+        "args": [
+            "--primary-argv",
+            argv_json("printf", "%s\n", '{"value":42}'),
+            "--candidate-argv",
+            argv_json("printf", "%s\n", '{"value":42}'),
+            "--secondary-argv",
+            argv_json("printf", "%s\n", '{"value":42}'),
         ],
     },
     "candidate-diff": {

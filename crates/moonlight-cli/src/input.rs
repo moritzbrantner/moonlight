@@ -1,8 +1,9 @@
 use crate::{
+    command_form::{parse_optional_command_form, parse_required_command_form, CommandFormLabels},
     config::{build_compare_config, DEFAULT_MAX_BODY_CAPTURE_BYTES},
-    types::{BatchCase, Case, PreparedCase, TargetCommand},
+    types::{BatchCase, Case, PreparedCase},
 };
-use anyhow::{bail, Context};
+use anyhow::Context;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
     fs,
@@ -60,23 +61,23 @@ pub(crate) fn prepare_cases(cases: Vec<Case>) -> Vec<PreparedCase> {
 fn case_from_batch(line_number: usize, case: BatchCase) -> anyhow::Result<Case> {
     Ok(Case {
         primary: parse_required_command_form(
-            line_number,
-            "primary",
+            batch_labels("primary"),
             case.primary,
             case.primary_argv,
-        )?,
+        )
+        .with_context(|| format!("invalid batch JSONL on line {line_number}"))?,
         candidate: parse_required_command_form(
-            line_number,
-            "candidate",
+            batch_labels("candidate"),
             case.candidate,
             case.candidate_argv,
-        )?,
+        )
+        .with_context(|| format!("invalid batch JSONL on line {line_number}"))?,
         secondary: parse_optional_command_form(
-            line_number,
-            "secondary",
+            batch_labels("secondary"),
             case.secondary,
             case.secondary_argv,
-        )?,
+        )
+        .with_context(|| format!("invalid batch JSONL on line {line_number}"))?,
         max_body_capture_bytes: case
             .max_body_capture_bytes
             .unwrap_or(DEFAULT_MAX_BODY_CAPTURE_BYTES),
@@ -86,54 +87,19 @@ fn case_from_batch(line_number: usize, case: BatchCase) -> anyhow::Result<Case> 
     })
 }
 
-fn parse_required_command_form(
-    line_number: usize,
-    role: &str,
-    shell: Option<String>,
-    argv: Option<Vec<String>>,
-) -> anyhow::Result<TargetCommand> {
-    parse_command_form(line_number, role, shell, argv)?.with_context(|| {
-        format!("invalid batch JSONL on line {line_number}: {role} command form is required")
-    })
-}
+fn batch_labels(role: &'static str) -> CommandFormLabels {
+    let (shell, argv) = match role {
+        "primary" => ("primary", "primary_argv"),
+        "candidate" => ("candidate", "candidate_argv"),
+        "secondary" => ("secondary", "secondary_argv"),
+        _ => unreachable!("unknown target role"),
+    };
 
-fn parse_optional_command_form(
-    line_number: usize,
-    role: &str,
-    shell: Option<String>,
-    argv: Option<Vec<String>>,
-) -> anyhow::Result<Option<TargetCommand>> {
-    parse_command_form(line_number, role, shell, argv)
-}
-
-fn parse_command_form(
-    line_number: usize,
-    role: &str,
-    shell: Option<String>,
-    argv: Option<Vec<String>>,
-) -> anyhow::Result<Option<TargetCommand>> {
-    match (shell, argv) {
-        (Some(_), Some(_)) => bail!(
-            "invalid batch JSONL on line {line_number}: provide exactly one of {role} or {role}_argv"
-        ),
-        (Some(command), None) => {
-            if command.trim().is_empty() {
-                bail!("invalid batch JSONL on line {line_number}: {role} must not be empty");
-            }
-            Ok(Some(TargetCommand::Shell(command)))
-        }
-        (None, Some(argv)) => {
-            if argv.is_empty() {
-                bail!("invalid batch JSONL on line {line_number}: {role}_argv must not be empty");
-            }
-            if argv[0].trim().is_empty() {
-                bail!(
-                    "invalid batch JSONL on line {line_number}: {role}_argv command must not be empty"
-                );
-            }
-            Ok(Some(TargetCommand::Argv(argv)))
-        }
-        (None, None) => Ok(None),
+    CommandFormLabels {
+        role,
+        shell,
+        argv,
+        reject_empty_shell: true,
     }
 }
 

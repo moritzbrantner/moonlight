@@ -22,6 +22,10 @@ fn command_json(value: &str) -> String {
     format!("printf '%s\\n' '{}'", value)
 }
 
+fn argv_json(args: &[&str]) -> String {
+    serde_json::to_string(args).expect("serialize argv")
+}
+
 fn fresh_storage() -> (TempDir, PathBuf) {
     let dir = tempdir().expect("temp dir");
     let path = dir.path().join("runs.jsonl");
@@ -45,6 +49,22 @@ fn run_scenario(storage_path: &Path, args: &[&str]) {
     let mut full_args = vec!["run", "--storage-path", storage.as_ref(), "--compact"];
     full_args.extend_from_slice(args);
     run_cli(&full_args);
+}
+
+fn run_batch_scenario(input_path: &Path, storage_path: &Path, jobs: usize) {
+    let input = input_path.to_string_lossy();
+    let storage = storage_path.to_string_lossy();
+    let jobs = jobs.to_string();
+    run_cli(&[
+        "batch",
+        "--input",
+        input.as_ref(),
+        "--storage-path",
+        storage.as_ref(),
+        "--quiet",
+        "--jobs",
+        &jobs,
+    ]);
 }
 
 fn body() -> BodyCapture {
@@ -110,6 +130,22 @@ fn write_fixture(count: usize) -> (TempDir, PathBuf, Uuid) {
     (dir, path, show_id)
 }
 
+fn write_batch_fixture(count: usize) -> (TempDir, PathBuf, PathBuf) {
+    let dir = tempdir().expect("temp dir");
+    let input = dir.path().join("cases.jsonl");
+    let storage = dir.path().join("runs.jsonl");
+    let case = serde_json::json!({
+        "primary_argv": ["printf", "%s\n", "{\"value\":42}"],
+        "candidate_argv": ["printf", "%s\n", "{\"value\":42}"]
+    });
+    let lines = (0..count)
+        .map(|_| case.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&input, format!("{lines}\n")).expect("write batch fixture");
+    (dir, input, storage)
+}
+
 fn bench_run_commands(c: &mut Criterion) {
     c.bench_function("run_match_small_json", |b| {
         let primary = command_json(r#"{"value":42}"#);
@@ -126,6 +162,29 @@ fn bench_run_commands(c: &mut Criterion) {
                         "--candidate",
                         &candidate,
                         "--secondary",
+                        &secondary,
+                    ],
+                );
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    c.bench_function("run_match_small_json_argv", |b| {
+        let primary = argv_json(&["printf", "%s\n", r#"{"value":42}"#]);
+        let candidate = argv_json(&["printf", "%s\n", r#"{"value":42}"#]);
+        let secondary = argv_json(&["printf", "%s\n", r#"{"value":42}"#]);
+        b.iter_batched(
+            fresh_storage,
+            |(_dir, storage)| {
+                run_scenario(
+                    &storage,
+                    &[
+                        "--primary-argv",
+                        &primary,
+                        "--candidate-argv",
+                        &candidate,
+                        "--secondary-argv",
                         &secondary,
                     ],
                 );
@@ -185,6 +244,18 @@ fn bench_run_commands(c: &mut Criterion) {
     });
 }
 
+fn bench_batch_commands(c: &mut Criterion) {
+    for jobs in [1, 4, 8, 16] {
+        c.bench_function(&format!("batch_many_small_json_argv_jobs_{jobs}"), |b| {
+            b.iter_batched(
+                || write_batch_fixture(64),
+                |(_dir, input, storage)| run_batch_scenario(&input, &storage, jobs),
+                BatchSize::SmallInput,
+            );
+        });
+    }
+}
+
 fn bench_read_commands(c: &mut Criterion) {
     let (_dir, storage, show_id) = write_fixture(1000);
     let storage = storage.to_string_lossy().into_owned();
@@ -203,5 +274,10 @@ fn bench_read_commands(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_run_commands, bench_read_commands);
+criterion_group!(
+    benches,
+    bench_run_commands,
+    bench_batch_commands,
+    bench_read_commands
+);
 criterion_main!(benches);

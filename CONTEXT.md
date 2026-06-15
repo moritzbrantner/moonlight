@@ -36,4 +36,4 @@ Candidate behavior that differs from stable reference behavior.
 Behavior that differs between primary and secondary references.
 
 **Target Error**:
-A configured target failed to produce an observation.
+A target invocation or capture failure that prevents a complete target observation.

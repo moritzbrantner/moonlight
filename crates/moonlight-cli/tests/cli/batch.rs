@@ -3,7 +3,7 @@ use assert_cmd::prelude::*;
 use assert_fs::TempDir;
 use predicates::prelude::*;
 use serde_json::Value;
-use std::{fs, io::Write, path::Path, process::Stdio};
+use std::{collections::BTreeSet, fs, io::Write, path::Path, process::Stdio};
 
 #[test]
 fn batch_records_multiple_cases() {
@@ -36,6 +36,47 @@ fn batch_records_multiple_cases() {
     assert_eq!(summary["suspicious_differences"], 1);
     assert_eq!(summary["reference_noise"], 1);
     assert_eq!(read_jsonl(&storage).len(), 3);
+    dir.close().unwrap();
+}
+
+#[test]
+fn batch_writer_writes_all_records_exactly_once() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    let cases = (0..16)
+        .map(|index| {
+            serde_json::json!({
+                "primary_argv": ["printf", "%s", format!("case-{index}")],
+                "candidate_argv": ["printf", "%s", format!("case-{index}")]
+            })
+        })
+        .collect::<Vec<_>>();
+    write_batch_cases(&input_path, &cases);
+
+    let summary = read_json(&[
+        "batch",
+        "--input",
+        input_path.to_str().unwrap(),
+        "--storage-path",
+        &storage,
+        "--jobs",
+        "8",
+    ]);
+    let records = read_jsonl(&storage);
+    let unique_commands = records
+        .iter()
+        .map(|record| {
+            record["input"]["primary_command"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(summary["total_runs"], 16);
+    assert_eq!(records.len(), 16);
+    assert_eq!(unique_commands.len(), 16);
     dir.close().unwrap();
 }
 
@@ -100,6 +141,55 @@ fn batch_quiet_suppresses_stdout() {
 }
 
 #[test]
+fn batch_preserves_completion_order_for_storage_and_emit_runs() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let input_path = dir.path().join("cases.jsonl");
+    fs::write(
+        &input_path,
+        [
+            r#"{"primary":"sleep 0.5; printf '%s' slow","candidate":"sleep 0.5; printf '%s' slow"}"#,
+            r#"{"primary":"printf '%s' fast","candidate":"printf '%s' fast"}"#,
+        ]
+        .join("\n"),
+    )
+    .unwrap();
+
+    let output = cli()
+        .args([
+            "batch",
+            "--input",
+            input_path.to_str().unwrap(),
+            "--storage-path",
+            &storage,
+            "--emit-runs",
+            "--jobs",
+            "2",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let emitted = String::from_utf8(output)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).expect("valid JSONL"))
+        .collect::<Vec<_>>();
+    let stored = read_jsonl(&storage);
+
+    assert_eq!(emitted.len(), 2);
+    assert_eq!(stored.len(), 2);
+    assert_eq!(emitted[0]["input"]["primary_command"], "printf '%s' fast");
+    assert_eq!(stored[0]["input"]["primary_command"], "printf '%s' fast");
+    assert_eq!(
+        emitted[0]["id"], stored[0]["id"],
+        "stdout and storage should use the same completion order"
+    );
+    dir.close().unwrap();
+}
+
+#[test]
 fn batch_emit_runs_outputs_jsonl_records() {
     let dir = TempDir::new().unwrap();
     let storage = storage_path(&dir);
@@ -142,6 +232,33 @@ fn batch_emit_runs_outputs_jsonl_records() {
         records[1]["comparison"]["classification"],
         "suspicious_difference"
     );
+    dir.close().unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn batch_writer_errors_propagate_as_command_failure() {
+    let dir = TempDir::new().unwrap();
+    let input_path = dir.path().join("cases.jsonl");
+    fs::write(
+        &input_path,
+        r#"{"primary_argv":["printf","%s","ok"],"candidate_argv":["printf","%s","ok"]}"#,
+    )
+    .unwrap();
+
+    cli()
+        .args([
+            "batch",
+            "--input",
+            input_path.to_str().unwrap(),
+            "--storage-path",
+            "/dev/full",
+            "--quiet",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("batch writer failed"));
+
     dir.close().unwrap();
 }
 

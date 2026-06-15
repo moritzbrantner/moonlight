@@ -8,6 +8,8 @@ mod cli_batch_argv;
 mod cli_batch_argv_records;
 #[path = "cli/run.rs"]
 mod cli_run;
+#[path = "cli/run_argv.rs"]
+mod cli_run_argv;
 #[path = "cli/run_features.rs"]
 mod cli_run_features;
 #[path = "cli/support.rs"]
