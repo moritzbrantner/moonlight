@@ -1,4 +1,4 @@
-import { Activity, Github } from "lucide-react";
+import { Activity, GitBranch } from "lucide-react";
 import { cliBenchmark, httpBenchmark, type CliToolComparison } from "../benchmarkData";
 import { navigate, type Page } from "../navigation";
 import { formatMs, formatNumber } from "../utils/format";
@@ -32,7 +32,7 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           </p>
           <div className="hero__actions" aria-label="Repository resources">
             <a className="button button--primary" href="https://github.com/moritzbrantner/moonlight">
-              <Github aria-hidden="true" />
+              <GitBranch aria-hidden="true" />
               Repository
             </a>
             <button className="button button--secondary" onClick={() => navigate("dashboard", onNavigate)}>

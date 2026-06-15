@@ -38,7 +38,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/health", get(get_health))
         .route("/api/config", get(get_config))
         .route("/api/runs", get(get_runs))
-        .route("/api/runs/:id", get(get_run))
+        .route("/api/runs/{id}", get(get_run))
         .route("/api/stats", get(get_stats))
         .fallback(proxy_handler)
         .layer(cors_layer(&state.config))
