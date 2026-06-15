@@ -1,11 +1,13 @@
 use crate::{Classification, ComparisonRun, ComparisonRunListItem, LatencyStats, StatsSummary};
 use std::{
+    fs as std_fs,
+    io::{BufRead, BufReader as StdBufReader},
     path::{Path, PathBuf},
     sync::Arc,
 };
 use tokio::{
     fs::{self, File, OpenOptions},
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader as TokioBufReader, BufWriter},
     sync::{Mutex, RwLock},
 };
 use uuid::Uuid;
@@ -23,6 +25,11 @@ pub struct Storage {
 #[derive(Clone)]
 pub struct RunWriter {
     file: Arc<Mutex<BufWriter<File>>>,
+}
+
+#[derive(Clone)]
+pub struct JsonlStorageReader {
+    path: PathBuf,
 }
 
 impl RunWriter {
@@ -51,6 +58,89 @@ impl RunWriter {
 
     pub async fn flush(&self) -> anyhow::Result<()> {
         self.file.lock().await.flush().await?;
+        Ok(())
+    }
+}
+
+impl JsonlStorageReader {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+
+    pub async fn stats(&self) -> anyhow::Result<StatsSummary> {
+        let mut accumulator = StatsAccumulator::default();
+        self.for_each_run(|run| {
+            accumulator.record(&run);
+            true
+        })
+        .await?;
+        Ok(accumulator.finish())
+    }
+
+    pub async fn list_page(
+        &self,
+        limit: Option<usize>,
+        offset: usize,
+    ) -> anyhow::Result<Vec<ComparisonRunListItem>> {
+        let retained_limit = limit.and_then(|value| value.checked_add(offset));
+        let mut runs = Vec::new();
+
+        self.for_each_run(|run| {
+            runs.push(ComparisonRunListItem::from(&run));
+            if let Some(retained_limit) = retained_limit {
+                if runs.len() > retained_limit {
+                    runs.remove(0);
+                }
+            }
+            true
+        })
+        .await?;
+
+        runs.reverse();
+        Ok(match limit {
+            Some(limit) => runs.into_iter().skip(offset).take(limit).collect(),
+            None => runs.into_iter().skip(offset).collect(),
+        })
+    }
+
+    pub async fn get(&self, id: Uuid) -> anyhow::Result<Option<ComparisonRun>> {
+        let mut found = None;
+        self.for_each_run(|run| {
+            if run.id == id {
+                found = Some(run);
+                false
+            } else {
+                true
+            }
+        })
+        .await?;
+        Ok(found)
+    }
+
+    async fn for_each_run(
+        &self,
+        mut visit: impl FnMut(ComparisonRun) -> bool,
+    ) -> anyhow::Result<()> {
+        if !self.path.try_exists()? {
+            return Ok(());
+        }
+
+        let file = std_fs::File::open(&self.path)?;
+        let lines = StdBufReader::new(file).lines();
+        for line in lines {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            match serde_json::from_str::<ComparisonRun>(&line) {
+                Ok(run) => {
+                    if !visit(run) {
+                        break;
+                    }
+                }
+                Err(error) => warn_corrupt_line(&self.path, &error),
+            }
+        }
         Ok(())
     }
 }
@@ -126,50 +216,13 @@ impl Storage {
 
     pub async fn stats(&self) -> StatsSummary {
         let runs = self.runs.read().await;
-        let mut matches = 0;
-        let mut suspicious_differences = 0;
-        let mut reference_noise = 0;
-        let mut suspicious_with_noise = 0;
-        let mut target_errors = 0;
-        let mut primary_total = 0_u128;
-        let mut candidate_total = 0_u128;
-        let mut secondary_latencies = Vec::new();
+        let mut accumulator = StatsAccumulator::default();
 
         for run in runs.iter() {
-            match run.comparison.classification {
-                Classification::Match => matches += 1,
-                Classification::SuspiciousDifference => suspicious_differences += 1,
-                Classification::ReferenceNoise => reference_noise += 1,
-                Classification::SuspiciousWithNoise => suspicious_with_noise += 1,
-                Classification::TargetError => target_errors += 1,
-            }
-            primary_total += run.primary.latency_ms;
-            candidate_total += run.candidate.latency_ms;
-            if let Some(secondary) = &run.secondary {
-                secondary_latencies.push(secondary.latency_ms);
-            }
+            accumulator.record(run);
         }
 
-        let total_runs = runs.len();
-        StatsSummary {
-            total_runs,
-            matches,
-            suspicious_differences,
-            reference_noise,
-            suspicious_with_noise,
-            target_errors,
-            latency: LatencyStats {
-                primary_avg_ms: avg(total_runs, primary_total),
-                candidate_avg_ms: avg(total_runs, candidate_total),
-                secondary_avg_ms: avg_opt(&secondary_latencies),
-            },
-            latest_runs: runs
-                .iter()
-                .rev()
-                .take(20)
-                .map(ComparisonRunListItem::from)
-                .collect(),
-        }
+        accumulator.finish()
     }
 
     async fn apply_retention(&self) -> anyhow::Result<()> {
@@ -241,20 +294,79 @@ async fn load_runs_from_dir(scan_dir: &Path) -> anyhow::Result<Vec<ComparisonRun
 
 async fn load_runs_from_file(path: &Path, runs: &mut Vec<ComparisonRun>) -> anyhow::Result<()> {
     let file = fs::File::open(path).await?;
-    let mut lines = BufReader::new(file).lines();
+    let mut lines = TokioBufReader::new(file).lines();
     while let Some(line) = lines.next_line().await? {
         if line.trim().is_empty() {
             continue;
         }
         match serde_json::from_str::<ComparisonRun>(&line) {
             Ok(run) => runs.push(run),
-            Err(error) => eprintln!(
-                "skipping corrupt moonlight JSONL run in {}: {error}",
-                path.display()
-            ),
+            Err(error) => warn_corrupt_line(path, &error),
         }
     }
     Ok(())
+}
+
+fn warn_corrupt_line(path: &Path, error: &serde_json::Error) {
+    eprintln!(
+        "skipping corrupt moonlight JSONL run in {}: {error}",
+        path.display()
+    );
+}
+
+#[derive(Default)]
+struct StatsAccumulator {
+    total_runs: usize,
+    matches: usize,
+    suspicious_differences: usize,
+    reference_noise: usize,
+    suspicious_with_noise: usize,
+    target_errors: usize,
+    primary_total: u128,
+    candidate_total: u128,
+    secondary_latencies: Vec<u128>,
+    latest_runs: Vec<ComparisonRunListItem>,
+}
+
+impl StatsAccumulator {
+    fn record(&mut self, run: &ComparisonRun) {
+        self.total_runs += 1;
+        match run.comparison.classification {
+            Classification::Match => self.matches += 1,
+            Classification::SuspiciousDifference => self.suspicious_differences += 1,
+            Classification::ReferenceNoise => self.reference_noise += 1,
+            Classification::SuspiciousWithNoise => self.suspicious_with_noise += 1,
+            Classification::TargetError => self.target_errors += 1,
+        }
+        self.primary_total += run.primary.latency_ms;
+        self.candidate_total += run.candidate.latency_ms;
+        if let Some(secondary) = &run.secondary {
+            self.secondary_latencies.push(secondary.latency_ms);
+        }
+
+        self.latest_runs.push(ComparisonRunListItem::from(run));
+        if self.latest_runs.len() > 20 {
+            self.latest_runs.remove(0);
+        }
+    }
+
+    fn finish(mut self) -> StatsSummary {
+        self.latest_runs.reverse();
+        StatsSummary {
+            total_runs: self.total_runs,
+            matches: self.matches,
+            suspicious_differences: self.suspicious_differences,
+            reference_noise: self.reference_noise,
+            suspicious_with_noise: self.suspicious_with_noise,
+            target_errors: self.target_errors,
+            latency: LatencyStats {
+                primary_avg_ms: avg(self.total_runs, self.primary_total),
+                candidate_avg_ms: avg(self.total_runs, self.candidate_total),
+                secondary_avg_ms: avg_opt(&self.secondary_latencies),
+            },
+            latest_runs: self.latest_runs,
+        }
+    }
 }
 
 fn avg(count: usize, total: u128) -> f64 {

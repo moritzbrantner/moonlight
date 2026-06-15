@@ -55,6 +55,15 @@ fn run(
     }
 }
 
+fn write_runs(path: &std::path::Path, runs: &[ComparisonRun]) {
+    let lines = runs
+        .iter()
+        .map(|run| serde_json::to_string(run).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(path, format!("{lines}\n")).unwrap();
+}
+
 #[tokio::test]
 async fn load_creates_parent_directory() {
     let dir = tempdir().unwrap();
@@ -263,6 +272,113 @@ async fn load_merges_jsonl_files_in_same_directory() {
     assert_eq!(stats.total_runs, 2);
     assert_eq!(stats.matches, 1);
     assert_eq!(stats.reference_noise, 1);
+}
+
+#[tokio::test]
+async fn jsonl_reader_reads_only_requested_file() {
+    let dir = tempdir().unwrap();
+    let requested_path = dir.path().join("cli-runs.jsonl");
+    let sibling_path = dir.path().join("http-runs.jsonl");
+    write_runs(
+        &requested_path,
+        &[
+            run("cli-1", 1, Classification::Match, false),
+            run("cli-2", 2, Classification::SuspiciousDifference, false),
+        ],
+    );
+    write_runs(
+        &sibling_path,
+        &[run("http", 3, Classification::ReferenceNoise, true)],
+    );
+
+    let reader = JsonlStorageReader::new(requested_path);
+    let stats = reader.stats().await.unwrap();
+    let runs = reader.list_page(None, 0).await.unwrap();
+
+    assert_eq!(stats.total_runs, 2);
+    assert_eq!(stats.matches, 1);
+    assert_eq!(stats.suspicious_differences, 1);
+    assert_eq!(stats.reference_noise, 0);
+    assert_eq!(runs.len(), 2);
+    assert!(matches!(
+        runs[0].input,
+        RunInput::Http { ref path, .. } if path == "cli-2"
+    ));
+}
+
+#[tokio::test]
+async fn jsonl_reader_missing_file_is_empty() {
+    let dir = tempdir().unwrap();
+    let reader = JsonlStorageReader::new(dir.path().join("missing.jsonl"));
+
+    let stats = reader.stats().await.unwrap();
+    let list = reader.list_page(Some(10), 0).await.unwrap();
+    let found = reader.get(Uuid::new_v4()).await.unwrap();
+
+    assert_eq!(stats.total_runs, 0);
+    assert!(stats.latest_runs.is_empty());
+    assert!(list.is_empty());
+    assert!(found.is_none());
+}
+
+#[tokio::test]
+async fn jsonl_reader_skips_corrupt_lines() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("cli-runs.jsonl");
+    let valid = run("valid", 1, Classification::Match, false);
+    std::fs::write(
+        &path,
+        format!("not-json\n{}\n", serde_json::to_string(&valid).unwrap()),
+    )
+    .unwrap();
+
+    let reader = JsonlStorageReader::new(path);
+    let stats = reader.stats().await.unwrap();
+
+    assert_eq!(stats.total_runs, 1);
+    assert_eq!(stats.matches, 1);
+}
+
+#[tokio::test]
+async fn jsonl_reader_pages_newest_first() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("cli-runs.jsonl");
+    let runs = (0..5)
+        .map(|index| run(format!("run-{index}"), index, Classification::Match, false))
+        .collect::<Vec<_>>();
+    write_runs(&path, &runs);
+
+    let reader = JsonlStorageReader::new(path);
+    let page = reader.list_page(Some(2), 1).await.unwrap();
+
+    assert_eq!(page.len(), 2);
+    assert!(matches!(
+        page[0].input,
+        RunInput::Http { ref path, .. } if path == "run-3"
+    ));
+    assert!(matches!(
+        page[1].input,
+        RunInput::Http { ref path, .. } if path == "run-2"
+    ));
+}
+
+#[tokio::test]
+async fn jsonl_reader_get_returns_matching_run() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("cli-runs.jsonl");
+    let first = run("first", 1, Classification::Match, false);
+    let second = run("second", 2, Classification::SuspiciousDifference, false);
+    let second_id = second.id;
+    write_runs(&path, &[first, second]);
+
+    let reader = JsonlStorageReader::new(path);
+    let found = reader.get(second_id).await.unwrap().unwrap();
+
+    assert_eq!(found.id, second_id);
+    assert!(matches!(
+        found.input,
+        RunInput::Http { ref path, .. } if path == "second"
+    ));
 }
 
 #[tokio::test]

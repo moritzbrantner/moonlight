@@ -130,6 +130,34 @@ fn write_fixture(count: usize) -> (TempDir, PathBuf, Uuid) {
     (dir, path, show_id)
 }
 
+fn write_sibling_polluted_fixture(count: usize) -> (TempDir, PathBuf, Uuid) {
+    let dir = tempdir().expect("temp dir");
+    let requested_path = dir.path().join("requested-runs.jsonl");
+    let sibling_a = dir.path().join("sibling-a.jsonl");
+    let sibling_b = dir.path().join("sibling-b.jsonl");
+    let mut show_id = Uuid::nil();
+
+    for (path, id_offset) in [
+        (&requested_path, 0),
+        (&sibling_a, count),
+        (&sibling_b, count * 2),
+    ] {
+        let lines = (0..count)
+            .map(|index| {
+                let run = fixture_run(index + id_offset);
+                if path == &requested_path && index == count / 2 {
+                    show_id = run.id;
+                }
+                serde_json::to_string(&run).expect("serialize fixture run")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(path, format!("{lines}\n")).expect("write fixture");
+    }
+
+    (dir, requested_path, show_id)
+}
+
 fn write_batch_fixture(count: usize) -> (TempDir, PathBuf, PathBuf) {
     let dir = tempdir().expect("temp dir");
     let input = dir.path().join("cases.jsonl");
@@ -269,8 +297,35 @@ fn bench_read_commands(c: &mut Criterion) {
         b.iter(|| run_cli(&["list", "--storage-path", &storage]));
     });
 
+    c.bench_function("list_latest_20_of_1000_runs", |b| {
+        b.iter(|| run_cli(&["list", "--storage-path", &storage, "--limit", "20"]));
+    });
+
     c.bench_function("show_middle_run_1000_runs", |b| {
         b.iter(|| run_cli(&["show", &show_id, "--storage-path", &storage]));
+    });
+
+    let (_polluted_dir, polluted_storage, polluted_show_id) = write_sibling_polluted_fixture(1000);
+    let polluted_storage = polluted_storage.to_string_lossy().into_owned();
+    let polluted_show_id = polluted_show_id.to_string();
+
+    c.bench_function("stats_1000_runs_with_sibling_jsonl", |b| {
+        b.iter(|| run_cli(&["stats", "--storage-path", &polluted_storage]));
+    });
+
+    c.bench_function("list_latest_20_of_1000_runs_with_sibling_jsonl", |b| {
+        b.iter(|| run_cli(&["list", "--storage-path", &polluted_storage, "--limit", "20"]));
+    });
+
+    c.bench_function("show_middle_run_1000_runs_with_sibling_jsonl", |b| {
+        b.iter(|| {
+            run_cli(&[
+                "show",
+                &polluted_show_id,
+                "--storage-path",
+                &polluted_storage,
+            ])
+        });
     });
 }
 

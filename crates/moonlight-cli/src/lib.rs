@@ -11,7 +11,7 @@ mod types;
 use anyhow::Context;
 use args::{Cli, CliCommand};
 use clap::Parser;
-use moonlight_core::storage::Storage;
+use moonlight_core::storage::JsonlStorageReader;
 
 pub async fn run_cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -20,23 +20,33 @@ pub async fn run_cli() -> anyhow::Result<()> {
         CliCommand::Run(args) => run_once::run(args).await,
         CliCommand::Batch(args) => batch::batch(args).await,
         CliCommand::List(args) => {
-            let storage = Storage::load(args.storage_path).await?;
-            println!("{}", serde_json::to_string_pretty(&storage.list().await)?);
+            let storage = JsonlStorageReader::new(args.output.storage.storage_path());
+            let runs = storage.list_page(args.limit, args.offset).await?;
+            print_json(&runs, args.output.compact)?;
             Ok(())
         }
         CliCommand::Stats(args) => {
-            let storage = Storage::load(args.storage_path).await?;
-            println!("{}", serde_json::to_string_pretty(&storage.stats().await)?);
+            let storage = JsonlStorageReader::new(args.storage.storage_path());
+            print_json(&storage.stats().await?, args.compact)?;
             Ok(())
         }
         CliCommand::Show(args) => {
-            let storage = Storage::load(args.storage.storage_path).await?;
+            let storage = JsonlStorageReader::new(args.output.storage.storage_path());
             let run = storage
                 .get(args.id)
-                .await
+                .await?
                 .with_context(|| format!("comparison run {} was not found", args.id))?;
-            println!("{}", serde_json::to_string_pretty(&run)?);
+            print_json(&run, args.output.compact)?;
             Ok(())
         }
     }
+}
+
+fn print_json(value: &impl serde::Serialize, compact: bool) -> anyhow::Result<()> {
+    if compact {
+        println!("{}", serde_json::to_string(value)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    }
+    Ok(())
 }

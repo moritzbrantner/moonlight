@@ -18,7 +18,7 @@ pub(crate) async fn batch(args: BatchArgs) -> anyhow::Result<()> {
     let jobs = args.jobs.unwrap_or_else(default_jobs).max(1);
     let cases = read_batch_cases(&args.input).await?;
     let prepared_cases = prepare_cases(cases);
-    let writer = RunWriter::open(args.storage.storage_path).await?;
+    let writer = RunWriter::open(args.storage.storage_path()).await?;
     let (run_tx, mut run_rx) = mpsc::unbounded_channel();
     let writer_task = tokio::spawn(async move {
         while let Some(run) = run_rx.recv().await {

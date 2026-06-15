@@ -11,14 +11,16 @@ This list ranks likely speedups for `moonlight-cli` and `moonlight-core`. Items 
 - `batch` writes completed runs through a dedicated writer task.
 - CLI command capture now reads stdout and stderr concurrently while computing SHA-256 and previews in one pass, while still retaining full bytes for current diff compatibility.
 - CLI benchmark reports include normalized per-target invocation latency and a `moonlight-argv` comparison target.
+- CLI `list`, `stats`, and `show` now use an exact-file JSONL reader, support compact output, and avoid scanning sibling JSONL files used by HTTP/admin or benchmark runs.
 
 ## 1. Storage Fast Paths For CLI Read Commands
 
-- Current behavior: `Storage::load` scans every `.jsonl` file in the storage directory, deserializes full `ComparisonRun` records, and then `list`, `stats`, and `show` derive their response from the in-memory vector.
+- Previous behavior: `Storage::load` scanned every `.jsonl` file in the storage directory, deserialized full `ComparisonRun` records, and then `list`, `stats`, and `show` derived their response from the in-memory vector.
+- Current status: implemented for CLI read commands through an exact-file JSONL reader. `Storage::load` still scans and merges directory records for HTTP/admin views.
 - Expected impact: High for directories that contain HTTP and CLI benchmark outputs or many historical runs.
 - Risk level: Medium. Admin views intentionally merge records across files today, so the fast path should be scoped to CLI commands that pass a concrete `--storage-path`.
-- Metric to watch: `stats_1000_runs`, `list_1000_runs`, and `show_middle_run_1000_runs` Criterion timings, plus read-command latency in `scripts/moonlight-cli-benchmark.py`.
-- Acceptance criterion: `stats`, `list`, and `show` read only the requested storage file in CLI fast-path mode, while existing merged-directory behavior remains available where the HTTP admin path needs it.
+- Metric to watch: `stats_1000_runs`, `list_latest_20_of_1000_runs`, `show_middle_run_1000_runs`, and the sibling-JSONL variants in Criterion, plus read-command latency in `scripts/moonlight-cli-benchmark.py`.
+- Acceptance criterion: `stats`, `list`, and `show` read only the requested storage file in CLI fast-path mode, while existing merged-directory behavior remains available where the HTTP admin path needs it. Sibling-polluted read benches should stay close to clean exact-file benches.
 
 ## 2. Streaming Command Capture
 

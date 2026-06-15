@@ -178,9 +178,18 @@ Trusted deterministic batch fixtures can use direct argv fields to avoid shell s
 
 For each target role, provide exactly one form: `primary` or `primary_argv`, `candidate` or `candidate_argv`, and optionally `secondary` or `secondary_argv`. Argv arrays must be non-empty and start with a nonblank executable. Stored CLI run input remains backward compatible by recording a display string for argv commands.
 
-Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or `--emit-runs` to print compact JSONL run records as cases complete.
+Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or `--emit-runs` to print compact JSONL run records as cases complete. For deterministic command-output suites, prefer `batch` with `*_argv` fields because it avoids one `moonlight-cli` process per case and bypasses shell startup for each target.
 
-The CLI stores comparison runs in the same JSONL format as the HTTP proxy. Use `moonlight list` or `moonlight stats` to inspect them.
+The CLI stores comparison runs in the same JSONL format as the HTTP proxy. Use `moonlight list` or `moonlight stats` to inspect them:
+
+```sh
+moonlight list --limit 20
+moonlight list --limit 20 --offset 20 --compact
+moonlight stats --compact
+moonlight show "$RUN_ID" --compact
+```
+
+`moonlight ls` is an alias for `moonlight list`. CLI read commands inspect only the requested JSONL file, so nearby HTTP or benchmark JSONL files do not affect `list`, `stats`, or `show`. Set `MOONLIGHT_CLI_STORAGE_PATH=/path/to/runs.jsonl` to change the default CLI storage file; an explicit `--storage-path` flag always wins.
 
 CLI non-zero exit statuses and HTTP 4xx/5xx response statuses are observed target statuses, so Moonlight compares and stores them like other target output. `target_error` is reserved for invocation or capture failures such as spawn, read, wait, signal, transport, or body-read failures that prevent a complete target observation.
 
@@ -331,6 +340,7 @@ Useful overrides:
 BENCHMARK_REQUESTS=500 BENCHMARK_CONCURRENCY=1 scripts/moonlight-cli-benchmark.sh
 BENCHMARK_COMPARISON_RUNS=50 BENCHMARK_COMPARISON_CASES=100 scripts/moonlight-cli-benchmark.sh
 python3 scripts/moonlight-cli-benchmark.py --bin target/release/moonlight-cli --scenario candidate-diff
+python3 scripts/moonlight-cli-benchmark.py --bin target/release/moonlight-cli --baseline-bin /path/to/old/moonlight-cli --target moonlight --target moonlight-argv
 python3 scripts/moonlight-cli-benchmark.py --target moonlight --target moonlight-argv --target trycmd --target insta --target cram --target bats --target shellspec
 ```
 

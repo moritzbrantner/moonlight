@@ -47,7 +47,7 @@ pub(crate) async fn run(args: RunArgs) -> anyhow::Result<()> {
     )
     .await;
 
-    let writer = RunWriter::open(args.storage.storage_path).await?;
+    let writer = RunWriter::open(args.storage.storage_path()).await?;
     writer.append(&run).await?;
     writer.flush().await?;
 

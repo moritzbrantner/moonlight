@@ -211,6 +211,11 @@ def parse_args():
         default=os.getenv("MOONLIGHT_CLI_BIN", "target/release/moonlight-cli"),
         help="Path to the moonlight-cli binary.",
     )
+    parser.add_argument(
+        "--baseline-bin",
+        default=os.getenv("MOONLIGHT_CLI_BASELINE_BIN"),
+        help="Optional baseline moonlight-cli binary to run side-by-side with --bin.",
+    )
     parser.add_argument("--warmup", type=int, default=int(os.getenv("BENCHMARK_WARMUP", "20")))
     parser.add_argument(
         "--requests", type=int, default=int(os.getenv("BENCHMARK_REQUESTS", "200"))
@@ -1019,6 +1024,21 @@ def summarize_comparisons(binary, output_dir, targets, cases, warmup, runs, conc
     return comparisons
 
 
+def summarize_baseline_comparisons(
+    baseline_binary, output_dir, targets, cases, warmup, runs, concurrency
+):
+    comparisons = {}
+    if "moonlight" in targets:
+        comparisons["baseline-moonlight"] = summarize_moonlight_target(
+            baseline_binary, output_dir, cases, warmup, runs, concurrency
+        )
+    if "moonlight-argv" in targets:
+        comparisons["baseline-moonlight-argv"] = summarize_moonlight_argv_target(
+            baseline_binary, output_dir, cases, warmup, runs, concurrency
+        )
+    return comparisons
+
+
 def run_text(command):
     try:
         return subprocess.check_output(command, text=True, stderr=subprocess.STDOUT).strip()
@@ -1026,13 +1046,16 @@ def run_text(command):
         return f"unavailable: {exc}"
 
 
-def environment(binary):
-    return {
+def environment(binary, baseline_binary=None):
+    output = {
         "git_sha": run_text(["git", "rev-parse", "HEAD"]),
         "rustc": run_text(["rustc", "-V"]),
         "cargo": run_text(["cargo", "-V"]),
         "binary": str(binary),
     }
+    if baseline_binary is not None:
+        output["baseline_binary"] = str(baseline_binary)
+    return output
 
 
 def format_ms(value):
@@ -1146,6 +1169,9 @@ def main():
     binary = Path(args.bin)
     if not binary.exists():
         raise SystemExit(f"moonlight-cli binary not found: {binary}")
+    baseline_binary = Path(args.baseline_bin) if args.baseline_bin else None
+    if baseline_binary is not None and not baseline_binary.exists():
+        raise SystemExit(f"baseline moonlight-cli binary not found: {baseline_binary}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1154,13 +1180,14 @@ def main():
 
     report = {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "environment": environment(binary),
+        "environment": environment(binary, baseline_binary),
         "config": {
             "warmup": args.warmup,
             "requests": args.requests,
             "concurrency": args.concurrency,
             "scenarios": scenarios,
             "targets": targets,
+            "baseline_bin": str(baseline_binary) if baseline_binary else None,
             "comparison_runs": args.comparison_runs,
             "comparison_cases": args.comparison_cases,
         },
@@ -1168,25 +1195,47 @@ def main():
         "comparisons": {},
     }
 
+    candidate_output_dir = output_dir / "candidate" if baseline_binary is not None else output_dir
     for scenario in scenarios:
         report["scenarios"][scenario] = summarize_scenario(
             str(binary),
-            output_dir,
+            candidate_output_dir,
             scenario,
             args.warmup,
             args.requests,
             args.concurrency,
         )
+        if baseline_binary is not None:
+            report["scenarios"][f"baseline-{scenario}"] = summarize_scenario(
+                str(baseline_binary),
+                output_dir / "baseline",
+                scenario,
+                args.warmup,
+                args.requests,
+                args.concurrency,
+            )
 
     report["comparisons"] = summarize_comparisons(
         binary,
-        output_dir,
+        candidate_output_dir,
         targets,
         args.comparison_cases,
         min(args.warmup, args.comparison_runs),
         args.comparison_runs,
         args.concurrency,
     )
+    if baseline_binary is not None:
+        report["comparisons"].update(
+            summarize_baseline_comparisons(
+                baseline_binary,
+                output_dir / "baseline",
+                targets,
+                args.comparison_cases,
+                min(args.warmup, args.comparison_runs),
+                args.comparison_runs,
+                args.concurrency,
+            )
+        )
 
     json_path = output_dir / "latest.json"
     markdown_path = output_dir / "latest.md"
