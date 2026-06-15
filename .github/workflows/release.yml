@@ -143,7 +143,7 @@ jobs:
           node-version: "24"
 
       - name: Download native binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -258,7 +258,7 @@ jobs:
         run: node scripts/release/check-release-version.mjs "$VERSION"
 
       - name: Download native binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -321,7 +321,7 @@ jobs:
           echo "TAG=v${version#v}" >> "$GITHUB_ENV"
 
       - name: Download native binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
