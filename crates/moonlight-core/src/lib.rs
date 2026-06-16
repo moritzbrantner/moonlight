@@ -91,6 +91,7 @@ pub struct TargetObservation {
 pub enum Adapter {
     Http,
     Cli,
+    Project,
 }
 
 impl std::str::FromStr for Adapter {
@@ -100,6 +101,7 @@ impl std::str::FromStr for Adapter {
         match value {
             "http" => Ok(Self::Http),
             "cli" => Ok(Self::Cli),
+            "project" => Ok(Self::Project),
             other => anyhow::bail!("invalid adapter {other:?}"),
         }
     }
@@ -112,6 +114,18 @@ pub enum RunInput {
         method: String,
         path: String,
         query: Option<String>,
+    },
+    Project {
+        eval_id: Uuid,
+        project: String,
+        check_id: String,
+        check_name: Option<String>,
+        repo: String,
+        baseline_ref: String,
+        candidate_source: String,
+        primary_command: String,
+        candidate_command: String,
+        secondary_command: Option<String>,
     },
     Cli {
         primary_command: String,
@@ -295,6 +309,33 @@ fn run_search_text(run: &ComparisonRun) -> String {
             candidate_command,
             secondary_command,
         } => {
+            values.push(primary_command.clone());
+            values.push(candidate_command.clone());
+            if let Some(command) = secondary_command {
+                values.push(command.clone());
+            }
+        }
+        RunInput::Project {
+            eval_id,
+            project,
+            check_id,
+            check_name,
+            repo,
+            baseline_ref,
+            candidate_source,
+            primary_command,
+            candidate_command,
+            secondary_command,
+        } => {
+            values.push(eval_id.to_string());
+            values.push(project.clone());
+            values.push(check_id.clone());
+            if let Some(name) = check_name {
+                values.push(name.clone());
+            }
+            values.push(repo.clone());
+            values.push(baseline_ref.clone());
+            values.push(candidate_source.clone());
             values.push(primary_command.clone());
             values.push(candidate_command.clone());
             if let Some(command) = secondary_command {

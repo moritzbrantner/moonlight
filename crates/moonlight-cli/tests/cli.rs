@@ -6,6 +6,8 @@ mod cli_batch;
 mod cli_batch_argv;
 #[path = "cli/batch_argv_records.rs"]
 mod cli_batch_argv_records;
+#[path = "cli/eval.rs"]
+mod cli_eval;
 #[path = "cli/run.rs"]
 mod cli_run;
 #[path = "cli/run_argv.rs"]

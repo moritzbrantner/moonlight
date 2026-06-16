@@ -58,11 +58,11 @@ fn parse_command_form(
             if labels.reject_empty_shell && command.trim().is_empty() {
                 bail!("{} must not be empty", labels.shell);
             }
-            Ok(Some(TargetCommand::Shell(command)))
+            Ok(Some(TargetCommand::shell(command)))
         }
         (None, Some(argv)) => {
             validate_argv(labels.argv, &argv)?;
-            Ok(Some(TargetCommand::Argv(argv)))
+            Ok(Some(TargetCommand::argv(argv)))
         }
         (None, None) => Ok(None),
     }

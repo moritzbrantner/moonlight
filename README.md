@@ -1,6 +1,6 @@
 # Moonlight
 
-Moonlight is a Rust and React behavior comparer for checking candidate behavior against one or two reference targets.
+Moonlight is a Rust and React behavior comparer plus project-check evaluator for validating new implementations against known-good baselines.
 
 ## Install
 
@@ -25,6 +25,13 @@ Run it through Bun:
 bunx @moritzbrantner/moonlight run \
   --primary 'printf "{\"value\":42}\n"' \
   --candidate 'printf "{\"value\":43}\n"'
+```
+
+Evaluate a coding-agent patch against an existing project:
+
+```sh
+git diff --binary main > agent.patch
+moonlight eval run --project moonlight.eval.toml --candidate-patch agent.patch --format markdown
 ```
 
 The GitHub Pages site explains the repository layout and shows the latest HTTP and CLI benchmark reports:

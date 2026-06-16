@@ -102,6 +102,9 @@ fn input_label(run: &ComparisonRun) -> String {
             candidate_command,
             ..
         } => format!("{primary_command} vs {candidate_command}"),
+        crate::RunInput::Project {
+            project, check_id, ..
+        } => format!("{project} / {check_id}"),
     }
 }
 

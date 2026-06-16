@@ -81,6 +81,23 @@ pub(crate) enum CliCommand {
         after_help = "Examples:\n  moonlight reviews\n  moonlight reviews --status new"
     )]
     Reviews(ReviewsArgs),
+    #[command(about = "Evaluate coding-agent patches against existing projects")]
+    #[command(subcommand)]
+    Eval(EvalCommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum EvalCommand {
+    #[command(
+        about = "Run project checks against baseline and candidate worktrees",
+        after_help = "Examples:\n  moonlight eval run --project moonlight.eval.toml --candidate-patch agent.patch\n  moonlight eval run --project moonlight.eval.toml --candidate-ref agent/output-branch"
+    )]
+    Run(EvalRunArgs),
+    #[command(
+        about = "Render a stored project eval summary",
+        after_help = "Examples:\n  moonlight eval report 00000000-0000-0000-0000-000000000000 --format markdown"
+    )]
+    Report(EvalReportArgs),
 }
 
 #[derive(Debug, Args)]
@@ -92,6 +109,103 @@ pub(crate) struct StorageArgs {
         help = "JSONL storage file"
     )]
     pub(crate) storage_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct EvalRunArgs {
+    #[command(flatten)]
+    pub(crate) storage: StorageArgs,
+
+    #[arg(
+        long,
+        value_name = "PATH",
+        default_value = "moonlight.eval.toml",
+        help_heading = "Project",
+        help = "Project eval TOML config"
+    )]
+    pub(crate) project: PathBuf,
+
+    #[arg(
+        long,
+        value_name = "PATH",
+        help_heading = "Project",
+        help = "Repository path override"
+    )]
+    pub(crate) repo: Option<PathBuf>,
+
+    #[arg(
+        long,
+        value_name = "REF",
+        help_heading = "Project",
+        help = "Baseline ref override"
+    )]
+    pub(crate) baseline_ref: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "REF",
+        conflicts_with = "candidate_patch",
+        help_heading = "Candidate",
+        help = "Candidate branch or commit"
+    )]
+    pub(crate) candidate_ref: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "PATH",
+        conflicts_with = "candidate_ref",
+        help_heading = "Candidate",
+        help = "Patch to apply on top of the baseline ref"
+    )]
+    pub(crate) candidate_patch: Option<PathBuf>,
+
+    #[arg(
+        long,
+        value_name = "FORMAT",
+        default_value = "text",
+        value_parser = ["text", "json", "markdown"],
+        help_heading = "Output",
+        help = "Summary output format"
+    )]
+    pub(crate) format: String,
+
+    #[arg(
+        long,
+        value_name = "MODE",
+        value_parser = ["never", "failed", "always"],
+        help_heading = "Execution",
+        help = "Override when eval worktrees are kept"
+    )]
+    pub(crate) keep_worktrees: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "N",
+        help_heading = "Execution",
+        help = "Maximum number of checks to run concurrently"
+    )]
+    pub(crate) jobs: Option<usize>,
+
+    #[arg(long, help_heading = "Output", help = "Suppress summary output")]
+    pub(crate) quiet: bool,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct EvalReportArgs {
+    pub(crate) eval_id: Uuid,
+
+    #[command(flatten)]
+    pub(crate) storage: StorageArgs,
+
+    #[arg(
+        long,
+        value_name = "FORMAT",
+        default_value = "markdown",
+        value_parser = ["text", "json", "markdown"],
+        help_heading = "Output",
+        help = "Summary output format"
+    )]
+    pub(crate) format: String,
 }
 
 #[derive(Debug, Args)]
@@ -135,7 +249,7 @@ pub(crate) struct ListArgs {
     #[arg(
         long,
         value_name = "ADAPTER",
-        value_parser = ["http", "cli"],
+        value_parser = ["http", "cli", "project"],
         help_heading = "Filters",
         help = "Only list runs from this adapter"
     )]

@@ -1,7 +1,7 @@
 use crate::config::CliDefaults;
 use moonlight_core::{compare::CapturedTarget, Classification};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 use moonlight_core::compare::CompareConfig;
 
@@ -33,7 +33,32 @@ impl Case {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum TargetCommand {
+pub(crate) struct TargetCommand {
+    pub(crate) form: CommandForm,
+    pub(crate) cwd: Option<PathBuf>,
+    pub(crate) env: BTreeMap<String, String>,
+}
+
+impl TargetCommand {
+    pub(crate) fn shell(command: String) -> Self {
+        Self {
+            form: CommandForm::Shell(command),
+            cwd: None,
+            env: BTreeMap::new(),
+        }
+    }
+
+    pub(crate) fn argv(argv: Vec<String>) -> Self {
+        Self {
+            form: CommandForm::Argv(argv),
+            cwd: None,
+            env: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum CommandForm {
     Shell(String),
     Argv(Vec<String>),
 }

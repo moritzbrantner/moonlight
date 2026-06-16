@@ -321,6 +321,69 @@ DIFFY_IMAGE=diffy/diffy:latest scripts/moonlight-benchmark.sh
 
 Results are most meaningful after warmup and with the release-built benchmark containers. The benchmark mode returns the selected response before comparison storage completes, so in-flight comparison runs can be lost if the process exits immediately.
 
+## Project Eval For Coding Agents
+
+Moonlight can evaluate a coding-agent patch against an existing Git project by
+creating isolated local worktrees, running the same checks against the baseline
+and candidate, and storing one project comparison run per check.
+
+Create `moonlight.eval.toml` in the project you want to evaluate:
+
+```toml
+[project]
+name = "my-project"
+repo = "."
+baseline_ref = "main"
+
+[eval]
+work_dir = ".moonlight/evals"
+keep_worktrees = "failed"
+jobs = 2
+target_timeout_ms = 600000
+max_body_capture_bytes = 20000
+
+[[checks]]
+id = "test"
+command = "cargo test --workspace"
+cwd = "."
+timeout_ms = 600000
+
+[[checks]]
+id = "lint"
+argv = ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+cwd = "."
+timeout_ms = 600000
+```
+
+Then evaluate a patch produced by a coding agent:
+
+```sh
+git diff --binary main > agent.patch
+moonlight eval run --candidate-patch agent.patch --format markdown
+```
+
+Or compare a candidate branch or commit:
+
+```sh
+moonlight eval run --candidate-ref agent/output-branch
+```
+
+`moonlight eval run` exits `0` when every check matches or only contains
+reference noise, exits `1` when a check shows a suspicious difference or target
+error, and exits `2` for setup failures such as invalid config, git worktree
+errors, or a patch that does not apply.
+
+Each `[[checks]]` entry accepts exactly one of `command` or `argv`, plus
+optional `cwd`, `env`, `timeout_ms`, `ignore_stdout`, `ignore_stderr`,
+`normalize_stdout_patterns`, and `normalize_stderr_patterns`. Normalization
+patterns are Rust regular expressions replaced with `<normalized>` before
+output comparison and storage.
+
+By default, eval worktrees are removed after successful runs and kept after
+failed runs for debugging. Use `--keep-worktrees never`, `failed`, or `always`
+to override the config. Use `moonlight eval report <EVAL_ID> --format markdown`
+to render a summary from stored JSONL runs.
+
 ## CLI Testing And Benchmarking
 
 Run the direct `moonlight-cli` test suite:
@@ -543,6 +606,7 @@ The exposed config also includes:
 - Noise filtering using primary-secondary differences and candidate-must-match-reference semantics.
 - React dashboard, run list, detail view, diff viewer, and config panel.
 - CLI command comparison through `moonlight`.
+- Project eval for checking candidate refs or patches against baseline Git worktrees.
 - Rust demo services and sample traffic generator.
 - Optional Docker Compose profile with Diffy A comparing Moonlight against Diffy B and Diffy C.
 - Release-container benchmark profile and JSON/Markdown benchmark report generator.

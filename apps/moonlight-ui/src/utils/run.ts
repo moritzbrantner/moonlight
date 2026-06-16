@@ -4,6 +4,9 @@ export function runTitle(input: RunInput) {
   if ("method" in input) {
     return `${input.method} ${input.path}${input.query ? `?${input.query}` : ""}`;
   }
+  if ("project" in input) {
+    return `${input.project} / ${input.check_id}`;
+  }
   return input.candidate_command;
 }
 

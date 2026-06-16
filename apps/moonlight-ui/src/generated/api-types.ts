@@ -4,7 +4,7 @@ export type Classification = "match" | "suspicious_difference" | "reference_nois
 
 export type DiffKind = "status" | "header" | "body" | "stderr" | "target_error";
 
-export type Adapter = "http" | "cli";
+export type Adapter = "http" | "cli" | "project";
 
 export type ReviewStatus = "new" | "accepted" | "ignored" | "fixed";
 
@@ -18,7 +18,7 @@ export type BodyCapture = { size_bytes: number, sha256: string, preview: string,
 
 export type TargetObservation = { status: number | null, headers: Record<string, string>, body: BodyCapture, stderr: BodyCapture | null, latency_ms: number, error: string | null, };
 
-export type RunInput = { method: string, path: string, query: string | null, } | { primary_command: string, candidate_command: string, secondary_command: string | null, };
+export type RunInput = { method: string, path: string, query: string | null, } | { eval_id: string, project: string, check_id: string, check_name: string | null, repo: string, baseline_ref: string, candidate_source: string, primary_command: string, candidate_command: string, secondary_command: string | null, } | { primary_command: string, candidate_command: string, secondary_command: string | null, };
 
 export type DiffEntry = { kind: DiffKind, path: string, primary: string | null, candidate: string | null, secondary: string | null, message: string, };
 

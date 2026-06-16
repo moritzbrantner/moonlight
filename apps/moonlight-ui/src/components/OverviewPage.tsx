@@ -69,7 +69,7 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
       <section className="section section--split" id="repository">
         <div>
           <p className="eyebrow">Repository</p>
-          <h2>One core comparer, two adapters, one inspection UI.</h2>
+          <h2>One core comparer, multiple adapters, one inspection UI.</h2>
         </div>
         <div className="copy">
           <ul className="feature-list">

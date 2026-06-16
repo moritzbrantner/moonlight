@@ -1,4 +1,4 @@
-use crate::types::TargetCommand;
+use crate::types::{CommandForm, TargetCommand};
 use bytes::Bytes;
 use moonlight_core::{
     compare::{capture_body, CapturedTarget},
@@ -146,18 +146,22 @@ pub(crate) async fn run_command(
 
 impl TargetCommand {
     pub(crate) fn spawn(&self) -> io::Result<tokio::process::Child> {
-        let mut command = match self {
-            Self::Shell(command) => {
+        let mut command = match &self.form {
+            CommandForm::Shell(command) => {
                 let mut process = Command::new("sh");
                 process.arg("-lc").arg(command);
                 process
             }
-            Self::Argv(argv) => {
+            CommandForm::Argv(argv) => {
                 let mut process = Command::new(&argv[0]);
                 process.args(&argv[1..]);
                 process
             }
         };
+        if let Some(cwd) = &self.cwd {
+            command.current_dir(cwd);
+        }
+        command.envs(&self.env);
         command
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -166,9 +170,9 @@ impl TargetCommand {
     }
 
     pub(crate) fn display(&self) -> String {
-        match self {
-            Self::Shell(command) => command.clone(),
-            Self::Argv(argv) => argv
+        match &self.form {
+            CommandForm::Shell(command) => command.clone(),
+            CommandForm::Argv(argv) => argv
                 .iter()
                 .map(|arg| shell_quote(arg))
                 .collect::<Vec<_>>()

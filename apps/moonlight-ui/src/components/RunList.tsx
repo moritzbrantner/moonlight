@@ -74,6 +74,7 @@ export function RunList({ runs, runTotal = runs.length, selectedId, onFiltersCha
           <option value="">All adapters</option>
           <option value="http">HTTP</option>
           <option value="cli">CLI</option>
+          <option value="project">Project</option>
         </select>
         <input
           aria-label="Filter by status"
