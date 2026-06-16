@@ -6,8 +6,9 @@ type TargetCardProps = {
 };
 
 export function TargetCard({ title, target }: TargetCardProps) {
+  const timeout = target?.error?.toLowerCase().includes("timed out") ?? false;
   return (
-    <div className="target-card">
+    <div className={`target-card ${timeout ? "timeout" : ""}`}>
       <h3>{title}</h3>
       {target ? (
         <>
@@ -25,7 +26,7 @@ export function TargetCard({ title, target }: TargetCardProps) {
               </>
             )}
           </dl>
-          {target.error && <p className="error-text">{target.error}</p>}
+          {target.error && <p className="error-text">{timeout ? `Timeout: ${target.error}` : target.error}</p>}
           <pre>{target.body.preview || "(empty)"}</pre>
           {target.stderr?.preview && <pre>{target.stderr.preview}</pre>}
         </>

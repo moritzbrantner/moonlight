@@ -12,7 +12,13 @@ use anyhow::Context;
 use args::{Cli, CliCommand};
 use clap::Parser;
 use config::CliDefaults;
-use moonlight_core::{config::load_optional_config, storage::JsonlStorageReader};
+use moonlight_core::{
+    config::load_optional_config,
+    report::{render_report, ReportFormat},
+    review::{ReviewStatus, ReviewStore, ReviewUpdate},
+    storage::JsonlStorageReader,
+    Adapter, Classification, RunFilter,
+};
 
 pub async fn run_cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -24,8 +30,14 @@ pub async fn run_cli() -> anyhow::Result<()> {
         CliCommand::Batch(args) => batch::batch(args, &defaults).await,
         CliCommand::List(args) => {
             let storage = JsonlStorageReader::new(storage_path(args.output.storage, &defaults));
-            let runs = storage.list_page(args.limit, args.offset).await?;
-            print_json(&runs, args.output.compact)?;
+            let page = storage
+                .filtered_page(
+                    &run_filter(args.classification, args.adapter, args.query, args.status)?,
+                    args.limit.unwrap_or(100),
+                    args.offset,
+                )
+                .await?;
+            print_json(&page, args.output.compact)?;
             Ok(())
         }
         CliCommand::Stats(args) => {
@@ -40,6 +52,40 @@ pub async fn run_cli() -> anyhow::Result<()> {
                 .await?
                 .with_context(|| format!("comparison run {} was not found", args.id))?;
             print_json(&run, args.output.compact)?;
+            Ok(())
+        }
+        CliCommand::Report(args) => {
+            let storage = JsonlStorageReader::new(storage_path(args.storage, &defaults));
+            let run = storage
+                .get(args.id)
+                .await?
+                .with_context(|| format!("comparison run {} was not found", args.id))?;
+            let format = args.format.parse::<ReportFormat>()?;
+            println!("{}", render_report(&run, None, format)?);
+            Ok(())
+        }
+        CliCommand::Review(args) => {
+            let store = ReviewStore::load(defaults.review_state_path.clone()).await?;
+            let state = store
+                .put(
+                    args.id,
+                    ReviewUpdate {
+                        status: args.status.parse::<ReviewStatus>()?,
+                        note: args.note,
+                        tags: args.tags,
+                    },
+                )
+                .await?;
+            print_json(&state, false)?;
+            Ok(())
+        }
+        CliCommand::Reviews(args) => {
+            let store = ReviewStore::load(defaults.review_state_path.clone()).await?;
+            let status = args
+                .status
+                .map(|status| status.parse::<ReviewStatus>())
+                .transpose()?;
+            print_json(&store.list(status).await, args.compact)?;
             Ok(())
         }
     }
@@ -57,4 +103,22 @@ fn print_json(value: &impl serde::Serialize, compact: bool) -> anyhow::Result<()
         println!("{}", serde_json::to_string_pretty(value)?);
     }
     Ok(())
+}
+
+fn run_filter(
+    classification: Option<String>,
+    adapter: Option<String>,
+    query: Option<String>,
+    status: Option<u16>,
+) -> anyhow::Result<RunFilter> {
+    Ok(RunFilter {
+        classification: classification
+            .map(|value| value.parse::<Classification>())
+            .transpose()?,
+        adapter: adapter.map(|value| value.parse::<Adapter>()).transpose()?,
+        query,
+        status,
+        has_noise: None,
+        has_diff: None,
+    })
 }

@@ -1,6 +1,7 @@
 import { Activity, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import type { RunFilters } from "../api";
 import { usesDemoData } from "../api";
-import type { AppConfig, ComparisonRun, ComparisonRunListItem, StatsSummary } from "../types";
+import type { AppConfig, ComparisonRun, ComparisonRunListItem, RunReviewState, StatsSummary } from "../types";
 import { ConfigPanel } from "./ConfigPanel";
 import { LatencyPanel } from "./LatencyPanel";
 import { Metric } from "./Metric";
@@ -11,8 +12,13 @@ type DashboardPageProps = {
   config: AppConfig | null;
   error: string | null;
   loading: boolean;
+  onFiltersChange?: (filters: RunFilters) => void;
+  onLoadMoreRuns?: () => void;
   onSelectRun: (id: string) => void;
+  onUpdateReview?: (update: { status: RunReviewState["status"]; note?: string | null; tags?: string[] }) => void;
+  review?: RunReviewState | null;
   runs: ComparisonRunListItem[];
+  runTotal?: number;
   selected: ComparisonRun | null;
   selectedFromList: ComparisonRunListItem | null;
   selectedId: string | null;
@@ -23,8 +29,13 @@ export function DashboardPage({
   config,
   error,
   loading,
+  onFiltersChange = () => {},
+  onLoadMoreRuns = () => {},
   onSelectRun,
+  onUpdateReview = () => {},
+  review = null,
   runs,
+  runTotal = runs.length,
   selected,
   selectedFromList,
   selectedId,
@@ -46,8 +57,15 @@ export function DashboardPage({
       </section>
 
       <section className="workspace">
-        <RunList runs={runs} selectedId={selectedId} onSelect={onSelectRun} />
-        <RunDetail run={selected} fallback={selectedFromList} />
+        <RunList
+          runs={runs}
+          runTotal={runTotal}
+          selectedId={selectedId}
+          onFiltersChange={onFiltersChange}
+          onLoadMore={onLoadMoreRuns}
+          onSelect={onSelectRun}
+        />
+        <RunDetail run={selected} fallback={selectedFromList} review={review} onUpdateReview={onUpdateReview} />
         <aside className="side-panel">
           <ConfigPanel config={config} />
           <LatencyPanel run={selected} />

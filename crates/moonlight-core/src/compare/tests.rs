@@ -227,6 +227,49 @@ fn json_body_redaction_handles_arrays() {
 }
 
 #[test]
+fn ignore_json_path_patterns_match_array_items_and_object_segments() {
+    let primary = target(
+        200,
+        &[],
+        r#"{"items":[{"id":"a","value":1}],"metadata":{"trace":"a"}}"#,
+    );
+    let candidate = target(
+        200,
+        &[],
+        r#"{"items":[{"id":"b","value":1}],"metadata":{"trace":"b"}}"#,
+    );
+    let config = CompareConfig::new_with_patterns(
+        &[],
+        &["$.items[*].id".into(), "$.metadata.*".into()],
+        &[],
+        &[],
+        &[],
+        false,
+    );
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+
+    assert_eq!(result.classification, Classification::Match);
+}
+
+#[test]
+fn redact_json_path_patterns_hide_matching_values() {
+    let primary = target(200, &[], r#"{"items":[{"secret":"primary"}]}"#);
+    let candidate = target(200, &[], r#"{"items":[{"secret":"candidate"}]}"#);
+    let config =
+        CompareConfig::new_with_patterns(&[], &[], &[], &["$.items[*].secret".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert_eq!(result.noise_filtered_diffs[0].path, "$.items[0].secret");
+    assert_eq!(
+        result.noise_filtered_diffs[0].candidate.as_deref(),
+        Some("\"[redacted]\"")
+    );
+}
+
+#[test]
 fn capture_body_redacts_json_preview_but_keeps_original_hash_and_size() {
     let body = br#"{"token":"secret","value":1}"#;
     let capture = capture_body_with_redactions(body, 1024, &["$.token".into()]);

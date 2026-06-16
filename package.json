@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "cd apps/moonlight-ui && bun run dev",
     "build": "cd apps/moonlight-ui && bun run build",
+    "typegen": "bun scripts/generate-ui-api-types.mjs",
+    "typegen:check": "bun scripts/generate-ui-api-types.mjs --check",
     "typecheck": "cd apps/moonlight-ui && bun run typecheck",
     "test": "cd apps/moonlight-ui && bun run test",
     "test:run": "cd apps/moonlight-ui && bun run test:run",

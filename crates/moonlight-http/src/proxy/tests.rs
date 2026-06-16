@@ -5,7 +5,7 @@ use super::test_support::{
 use axum::http::{header, HeaderValue, StatusCode};
 use moonlight_core::{
     config::{ResponseTiming, ReturnFallback, ReturnTarget},
-    Classification, RunInput,
+    Classification, RunInput, RunPage,
 };
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
@@ -36,6 +36,109 @@ async fn proxy_returns_primary_and_records_run() {
         RunInput::Http { ref path, .. } if path == "/anything"
     ));
     assert_eq!(runs[0].classification, Classification::SuspiciousDifference);
+}
+
+#[tokio::test]
+async fn runs_api_filters_and_paginates() {
+    let primary = spawn_target(r#"{"source":"primary"}"#).await;
+    let candidate = spawn_target(r#"{"source":"candidate"}"#).await;
+    let dir = tempdir().unwrap();
+    let config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    client
+        .get(format!("http://{proxy_addr}/match"))
+        .send()
+        .await
+        .unwrap();
+    client
+        .get(format!("http://{proxy_addr}/regression"))
+        .send()
+        .await
+        .unwrap();
+    let page: RunPage = client
+        .get(format!(
+            "http://{proxy_addr}/api/runs?classification=suspicious_difference&adapter=http&q=regression&status=200&limit=1"
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert_eq!(page.total, 1);
+    assert_eq!(page.items.len(), 1);
+    assert!(matches!(
+        page.items[0].input,
+        RunInput::Http { ref path, .. } if path == "/regression"
+    ));
+}
+
+#[tokio::test]
+async fn review_and_report_endpoints_work() {
+    let primary = spawn_target(r#"{"source":"primary"}"#).await;
+    let candidate = spawn_target(r#"{"source":"candidate"}"#).await;
+    let dir = tempdir().unwrap();
+    let config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    client
+        .get(format!("http://{proxy_addr}/anything"))
+        .send()
+        .await
+        .unwrap();
+    let run = wait_for_run(&client, proxy_addr).await;
+    let review: serde_json::Value = client
+        .put(format!("http://{proxy_addr}/api/runs/{}/review", run.id))
+        .json(&serde_json::json!({
+            "status": "ignored",
+            "note": "known",
+            "tags": ["noise"]
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let report = client
+        .get(format!(
+            "http://{proxy_addr}/api/runs/{}/report?format=markdown",
+            run.id
+        ))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(review["status"], "ignored");
+    assert!(report.contains("# Moonlight Report"));
+}
+
+#[tokio::test]
+async fn target_timeout_records_target_error() {
+    let primary = spawn_target(r#"{"source":"primary"}"#).await;
+    let candidate =
+        spawn_target_with_delay(r#"{"source":"candidate"}"#, Duration::from_millis(200)).await;
+    let dir = tempdir().unwrap();
+    let mut config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    config.target_timeout_ms = 25;
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    client
+        .get(format!("http://{proxy_addr}/anything"))
+        .send()
+        .await
+        .unwrap();
+    let run = wait_for_run(&client, proxy_addr).await;
+
+    assert_eq!(run.classification, Classification::TargetError);
 }
 
 #[tokio::test]

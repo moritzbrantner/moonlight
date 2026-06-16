@@ -1,3 +1,4 @@
+use crate::config::CliDefaults;
 use moonlight_core::{compare::CapturedTarget, Classification};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -11,20 +12,23 @@ pub(crate) struct Case {
     pub(crate) secondary: Option<TargetCommand>,
     pub(crate) max_body_capture_bytes: usize,
     pub(crate) ignore_json_paths: Vec<String>,
+    pub(crate) ignore_json_path_patterns: Vec<String>,
+    pub(crate) redact_json_paths: Vec<String>,
+    pub(crate) redact_json_path_patterns: Vec<String>,
     pub(crate) ignore_headers: Vec<String>,
     pub(crate) ignore_stderr: bool,
+    pub(crate) target_timeout_ms: u64,
 }
 
 impl Case {
-    pub(crate) fn uses_compare_config(
-        &self,
-        ignore_json_paths: &[String],
-        ignore_headers: &[String],
-        ignore_stderr: bool,
-    ) -> bool {
-        self.ignore_json_paths == ignore_json_paths
-            && self.ignore_headers == ignore_headers
-            && self.ignore_stderr == ignore_stderr
+    pub(crate) fn uses_default_compare_config(&self, defaults: &CliDefaults) -> bool {
+        self.ignore_json_paths == defaults.ignore_json_paths
+            && self.ignore_json_path_patterns == defaults.ignore_json_path_patterns
+            && self.redact_json_paths == defaults.redact_json_paths
+            && self.redact_json_path_patterns == defaults.redact_json_path_patterns
+            && self.ignore_headers == defaults.ignore_headers
+            && self.ignore_stderr == defaults.ignore_stderr
+            && self.target_timeout_ms == defaults.target_timeout_ms
     }
 }
 
@@ -60,9 +64,17 @@ pub(crate) struct BatchCase {
     #[serde(default)]
     pub(crate) ignore_json_paths: Vec<String>,
     #[serde(default)]
+    pub(crate) ignore_json_path_patterns: Vec<String>,
+    #[serde(default)]
+    pub(crate) redact_json_paths: Vec<String>,
+    #[serde(default)]
+    pub(crate) redact_json_path_patterns: Vec<String>,
+    #[serde(default)]
     pub(crate) ignore_headers: Vec<String>,
     #[serde(default)]
     pub(crate) ignore_stderr: bool,
+    #[serde(default)]
+    pub(crate) target_timeout_ms: Option<u64>,
 }
 
 #[derive(Debug)]

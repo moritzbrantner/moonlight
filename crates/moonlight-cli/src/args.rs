@@ -66,6 +66,21 @@ pub(crate) enum CliCommand {
         after_help = "Examples:\n  moonlight show 00000000-0000-0000-0000-000000000000\n  moonlight show 00000000-0000-0000-0000-000000000000 --compact"
     )]
     Show(ShowArgs),
+    #[command(
+        about = "Render a shareable report for a stored comparison run",
+        after_help = "Examples:\n  moonlight report 00000000-0000-0000-0000-000000000000\n  moonlight report 00000000-0000-0000-0000-000000000000 --format json"
+    )]
+    Report(ReportArgs),
+    #[command(
+        about = "Set review state for a stored comparison run",
+        after_help = "Examples:\n  moonlight review 00000000-0000-0000-0000-000000000000 --status ignored --note 'Known rollout delta'"
+    )]
+    Review(ReviewArgs),
+    #[command(
+        about = "List stored run review states",
+        after_help = "Examples:\n  moonlight reviews\n  moonlight reviews --status new"
+    )]
+    Reviews(ReviewsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -107,6 +122,41 @@ pub(crate) struct ListArgs {
         help = "Number of newest runs to skip"
     )]
     pub(crate) offset: usize,
+
+    #[arg(
+        long,
+        value_name = "CLASSIFICATION",
+        value_parser = ["match", "suspicious_difference", "reference_noise", "suspicious_with_noise", "target_error"],
+        help_heading = "Filters",
+        help = "Only list runs with this classification"
+    )]
+    pub(crate) classification: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "ADAPTER",
+        value_parser = ["http", "cli"],
+        help_heading = "Filters",
+        help = "Only list runs from this adapter"
+    )]
+    pub(crate) adapter: Option<String>,
+
+    #[arg(
+        long = "query",
+        alias = "q",
+        value_name = "TEXT",
+        help_heading = "Filters",
+        help = "Search run input text"
+    )]
+    pub(crate) query: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "STATUS",
+        help_heading = "Filters",
+        help = "Only list runs where any target has this status"
+    )]
+    pub(crate) status: Option<u16>,
 }
 
 #[derive(Debug, Args)]
@@ -115,6 +165,61 @@ pub(crate) struct ShowArgs {
 
     #[command(flatten)]
     pub(crate) output: ReadArgs,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct ReportArgs {
+    pub(crate) id: Uuid,
+
+    #[command(flatten)]
+    pub(crate) storage: StorageArgs,
+
+    #[arg(
+        long,
+        value_name = "FORMAT",
+        default_value = "markdown",
+        value_parser = ["markdown", "json"],
+        help_heading = "Output",
+        help = "Report output format"
+    )]
+    pub(crate) format: String,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct ReviewArgs {
+    pub(crate) id: Uuid,
+
+    #[arg(
+        long,
+        value_name = "STATUS",
+        value_parser = ["new", "accepted", "ignored", "fixed"],
+        help = "Review status to store"
+    )]
+    pub(crate) status: String,
+
+    #[arg(long, value_name = "TEXT", help = "Optional review note")]
+    pub(crate) note: Option<String>,
+
+    #[arg(
+        long = "tag",
+        value_name = "TAG",
+        help = "Review tag; repeat to add multiple tags"
+    )]
+    pub(crate) tags: Vec<String>,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct ReviewsArgs {
+    #[arg(
+        long,
+        value_name = "STATUS",
+        value_parser = ["new", "accepted", "ignored", "fixed"],
+        help = "Only list reviews with this status"
+    )]
+    pub(crate) status: Option<String>,
+
+    #[arg(long, help_heading = "Output", help = "Print compact JSON")]
+    pub(crate) compact: bool,
 }
 
 #[derive(Debug, Args)]
@@ -184,6 +289,30 @@ pub(crate) struct RunArgs {
     pub(crate) ignore_json_paths: Vec<String>,
 
     #[arg(
+        long = "ignore-json-path-pattern",
+        value_name = "PATTERN",
+        help_heading = "Comparison",
+        help = "JSON diff path pattern to ignore; supports * and [*]"
+    )]
+    pub(crate) ignore_json_path_patterns: Vec<String>,
+
+    #[arg(
+        long = "redact-json-path",
+        value_name = "PATH",
+        help_heading = "Redaction",
+        help = "Exact JSON diff path to redact"
+    )]
+    pub(crate) redact_json_paths: Vec<String>,
+
+    #[arg(
+        long = "redact-json-path-pattern",
+        value_name = "PATTERN",
+        help_heading = "Redaction",
+        help = "JSON diff path pattern to redact; supports * and [*]"
+    )]
+    pub(crate) redact_json_path_patterns: Vec<String>,
+
+    #[arg(
         long = "ignore-header",
         value_name = "HEADER",
         help_heading = "Comparison",
@@ -193,6 +322,14 @@ pub(crate) struct RunArgs {
 
     #[arg(long, help_heading = "Comparison", help = "Ignore stderr differences")]
     pub(crate) ignore_stderr: bool,
+
+    #[arg(
+        long,
+        value_name = "MS",
+        help_heading = "Execution",
+        help = "Per-target timeout in milliseconds; 0 uses the default"
+    )]
+    pub(crate) target_timeout_ms: Option<u64>,
 
     #[arg(
         long,

@@ -33,4 +33,18 @@ describe("TargetCard", () => {
     expect(screen.getByRole("heading", { name: "Secondary Reference" })).toBeInTheDocument();
     expect(screen.getByText("Disabled")).toBeInTheDocument();
   });
+
+  it("labels timeout errors distinctly", () => {
+    render(
+      <TargetCard
+        title="Candidate"
+        target={{
+          ...targetErrorFixture,
+          error: "candidate request timed out after 30000 ms"
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Timeout: candidate request timed out/)).toBeInTheDocument();
+  });
 });

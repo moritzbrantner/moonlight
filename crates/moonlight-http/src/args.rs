@@ -1,6 +1,7 @@
 use clap::{ArgAction, Parser};
 use moonlight_core::config::{
-    extend, normalize_base_url, AppConfig, ResponseTiming, ReturnFallback, ReturnTarget,
+    extend, normalize_base_url, normalize_timeout, AppConfig, ResponseTiming, ReturnFallback,
+    ReturnTarget,
 };
 use std::{net::SocketAddr, path::PathBuf};
 
@@ -136,6 +137,15 @@ pub(crate) struct ProxyArgs {
     redact_json_paths: Vec<String>,
 
     #[arg(
+        long = "redact-json-path-pattern",
+        value_name = "PATTERN",
+        action = ArgAction::Append,
+        help_heading = "Redaction",
+        help = "JSON body path pattern to redact from stored previews and diffs"
+    )]
+    redact_json_path_patterns: Vec<String>,
+
+    #[arg(
         long = "redact-query-param",
         value_name = "PARAM",
         action = ArgAction::Append,
@@ -154,6 +164,15 @@ pub(crate) struct ProxyArgs {
     ignore_json_paths: Vec<String>,
 
     #[arg(
+        long = "ignore-json-path-pattern",
+        value_name = "PATTERN",
+        action = ArgAction::Append,
+        help_heading = "Comparison",
+        help = "JSON diff path pattern to ignore; supports * and [*]"
+    )]
+    ignore_json_path_patterns: Vec<String>,
+
+    #[arg(
         long = "ignore-header",
         value_name = "HEADER",
         action = ArgAction::Append,
@@ -169,6 +188,14 @@ pub(crate) struct ProxyArgs {
         help = "Ignore stderr differences"
     )]
     ignore_stderr: bool,
+
+    #[arg(
+        long,
+        value_name = "MS",
+        help_heading = "Comparison",
+        help = "Per-target timeout in milliseconds; 0 uses the default"
+    )]
+    target_timeout_ms: Option<u64>,
 
     #[arg(
         long,
@@ -250,11 +277,22 @@ impl ProxyArgs {
         }
         extend(&mut config.redact_headers, &self.redact_headers);
         extend(&mut config.redact_json_paths, &self.redact_json_paths);
+        extend(
+            &mut config.redact_json_path_patterns,
+            &self.redact_json_path_patterns,
+        );
         extend(&mut config.redact_query_params, &self.redact_query_params);
         extend(&mut config.ignore_json_paths, &self.ignore_json_paths);
+        extend(
+            &mut config.ignore_json_path_patterns,
+            &self.ignore_json_path_patterns,
+        );
         extend(&mut config.ignore_headers, &self.ignore_headers);
         if self.ignore_stderr {
             config.ignore_stderr = true;
+        }
+        if let Some(target_timeout_ms) = self.target_timeout_ms {
+            config.target_timeout_ms = normalize_timeout(target_timeout_ms);
         }
         if let Some(storage_path) = self.storage_path {
             config.storage_path = storage_path;

@@ -30,7 +30,7 @@ jobs:
         rustup default stable
       format_command: cargo fmt --all -- --check
       lint_command: cargo clippy --workspace --all-targets -- -D warnings
-      typecheck_command: bun run typecheck
+      typecheck_command: bun run typegen:check && bun run typecheck
       build_command: cargo build --workspace && bun run build && bun run storybook:build
       unit_test_command: cargo test --workspace && bun run test:run
       cache_cargo: true

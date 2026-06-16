@@ -226,9 +226,11 @@ fn build_run(
     secondary: Option<&CapturedTarget>,
     config: &AppConfig,
 ) -> ComparisonRun {
-    let compare_config = CompareConfig::new_with_redactions(
+    let compare_config = CompareConfig::new_with_patterns(
         &config.ignore_json_paths,
+        &config.ignore_json_path_patterns,
         &config.redact_json_paths,
+        &config.redact_json_path_patterns,
         &config.ignore_headers,
         config.ignore_stderr,
     );

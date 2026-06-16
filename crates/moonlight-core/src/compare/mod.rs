@@ -12,7 +12,9 @@ pub use diff::CapturedTarget;
 #[derive(Debug, Clone)]
 pub struct CompareConfig {
     pub ignore_json_paths: HashSet<String>,
+    pub ignore_json_path_patterns: Vec<String>,
     pub redact_json_paths: HashSet<String>,
+    pub redact_json_path_patterns: Vec<String>,
     pub ignore_headers: HashSet<String>,
     pub ignore_stderr: bool,
 }
@@ -32,9 +34,29 @@ impl CompareConfig {
         ignore_headers: &[String],
         ignore_stderr: bool,
     ) -> Self {
+        Self::new_with_patterns(
+            ignore_json_paths,
+            &[],
+            redact_json_paths,
+            &[],
+            ignore_headers,
+            ignore_stderr,
+        )
+    }
+
+    pub fn new_with_patterns(
+        ignore_json_paths: &[String],
+        ignore_json_path_patterns: &[String],
+        redact_json_paths: &[String],
+        redact_json_path_patterns: &[String],
+        ignore_headers: &[String],
+        ignore_stderr: bool,
+    ) -> Self {
         Self {
             ignore_json_paths: ignore_json_paths.iter().cloned().collect(),
+            ignore_json_path_patterns: ignore_json_path_patterns.to_vec(),
             redact_json_paths: redact_json_paths.iter().cloned().collect(),
+            redact_json_path_patterns: redact_json_path_patterns.to_vec(),
             ignore_headers: ignore_headers
                 .iter()
                 .map(|value| value.to_ascii_lowercase())

@@ -9,7 +9,10 @@ use moonlight_core::BodyCapture;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-pub use api::{get_config, get_health, get_run, get_runs, get_stats};
+pub use api::{
+    get_config, get_health, get_run, get_run_report, get_run_review, get_runs, get_stats,
+    put_run_review,
+};
 pub use execution::proxy_handler;
 
 struct RunMetadata {

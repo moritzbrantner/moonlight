@@ -1,4 +1,7 @@
-use crate::{Classification, ComparisonRun, ComparisonRunListItem, LatencyStats, StatsSummary};
+use crate::{
+    run_matches_filter, Classification, ComparisonRun, ComparisonRunListItem, LatencyStats,
+    RunFilter, RunPage, StatsSummary,
+};
 use std::{
     fs as std_fs,
     io::{BufRead, BufReader as StdBufReader},
@@ -82,12 +85,26 @@ impl JsonlStorageReader {
         limit: Option<usize>,
         offset: usize,
     ) -> anyhow::Result<Vec<ComparisonRunListItem>> {
-        let retained_limit = limit.and_then(|value| value.checked_add(offset));
+        Ok(self
+            .filtered_page(&RunFilter::default(), limit.unwrap_or(usize::MAX), offset)
+            .await?
+            .items)
+    }
+
+    pub async fn filtered_page(
+        &self,
+        filter: &RunFilter,
+        limit: usize,
+        offset: usize,
+    ) -> anyhow::Result<RunPage> {
+        let retained_limit = limit.saturating_add(offset);
         let mut runs = Vec::new();
+        let mut total = 0;
 
         self.for_each_run(|run| {
-            runs.push(ComparisonRunListItem::from(&run));
-            if let Some(retained_limit) = retained_limit {
+            if run_matches_filter(&run, filter) {
+                total += 1;
+                runs.push(ComparisonRunListItem::from(&run));
                 if runs.len() > retained_limit {
                     runs.remove(0);
                 }
@@ -97,9 +114,18 @@ impl JsonlStorageReader {
         .await?;
 
         runs.reverse();
-        Ok(match limit {
-            Some(limit) => runs.into_iter().skip(offset).take(limit).collect(),
-            None => runs.into_iter().skip(offset).collect(),
+        let items = runs
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .collect::<Vec<_>>();
+        let next_offset = (offset + items.len() < total).then_some(offset + items.len());
+        Ok(RunPage {
+            items,
+            limit,
+            offset,
+            total,
+            next_offset,
         })
     }
 
@@ -200,13 +226,33 @@ impl Storage {
     }
 
     pub async fn list_page(&self, limit: usize, offset: usize) -> Vec<ComparisonRunListItem> {
+        self.filtered_page(&RunFilter::default(), limit, offset)
+            .await
+            .items
+    }
+
+    pub async fn filtered_page(&self, filter: &RunFilter, limit: usize, offset: usize) -> RunPage {
         let runs = self.runs.read().await;
-        runs.iter()
+        let matched = runs
+            .iter()
+            .filter(|run| run_matches_filter(run, filter))
+            .collect::<Vec<_>>();
+        let total = matched.len();
+        let items = matched
+            .into_iter()
             .rev()
             .skip(offset)
             .take(limit)
             .map(ComparisonRunListItem::from)
-            .collect()
+            .collect::<Vec<_>>();
+        let next_offset = (offset + items.len() < total).then_some(offset + items.len());
+        RunPage {
+            items,
+            limit,
+            offset,
+            total,
+            next_offset,
+        }
     }
 
     pub async fn get(&self, id: Uuid) -> Option<ComparisonRun> {

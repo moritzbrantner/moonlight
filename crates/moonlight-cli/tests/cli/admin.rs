@@ -30,9 +30,10 @@ fn list_lists_runs_newest_first() {
 
     let runs = read_json(&["list", "--storage-path", &storage]);
 
-    assert_eq!(runs.as_array().unwrap().len(), 2);
-    assert_eq!(runs[0]["id"], second["id"]);
-    assert_eq!(runs[1]["id"], first["id"]);
+    assert_eq!(runs["total"], 2);
+    assert_eq!(runs["items"].as_array().unwrap().len(), 2);
+    assert_eq!(runs["items"][0]["id"], second["id"]);
+    assert_eq!(runs["items"][1]["id"], first["id"]);
     dir.close().unwrap();
 }
 
@@ -52,8 +53,8 @@ fn list_alias_lists_runs() {
 
     let runs = read_json(&["ls", "--storage-path", &storage]);
 
-    assert_eq!(runs.as_array().unwrap().len(), 1);
-    assert_eq!(runs[0]["id"], record["id"]);
+    assert_eq!(runs["items"].as_array().unwrap().len(), 1);
+    assert_eq!(runs["items"][0]["id"], record["id"]);
     dir.close().unwrap();
 }
 
@@ -108,16 +109,17 @@ fn list_supports_limit_offset_and_compact_output() {
     let stdout = String::from_utf8(output).unwrap();
     let runs: serde_json::Value = serde_json::from_str(&stdout).unwrap();
 
-    assert_eq!(runs.as_array().unwrap().len(), 1);
-    assert_eq!(runs[0]["id"], second["id"]);
-    assert_ne!(runs[0]["id"], third["id"]);
-    assert_ne!(runs[0]["id"], first["id"]);
+    assert_eq!(runs["items"].as_array().unwrap().len(), 1);
+    assert_eq!(runs["items"][0]["id"], second["id"]);
+    assert_ne!(runs["items"][0]["id"], third["id"]);
+    assert_ne!(runs["items"][0]["id"], first["id"]);
+    assert_eq!(runs["next_offset"], 2);
     assert!(!stdout.contains("\n  "));
     dir.close().unwrap();
 }
 
 #[test]
-fn list_default_output_shape_stays_pretty_json_array() {
+fn list_default_output_shape_stays_pretty_json_page() {
     let dir = TempDir::new().unwrap();
     let storage = storage_path(&dir);
     run_record(
@@ -139,11 +141,120 @@ fn list_default_output_shape_stays_pretty_json_array() {
         .clone();
     let stdout = String::from_utf8(output).unwrap();
 
-    assert!(stdout.starts_with("[\n"));
-    assert!(stdout.contains("\n  {"));
+    assert!(stdout.starts_with("{\n"));
+    assert!(stdout.contains("\"items\""));
     assert!(serde_json::from_str::<serde_json::Value>(&stdout)
         .unwrap()
-        .is_array());
+        .is_object());
+    dir.close().unwrap();
+}
+
+#[test]
+fn list_supports_classification_adapter_query_and_status_filters() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let matching = run_record(
+        &storage,
+        &[
+            "--primary",
+            &json_command(r#"{"value":1}"#),
+            "--candidate",
+            &json_command(r#"{"value":2}"#),
+        ],
+    );
+    run_record(
+        &storage,
+        &[
+            "--primary",
+            &json_command(r#"{"value":3}"#),
+            "--candidate",
+            &json_command(r#"{"value":3}"#),
+        ],
+    );
+
+    let page = read_json(&[
+        "list",
+        "--storage-path",
+        &storage,
+        "--classification",
+        "suspicious_difference",
+        "--adapter",
+        "cli",
+        "--query",
+        "value",
+        "--status",
+        "0",
+    ]);
+
+    assert_eq!(page["total"], 1);
+    assert_eq!(page["items"][0]["id"], matching["id"]);
+    dir.close().unwrap();
+}
+
+#[test]
+fn report_renders_markdown_and_json() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let run = run_record(
+        &storage,
+        &[
+            "--primary",
+            &json_command(r#"{"value":1}"#),
+            "--candidate",
+            &json_command(r#"{"value":2}"#),
+        ],
+    );
+    let id = run["id"].as_str().unwrap();
+
+    cli()
+        .args(["report", id, "--storage-path", &storage])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("# Moonlight Report"));
+    let json = read_json(&["report", id, "--storage-path", &storage, "--format", "json"]);
+
+    assert_eq!(json["run"]["id"], run["id"]);
+    dir.close().unwrap();
+}
+
+#[test]
+fn review_and_reviews_use_sidecar_state() {
+    let dir = TempDir::new().unwrap();
+    let config = dir.path().join("moonlight.conf");
+    let review_path = dir.path().join("review-state.json");
+    fs::write(
+        &config,
+        format!(
+            "[storage]\nreview_state_path = \"{}\"\n",
+            review_path.display()
+        ),
+    )
+    .unwrap();
+    let id = Uuid::new_v4().to_string();
+
+    let state = read_json(&[
+        "--config",
+        config.to_str().unwrap(),
+        "review",
+        &id,
+        "--status",
+        "ignored",
+        "--note",
+        "known",
+        "--tag",
+        "noise",
+    ]);
+    let reviews = read_json(&[
+        "--config",
+        config.to_str().unwrap(),
+        "reviews",
+        "--status",
+        "ignored",
+    ]);
+
+    assert_eq!(state["status"], "ignored");
+    assert_eq!(reviews.as_array().unwrap().len(), 1);
+    assert_eq!(reviews[0]["run_id"], id);
     dir.close().unwrap();
 }
 
@@ -411,7 +522,7 @@ fn cli_read_commands_ignore_sibling_jsonl_files() {
     ]);
 
     assert_eq!(stats["total_runs"], 2);
-    assert_eq!(list.as_array().unwrap().len(), 2);
+    assert_eq!(list["items"].as_array().unwrap().len(), 2);
     assert_eq!(shown["id"], second["id"]);
     dir.close().unwrap();
 }

@@ -191,10 +191,14 @@ fn diff_json(
     config: &CompareConfig,
     diffs: &mut Vec<DiffEntry>,
 ) {
-    if config.ignore_json_paths.contains(path) {
+    if config.ignore_json_paths.contains(path)
+        || matches_any_json_path_pattern(path, &config.ignore_json_path_patterns)
+    {
         return;
     }
-    if config.redact_json_paths.contains(path) {
+    if config.redact_json_paths.contains(path)
+        || matches_any_json_path_pattern(path, &config.redact_json_path_patterns)
+    {
         if primary != other {
             push_redacted_json_diff(path.to_string(), role, diffs);
         }
@@ -287,4 +291,62 @@ fn normalize_text(body: &[u8]) -> String {
         .join("\n")
         .trim()
         .to_string()
+}
+
+fn matches_any_json_path_pattern(path: &str, patterns: &[String]) -> bool {
+    patterns
+        .iter()
+        .any(|pattern| json_path_pattern_matches(path, pattern))
+}
+
+fn json_path_pattern_matches(path: &str, pattern: &str) -> bool {
+    let path_tokens = tokenize_json_path(path);
+    let pattern_tokens = tokenize_json_path(pattern);
+    if path_tokens.len() != pattern_tokens.len() {
+        return false;
+    }
+
+    path_tokens
+        .iter()
+        .zip(pattern_tokens.iter())
+        .all(|(path, pattern)| match pattern.as_str() {
+            "*" => !path.starts_with('['),
+            "[*]" => path.starts_with('[') && path.ends_with(']'),
+            _ => path == pattern,
+        })
+}
+
+fn tokenize_json_path(path: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut chars = path.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '$' if tokens.is_empty() && current.is_empty() => tokens.push("$".to_string()),
+            '.' => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            '[' => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+                current.push(ch);
+                for ch in chars.by_ref() {
+                    current.push(ch);
+                    if ch == ']' {
+                        break;
+                    }
+                }
+                tokens.push(std::mem::take(&mut current));
+            }
+            _ => current.push(ch),
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
 }

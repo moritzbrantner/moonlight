@@ -17,7 +17,10 @@ use moonlight_core::{
     TargetObservation,
 };
 use std::{collections::BTreeMap, sync::Arc, time::Instant};
-use tokio::task::JoinHandle;
+use tokio::{
+    task::JoinHandle,
+    time::{timeout, Duration},
+};
 
 pub(super) fn optional_forward_target(
     state: Arc<AppState>,
@@ -57,13 +60,27 @@ pub(super) fn forward_target(
             target_request = target_request.header(name.as_str(), value.as_bytes());
         }
 
-        match target_request.send().await {
-            Ok(response) => capture_response(state, label, started, response).await,
-            Err(error) => error_target(
+        match timeout(
+            Duration::from_millis(state.config.target_timeout_ms),
+            target_request.send(),
+        )
+        .await
+        {
+            Ok(Ok(response)) => capture_response(state, label, started, response).await,
+            Ok(Err(error)) => error_target(
                 started,
                 None,
                 Default::default(),
                 format!("{label} request failed: {error}"),
+            ),
+            Err(_) => error_target(
+                started,
+                None,
+                Default::default(),
+                format!(
+                    "{label} request timed out after {} ms",
+                    state.config.target_timeout_ms
+                ),
             ),
         }
     })
@@ -160,8 +177,13 @@ async fn capture_response(
 ) -> CapturedTarget {
     let status = response.status().as_u16();
     let headers = capture_headers(response.headers(), &state.config.redact_headers);
-    match response.bytes().await {
-        Ok(body_bytes) => CapturedTarget {
+    match timeout(
+        Duration::from_millis(state.config.target_timeout_ms),
+        response.bytes(),
+    )
+    .await
+    {
+        Ok(Ok(body_bytes)) => CapturedTarget {
             observation: TargetObservation {
                 status: Some(status),
                 headers,
@@ -177,11 +199,20 @@ async fn capture_response(
             body_bytes,
             stderr_bytes: Bytes::new(),
         },
-        Err(error) => error_target(
+        Ok(Err(error)) => error_target(
             started,
             Some(status),
             headers,
             format!("{label} body read failed: {error}"),
+        ),
+        Err(_) => error_target(
+            started,
+            Some(status),
+            headers,
+            format!(
+                "{label} body read timed out after {} ms",
+                state.config.target_timeout_ms
+            ),
         ),
     }
 }

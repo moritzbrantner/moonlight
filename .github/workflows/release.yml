@@ -55,7 +55,7 @@ jobs:
         run: cargo test --workspace
 
       - name: UI typecheck
-        run: bun run typecheck
+        run: bun run typegen:check && bun run typecheck
 
       - name: UI build
         run: bun run build

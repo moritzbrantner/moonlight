@@ -24,6 +24,29 @@ describe("RunList", () => {
     expect(onSelect).toHaveBeenCalledWith("demo-noise");
   });
 
+  it("emits filter changes and load more requests", async () => {
+    const user = userEvent.setup();
+    const onFiltersChange = vi.fn();
+    const onLoadMore = vi.fn();
+    render(
+      <RunList
+        runs={runListFixture.slice(0, 1)}
+        runTotal={runListFixture.length}
+        selectedId={null}
+        onFiltersChange={onFiltersChange}
+        onLoadMore={onLoadMore}
+        onSelect={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByLabelText("Search runs"), "regression");
+    await user.selectOptions(screen.getByLabelText("Filter by adapter"), "http");
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(onFiltersChange).toHaveBeenCalled();
+    expect(onLoadMore).toHaveBeenCalled();
+  });
+
   it("shows empty state", () => {
     render(<RunList runs={[]} selectedId={null} onSelect={vi.fn()} />);
 

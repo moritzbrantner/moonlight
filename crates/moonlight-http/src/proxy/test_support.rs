@@ -8,7 +8,7 @@ use axum::{
 };
 use moonlight_core::{
     config::{AppConfig, ResponseTiming, ReturnFallback, ReturnTarget},
-    ComparisonRunListItem,
+    ComparisonRunListItem, RunPage,
 };
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 use tokio::net::TcpListener;
@@ -87,6 +87,7 @@ pub(super) fn test_config(
             "x-csrf-token".into(),
         ],
         redact_json_paths: Vec::new(),
+        redact_json_path_patterns: Vec::new(),
         redact_query_params: vec![
             "token".into(),
             "access_token".into(),
@@ -102,6 +103,7 @@ pub(super) fn test_config(
             "$.traceId".into(),
             "$.id".into(),
         ],
+        ignore_json_path_patterns: Vec::new(),
         ignore_headers: vec![
             "date".into(),
             "server".into(),
@@ -110,7 +112,9 @@ pub(super) fn test_config(
             "traceparent".into(),
         ],
         ignore_stderr: false,
+        target_timeout_ms: 30_000,
         storage_path: PathBuf::from(dir.path()).join("http-runs.jsonl"),
+        review_state_path: PathBuf::from(dir.path()).join("review-state.json"),
         cors_origins: vec![
             "http://127.0.0.1:5173".into(),
             "http://localhost:5173".into(),
@@ -136,14 +140,15 @@ pub(super) async fn fetch_runs(
     client: &reqwest::Client,
     proxy_addr: SocketAddr,
 ) -> Vec<ComparisonRunListItem> {
-    client
+    let page: RunPage = client
         .get(format!("http://{proxy_addr}/api/runs"))
         .send()
         .await
         .unwrap()
         .json()
         .await
-        .unwrap()
+        .unwrap();
+    page.items
 }
 
 pub(super) async fn wait_for_run(

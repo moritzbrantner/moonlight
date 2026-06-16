@@ -10,8 +10,10 @@ pub const DEFAULT_CONFIG_PATH: &str = "moonlight.conf";
 pub const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8080";
 pub const DEFAULT_CLI_STORAGE_PATH: &str = "data/moonlight/cli-runs.jsonl";
 pub const DEFAULT_HTTP_STORAGE_PATH: &str = "data/moonlight/http-runs.jsonl";
+pub const DEFAULT_REVIEW_STATE_PATH: &str = "data/moonlight/review-state.json";
 pub const DEFAULT_MAX_BODY_CAPTURE_BYTES: usize = 8192;
 pub const DEFAULT_MAX_REQUEST_BODY_BYTES: usize = 10 * 1024 * 1024;
+pub const DEFAULT_TARGET_TIMEOUT_MS: u64 = 30_000;
 
 pub const DEFAULT_IGNORE_JSON_PATHS: &[&str] = &["$.timestamp", "$.requestId", "$.traceId", "$.id"];
 pub const DEFAULT_IGNORE_HEADERS: &[&str] = &[
@@ -55,11 +57,15 @@ pub struct AppConfig {
     pub max_request_body_bytes: usize,
     pub redact_headers: Vec<String>,
     pub redact_json_paths: Vec<String>,
+    pub redact_json_path_patterns: Vec<String>,
     pub redact_query_params: Vec<String>,
     pub ignore_json_paths: Vec<String>,
+    pub ignore_json_path_patterns: Vec<String>,
     pub ignore_headers: Vec<String>,
     pub ignore_stderr: bool,
+    pub target_timeout_ms: u64,
     pub storage_path: PathBuf,
+    pub review_state_path: PathBuf,
     pub cors_origins: Vec<String>,
     #[serde(skip_serializing, skip_deserializing)]
     pub admin_token: Option<String>,
@@ -143,11 +149,15 @@ impl AppConfig {
             max_request_body_bytes: DEFAULT_MAX_REQUEST_BODY_BYTES,
             redact_headers: strings(DEFAULT_REDACT_HEADERS),
             redact_json_paths: Vec::new(),
+            redact_json_path_patterns: Vec::new(),
             redact_query_params: strings(DEFAULT_REDACT_QUERY_PARAMS),
             ignore_json_paths: strings(DEFAULT_IGNORE_JSON_PATHS),
+            ignore_json_path_patterns: Vec::new(),
             ignore_headers: strings(DEFAULT_IGNORE_HEADERS),
             ignore_stderr: false,
+            target_timeout_ms: DEFAULT_TARGET_TIMEOUT_MS,
             storage_path: PathBuf::from(DEFAULT_HTTP_STORAGE_PATH),
+            review_state_path: PathBuf::from(DEFAULT_REVIEW_STATE_PATH),
             cors_origins: strings(DEFAULT_CORS_ORIGINS),
             admin_token: None,
             retention_max_runs: None,
@@ -160,18 +170,32 @@ impl AppConfig {
             if let Some(path) = &storage.path {
                 self.storage_path = path.clone();
             }
+            if let Some(path) = &storage.review_state_path {
+                self.review_state_path = path.clone();
+            }
         }
         if let Some(comparison) = &config.comparison {
             if let Some(value) = comparison.max_body_capture_bytes {
                 self.max_body_capture_bytes = value;
             }
+            if let Some(value) = comparison.target_timeout_ms {
+                self.target_timeout_ms = normalize_timeout(value);
+            }
             extend(&mut self.ignore_json_paths, &comparison.ignore_json_paths);
+            extend(
+                &mut self.ignore_json_path_patterns,
+                &comparison.ignore_json_path_patterns,
+            );
             extend(&mut self.ignore_headers, &comparison.ignore_headers);
             if let Some(value) = comparison.ignore_stderr {
                 self.ignore_stderr = value;
             }
             extend(&mut self.redact_headers, &comparison.redact_headers);
             extend(&mut self.redact_json_paths, &comparison.redact_json_paths);
+            extend(
+                &mut self.redact_json_path_patterns,
+                &comparison.redact_json_path_patterns,
+            );
             extend(
                 &mut self.redact_query_params,
                 &comparison.redact_query_params,
@@ -263,6 +287,7 @@ impl MoonlightConfig {
 #[serde(deny_unknown_fields)]
 pub struct StorageConfig {
     pub path: Option<PathBuf>,
+    pub review_state_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -272,12 +297,17 @@ pub struct ComparisonConfig {
     #[serde(default)]
     pub ignore_json_paths: Vec<String>,
     #[serde(default)]
+    pub ignore_json_path_patterns: Vec<String>,
+    #[serde(default)]
     pub ignore_headers: Vec<String>,
     pub ignore_stderr: Option<bool>,
+    pub target_timeout_ms: Option<u64>,
     #[serde(default)]
     pub redact_headers: Vec<String>,
     #[serde(default)]
     pub redact_json_paths: Vec<String>,
+    #[serde(default)]
+    pub redact_json_path_patterns: Vec<String>,
     #[serde(default)]
     pub redact_query_params: Vec<String>,
 }
@@ -373,6 +403,14 @@ pub fn normalize_base_url(value: &str) -> String {
 pub fn nonempty(value: &str) -> Option<String> {
     let trimmed = value.trim();
     (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
+
+pub fn normalize_timeout(value: u64) -> u64 {
+    if value == 0 {
+        DEFAULT_TARGET_TIMEOUT_MS
+    } else {
+        value
+    }
 }
 
 fn strings(values: &[&str]) -> Vec<String> {

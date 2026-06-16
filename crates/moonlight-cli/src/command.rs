@@ -9,12 +9,14 @@ use std::{collections::BTreeMap, process::Stdio, time::Instant};
 use tokio::{
     io::{self, AsyncRead, AsyncReadExt},
     process::Command,
+    time::{timeout, Duration},
 };
 
 pub(crate) async fn run_command(
     label: &'static str,
     command: &TargetCommand,
     max_body_capture_bytes: usize,
+    target_timeout_ms: u64,
 ) -> CapturedTarget {
     let started = Instant::now();
     let mut child = match command.spawn() {
@@ -35,13 +37,63 @@ pub(crate) async fn run_command(
         }
     };
 
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let (stdout, stderr, status) = tokio::join!(
-        read_optional_stream(stdout, max_body_capture_bytes),
-        read_optional_stream(stderr, max_body_capture_bytes),
-        child.wait(),
-    );
+    let stdout = tokio::spawn(read_optional_stream(
+        child.stdout.take(),
+        max_body_capture_bytes,
+    ));
+    let stderr = tokio::spawn(read_optional_stream(
+        child.stderr.take(),
+        max_body_capture_bytes,
+    ));
+    let wait = timeout(Duration::from_millis(target_timeout_ms), child.wait()).await;
+
+    let status = match wait {
+        Ok(status) => status,
+        Err(_) => {
+            let _ = child.kill().await;
+            let stdout = join_stream(stdout, max_body_capture_bytes).await;
+            let stderr = join_stream(stderr, max_body_capture_bytes).await;
+            return CapturedTarget {
+                observation: TargetObservation {
+                    status: None,
+                    headers: BTreeMap::new(),
+                    body: stdout.capture,
+                    stderr: Some(stderr.capture),
+                    latency_ms: started.elapsed().as_millis(),
+                    error: Some(format!(
+                        "{label} command timed out after {target_timeout_ms} ms"
+                    )),
+                },
+                body_bytes: stdout.bytes,
+                stderr_bytes: stderr.bytes,
+            };
+        }
+    };
+
+    let stdout = match stdout.await {
+        Ok(stdout) => stdout,
+        Err(error) => {
+            return command_read_error(
+                label,
+                "stdout",
+                io::Error::other(error.to_string()),
+                started,
+                max_body_capture_bytes,
+            );
+        }
+    };
+    let stderr = match stderr.await {
+        Ok(stderr) => stderr,
+        Err(error) => {
+            return command_read_error(
+                label,
+                "stderr",
+                io::Error::other(error.to_string()),
+                started,
+                max_body_capture_bytes,
+            );
+        }
+    };
 
     let stdout = match stdout {
         Ok(stdout) => stdout,
@@ -165,6 +217,19 @@ where
             bytes: Bytes::new(),
             capture: capture_body(&[], max_body_capture_bytes),
         }),
+    }
+}
+
+async fn join_stream(
+    handle: tokio::task::JoinHandle<io::Result<CapturedStream>>,
+    max_body_capture_bytes: usize,
+) -> CapturedStream {
+    match handle.await {
+        Ok(Ok(stream)) => stream,
+        _ => CapturedStream {
+            bytes: Bytes::new(),
+            capture: capture_body(&[], max_body_capture_bytes),
+        },
     }
 }
 

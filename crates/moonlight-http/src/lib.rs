@@ -1,9 +1,13 @@
 pub mod proxy;
 
-use crate::proxy::{get_config, get_health, get_run, get_runs, get_stats, proxy_handler};
+use crate::proxy::{
+    get_config, get_health, get_run, get_run_report, get_run_review, get_runs, get_stats,
+    proxy_handler, put_run_review,
+};
 use axum::{http::HeaderValue, routing::get, Router};
 use moonlight_core::{
     config::AppConfig,
+    review::ReviewStore,
     storage::{Storage, StorageOptions},
 };
 use reqwest::Client;
@@ -15,6 +19,7 @@ pub struct AppState {
     pub config: AppConfig,
     pub client: Client,
     pub storage: Storage,
+    pub review_store: ReviewStore,
 }
 
 pub async fn build_state(config: AppConfig) -> anyhow::Result<Arc<AppState>> {
@@ -26,10 +31,12 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<Arc<AppState>> {
         },
     )
     .await?;
+    let review_store = ReviewStore::load(config.review_state_path.clone()).await?;
     Ok(Arc::new(AppState {
         config,
         client: Client::new(),
         storage,
+        review_store,
     }))
 }
 
@@ -39,6 +46,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/config", get(get_config))
         .route("/api/runs", get(get_runs))
         .route("/api/runs/{id}", get(get_run))
+        .route("/api/runs/{id}/report", get(get_run_report))
+        .route(
+            "/api/runs/{id}/review",
+            get(get_run_review).put(put_run_review),
+        )
         .route("/api/stats", get(get_stats))
         .fallback(proxy_handler)
         .layer(cors_layer(&state.config))

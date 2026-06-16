@@ -42,21 +42,23 @@ pub(crate) async fn read_batch_cases(
 pub(crate) fn prepare_cases(cases: Vec<Case>, defaults: &CliDefaults) -> Vec<PreparedCase> {
     let default_compare_config = Arc::new(build_compare_config(
         &defaults.ignore_json_paths,
+        &defaults.ignore_json_path_patterns,
+        &defaults.redact_json_paths,
+        &defaults.redact_json_path_patterns,
         &defaults.ignore_headers,
         defaults.ignore_stderr,
     ));
     cases
         .into_iter()
         .map(|case| {
-            let compare_config = if case.uses_compare_config(
-                &defaults.ignore_json_paths,
-                &defaults.ignore_headers,
-                defaults.ignore_stderr,
-            ) {
+            let compare_config = if case.uses_default_compare_config(defaults) {
                 Arc::clone(&default_compare_config)
             } else {
                 Arc::new(build_compare_config(
                     &case.ignore_json_paths,
+                    &case.ignore_json_path_patterns,
+                    &case.redact_json_paths,
+                    &case.redact_json_path_patterns,
                     &case.ignore_headers,
                     case.ignore_stderr,
                 ))
@@ -76,8 +78,18 @@ fn case_from_batch(
 ) -> anyhow::Result<Case> {
     let mut ignore_json_paths = defaults.ignore_json_paths.clone();
     ignore_json_paths.extend(case.ignore_json_paths);
+    let mut ignore_json_path_patterns = defaults.ignore_json_path_patterns.clone();
+    ignore_json_path_patterns.extend(case.ignore_json_path_patterns);
+    let mut redact_json_paths = defaults.redact_json_paths.clone();
+    redact_json_paths.extend(case.redact_json_paths);
+    let mut redact_json_path_patterns = defaults.redact_json_path_patterns.clone();
+    redact_json_path_patterns.extend(case.redact_json_path_patterns);
     let mut ignore_headers = defaults.ignore_headers.clone();
     ignore_headers.extend(case.ignore_headers);
+    let target_timeout_ms = case
+        .target_timeout_ms
+        .map(moonlight_core::config::normalize_timeout)
+        .unwrap_or(defaults.target_timeout_ms);
 
     Ok(Case {
         primary: parse_required_command_form(
@@ -102,8 +114,12 @@ fn case_from_batch(
             .max_body_capture_bytes
             .unwrap_or(defaults.max_body_capture_bytes),
         ignore_json_paths,
+        ignore_json_path_patterns,
+        redact_json_paths,
+        redact_json_path_patterns,
         ignore_headers,
         ignore_stderr: defaults.ignore_stderr || case.ignore_stderr,
+        target_timeout_ms,
     })
 }
 

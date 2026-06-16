@@ -8,6 +8,7 @@ use crate::{
     execute::execute_case,
     types::{Case, PreparedCase},
 };
+use moonlight_core::config::normalize_timeout;
 use moonlight_core::config::CliTargetConfig;
 use moonlight_core::storage::RunWriter;
 use std::sync::Arc;
@@ -16,9 +17,19 @@ pub(crate) async fn run(args: RunArgs, defaults: &CliDefaults) -> anyhow::Result
     let targets = merge_targets(&args, &defaults.run.targets)?;
     let mut ignore_json_paths = defaults.ignore_json_paths.clone();
     ignore_json_paths.extend(args.ignore_json_paths);
+    let mut ignore_json_path_patterns = defaults.ignore_json_path_patterns.clone();
+    ignore_json_path_patterns.extend(args.ignore_json_path_patterns);
+    let mut redact_json_paths = defaults.redact_json_paths.clone();
+    redact_json_paths.extend(args.redact_json_paths);
+    let mut redact_json_path_patterns = defaults.redact_json_path_patterns.clone();
+    redact_json_path_patterns.extend(args.redact_json_path_patterns);
     let mut ignore_headers = defaults.ignore_headers.clone();
     ignore_headers.extend(args.ignore_headers);
     let ignore_stderr = defaults.ignore_stderr || args.ignore_stderr;
+    let target_timeout_ms = args
+        .target_timeout_ms
+        .map(normalize_timeout)
+        .unwrap_or(defaults.target_timeout_ms);
     let max_body_capture_bytes = args
         .max_body_capture_bytes
         .unwrap_or(defaults.max_body_capture_bytes);
@@ -48,11 +59,18 @@ pub(crate) async fn run(args: RunArgs, defaults: &CliDefaults) -> anyhow::Result
         )?,
         max_body_capture_bytes,
         ignore_json_paths,
+        ignore_json_path_patterns,
+        redact_json_paths,
+        redact_json_path_patterns,
         ignore_headers,
         ignore_stderr,
+        target_timeout_ms,
     };
     let compare_config = Arc::new(build_compare_config(
         &case.ignore_json_paths,
+        &case.ignore_json_path_patterns,
+        &case.redact_json_paths,
+        &case.redact_json_path_patterns,
         &case.ignore_headers,
         case.ignore_stderr,
     ));

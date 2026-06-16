@@ -1,4 +1,4 @@
-import type { AppConfig, ComparisonRun, ComparisonRunListItem, StatsSummary, TargetObservation } from "./types";
+import type { AppConfig, ComparisonRun, ComparisonRunListItem, RunReviewState, StatsSummary, TargetObservation } from "./types";
 
 const now = new Date("2026-06-13T12:00:00.000Z");
 
@@ -45,11 +45,15 @@ export const demoConfig: AppConfig = {
     "x-csrf-token"
   ],
   redact_json_paths: [],
+  redact_json_path_patterns: ["$.items[*].secret"],
   redact_query_params: ["token", "access_token", "id_token", "api_key", "key", "secret", "password"],
   ignore_json_paths: ["$.generated_at"],
+  ignore_json_path_patterns: ["$.items[*].id"],
   ignore_headers: ["date"],
   ignore_stderr: false,
+  target_timeout_ms: 30000,
   storage_path: "data/moonlight/http-runs.jsonl",
+  review_state_path: "data/moonlight/review-state.json",
   cors_origins: ["http://127.0.0.1:5173", "http://localhost:5173"],
   retention_max_runs: null,
   retention_max_bytes: null
@@ -164,6 +168,53 @@ export const demoRuns: ComparisonRun[] = [
       raw_diff_summary: "No candidate differences",
       noise_summary: "No reference noise"
     }
+  },
+  {
+    id: "demo-timeout",
+    timestamp: new Date(now.getTime() - 132_000).toISOString(),
+    adapter: "http",
+    input: {
+      method: "GET",
+      path: "/slow-candidate",
+      query: null
+    },
+    request_headers: {
+      accept: "application/json"
+    },
+    request_body: body(""),
+    primary: observation(200, "{\"status\":\"ok\"}", 17),
+    candidate: {
+      ...observation(0, "", 30001),
+      status: null,
+      error: "candidate request timed out after 30000 ms"
+    },
+    secondary: observation(200, "{\"status\":\"ok\"}", 19),
+    comparison: {
+      classification: "target_error",
+      raw_candidate_diffs: [
+        {
+          kind: "target_error",
+          path: "$target_error",
+          primary: null,
+          candidate: "candidate request timed out after 30000 ms",
+          secondary: null,
+          message: "primary target error differs from candidate"
+        }
+      ],
+      reference_noise: [],
+      noise_filtered_diffs: [
+        {
+          kind: "target_error",
+          path: "$target_error",
+          primary: null,
+          candidate: "candidate request timed out after 30000 ms",
+          secondary: null,
+          message: "primary target error differs from candidate"
+        }
+      ],
+      raw_diff_summary: "candidate: 1 diff(s)",
+      noise_summary: "no reference noise diffs"
+    }
   }
 ];
 
@@ -189,11 +240,28 @@ export const demoStats: StatsSummary = {
   suspicious_differences: 1,
   reference_noise: 1,
   suspicious_with_noise: 0,
-  target_errors: 0,
+  target_errors: 1,
   latency: {
     primary_avg_ms: 15,
     candidate_avg_ms: 17.7,
     secondary_avg_ms: 17.3
   },
   latest_runs: demoRunList
+};
+
+export const demoReviewStates: Record<string, RunReviewState> = {
+  "demo-regression": {
+    run_id: "demo-regression",
+    status: "accepted",
+    note: "Candidate changed the returned value.",
+    tags: ["regression"],
+    updated_at: now.toISOString()
+  },
+  "demo-noise": {
+    run_id: "demo-noise",
+    status: "ignored",
+    note: "Generated timestamp noise.",
+    tags: ["noise"],
+    updated_at: new Date(now.getTime() - 30_000).toISOString()
+  }
 };

@@ -61,6 +61,31 @@ fn run_records_suspicious_with_noise() {
 }
 
 #[test]
+fn run_records_timeout_as_target_error() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+
+    let record = run_record(
+        &storage,
+        &[
+            "--primary",
+            "printf '%s\n' ok",
+            "--candidate",
+            "sleep 1; printf '%s\n' ok",
+            "--target-timeout-ms",
+            "25",
+        ],
+    );
+
+    assert_eq!(record["comparison"]["classification"], "target_error");
+    assert!(record["candidate"]["error"]
+        .as_str()
+        .unwrap()
+        .contains("timed out"));
+    dir.close().unwrap();
+}
+
+#[test]
 fn run_ignores_default_json_ids() {
     let dir = TempDir::new().unwrap();
     let storage = storage_path(&dir);

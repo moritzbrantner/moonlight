@@ -43,13 +43,30 @@ pub(crate) async fn execute_case(prepared: PreparedCase, serial_targets: bool) -
 
 async fn run_targets(case: &Case, serial_targets: bool) -> CapturedTargets {
     if serial_targets {
-        let primary = run_command("primary", &case.primary, case.max_body_capture_bytes).await;
-        let candidate =
-            run_command("candidate", &case.candidate, case.max_body_capture_bytes).await;
+        let primary = run_command(
+            "primary",
+            &case.primary,
+            case.max_body_capture_bytes,
+            case.target_timeout_ms,
+        )
+        .await;
+        let candidate = run_command(
+            "candidate",
+            &case.candidate,
+            case.max_body_capture_bytes,
+            case.target_timeout_ms,
+        )
+        .await;
         let secondary = match &case.secondary {
-            Some(command) => {
-                Some(run_command("secondary", command, case.max_body_capture_bytes).await)
-            }
+            Some(command) => Some(
+                run_command(
+                    "secondary",
+                    command,
+                    case.max_body_capture_bytes,
+                    case.target_timeout_ms,
+                )
+                .await,
+            ),
             None => None,
         };
         return CapturedTargets {
@@ -62,9 +79,24 @@ async fn run_targets(case: &Case, serial_targets: bool) -> CapturedTargets {
     match &case.secondary {
         Some(secondary_command) => {
             let (primary, candidate, secondary) = tokio::join!(
-                run_command("primary", &case.primary, case.max_body_capture_bytes),
-                run_command("candidate", &case.candidate, case.max_body_capture_bytes),
-                run_command("secondary", secondary_command, case.max_body_capture_bytes),
+                run_command(
+                    "primary",
+                    &case.primary,
+                    case.max_body_capture_bytes,
+                    case.target_timeout_ms
+                ),
+                run_command(
+                    "candidate",
+                    &case.candidate,
+                    case.max_body_capture_bytes,
+                    case.target_timeout_ms
+                ),
+                run_command(
+                    "secondary",
+                    secondary_command,
+                    case.max_body_capture_bytes,
+                    case.target_timeout_ms
+                ),
             );
             CapturedTargets {
                 primary,
@@ -74,8 +106,18 @@ async fn run_targets(case: &Case, serial_targets: bool) -> CapturedTargets {
         }
         None => {
             let (primary, candidate) = tokio::join!(
-                run_command("primary", &case.primary, case.max_body_capture_bytes),
-                run_command("candidate", &case.candidate, case.max_body_capture_bytes),
+                run_command(
+                    "primary",
+                    &case.primary,
+                    case.max_body_capture_bytes,
+                    case.target_timeout_ms
+                ),
+                run_command(
+                    "candidate",
+                    &case.candidate,
+                    case.max_body_capture_bytes,
+                    case.target_timeout_ms
+                ),
             );
             CapturedTargets {
                 primary,

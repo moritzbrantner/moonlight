@@ -96,8 +96,27 @@
 }
 
 .list-scroll {
-  height: calc(100% - 45px);
+  height: calc(100% - 147px);
   overflow: auto;
+  padding: 8px;
+}
+
+.run-filters {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  padding: 10px;
+}
+
+.run-filters input,
+.run-filters select,
+.review-note input {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  min-width: 0;
   padding: 8px;
 }
 
@@ -183,6 +202,10 @@
   padding: 12px;
 }
 
+.target-card.timeout {
+  border-color: #d56d4a;
+}
+
 .target-card h3 {
   font-size: 14px;
   margin: 0 0 10px;
@@ -218,6 +241,50 @@ pre {
 
 .diff-viewer {
   border-top: 1px solid var(--line);
+}
+
+.review-actions,
+.suggestions {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+.review-actions button,
+.review-actions a,
+.suggestions button,
+.load-more {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+
+.review-status {
+  color: var(--muted);
+  font-size: 12px;
+  margin-right: auto;
+  text-transform: uppercase;
+}
+
+.review-note {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 14px;
+}
+
+.review-note input {
+  width: 100%;
+}
+
+.load-more {
+  width: 100%;
 }
 
 .diff-table {
