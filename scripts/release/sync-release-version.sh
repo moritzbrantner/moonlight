@@ -13,12 +13,13 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
 fi
 
 VERSION="$version" perl -0pi -e 's/(\[workspace\.package\][\s\S]*?^version = ")[^"]+(")/$1$ENV{VERSION}$2/m' Cargo.toml
+VERSION="$version" perl -0pi -e 's/(moonlight-core = \{ version = ")[^"]+(", path = "\.\.\/moonlight-core" \})/$1$ENV{VERSION}$2/g' crates/moonlight-cli/Cargo.toml
 
-node - "$version" <<'JS'
+VERSION="$version" bun -e '
 const fs = require("node:fs");
 const path = require("node:path");
 
-const version = process.argv[2];
+const version = process.env.VERSION;
 const packageFiles = [
   "packages/npm/moonlight/package.json",
   ...fs
@@ -39,6 +40,6 @@ for (const packageFile of packageFiles) {
 
   fs.writeFileSync(packageFile, `${JSON.stringify(packageJson, null, 2)}\n`);
 }
-JS
+'
 
 echo "synced release version $version"

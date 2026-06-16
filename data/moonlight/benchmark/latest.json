@@ -14,12 +14,12 @@
     "validation_requests": 60,
     "warmup": 50
   },
-  "generated_at": "2026-06-13T14:10:48.506095+00:00",
+  "generated_at": "2026-06-15T23:43:35.150416+00:00",
   "moonlight_stats": {
     "latency": {
-      "candidate_avg_ms": 112.53023255813953,
-      "primary_avg_ms": 0.01317829457364341,
-      "secondary_avg_ms": 0.008527131782945736
+      "candidate_avg_ms": 110.61983059292476,
+      "primary_avg_ms": 0.013452914798206279,
+      "secondary_avg_ms": 0.013452914798206279
     },
     "latest_runs": [
       {
@@ -28,7 +28,7 @@
         "candidate_status": 400,
         "classification": "suspicious_difference",
         "diff_count": 3,
-        "id": "732df90a-0905-455d-adfd-74e7a18502ca",
+        "id": "dbf0189d-4965-4591-8cc6-9dfadea709d4",
         "input": {
           "method": "GET",
           "path": "/status-regression",
@@ -39,7 +39,7 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.464106020Z"
+        "timestamp": "2026-06-15T23:43:35.088294136Z"
       },
       {
         "adapter": "http",
@@ -47,7 +47,7 @@
         "candidate_status": 200,
         "classification": "suspicious_with_noise",
         "diff_count": 1,
-        "id": "1292a096-c19d-414d-b9c6-d1c78b3201c9",
+        "id": "8d6898c2-cf41-4784-bd14-91e4316f7ae9",
         "input": {
           "method": "GET",
           "path": "/noisy-regression",
@@ -58,7 +58,7 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.459702848Z"
+        "timestamp": "2026-06-15T23:43:35.084354458Z"
       },
       {
         "adapter": "http",
@@ -66,7 +66,7 @@
         "candidate_status": 200,
         "classification": "reference_noise",
         "diff_count": 0,
-        "id": "49b1ed46-3878-4ff5-8adf-213f94607d2f",
+        "id": "78753b31-d0bb-410c-b3d7-61bc0355282d",
         "input": {
           "method": "GET",
           "path": "/noise",
@@ -77,7 +77,7 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.451872489Z"
+        "timestamp": "2026-06-15T23:43:35.079648310Z"
       },
       {
         "adapter": "http",
@@ -85,7 +85,7 @@
         "candidate_status": 200,
         "classification": "suspicious_difference",
         "diff_count": 1,
-        "id": "4a32dbb2-d91b-4853-a6ba-2db354c46f59",
+        "id": "894a842a-019e-4ab4-8184-baf2e91fcd02",
         "input": {
           "method": "GET",
           "path": "/regression",
@@ -96,7 +96,7 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.439620393Z"
+        "timestamp": "2026-06-15T23:43:35.073275617Z"
       },
       {
         "adapter": "http",
@@ -104,7 +104,7 @@
         "candidate_status": 200,
         "classification": "match",
         "diff_count": 0,
-        "id": "5a4463d7-8058-4f11-ad2e-4f35e3b4a8a3",
+        "id": "9b5e2015-ed81-45e1-ad99-4274d6cd44e2",
         "input": {
           "method": "GET",
           "path": "/success",
@@ -115,64 +115,26 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.427453367Z"
+        "timestamp": "2026-06-15T23:43:35.061849544Z"
       },
       {
         "adapter": "http",
         "candidate_latency_ms": 0,
         "candidate_status": 200,
-        "classification": "reference_noise",
-        "diff_count": 0,
-        "id": "5ee56edc-6183-460f-a845-95297f467bbe",
-        "input": {
-          "method": "GET",
-          "path": "/noise",
-          "query": null
-        },
-        "noise_count": 2,
-        "primary_latency_ms": 0,
-        "primary_status": 200,
-        "secondary_latency_ms": 0,
-        "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.427256516Z"
-      },
-      {
-        "adapter": "http",
-        "candidate_latency_ms": 0,
-        "candidate_status": 200,
-        "classification": "match",
-        "diff_count": 0,
-        "id": "dee0f81e-073d-45ce-a7cf-98c22796e618",
-        "input": {
-          "method": "GET",
-          "path": "/success",
-          "query": null
-        },
-        "noise_count": 0,
-        "primary_latency_ms": 0,
-        "primary_status": 200,
-        "secondary_latency_ms": 0,
-        "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.411598704Z"
-      },
-      {
-        "adapter": "http",
-        "candidate_latency_ms": 0,
-        "candidate_status": 200,
-        "classification": "suspicious_difference",
+        "classification": "suspicious_with_noise",
         "diff_count": 1,
-        "id": "737fc430-c578-4d7b-b6ec-f845d84e9c40",
+        "id": "bbc49e87-22fa-46dd-9d69-ded092cab6de",
         "input": {
           "method": "GET",
-          "path": "/regression",
+          "path": "/noisy-regression",
           "query": null
         },
-        "noise_count": 0,
+        "noise_count": 1,
         "primary_latency_ms": 0,
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.398898726Z"
+        "timestamp": "2026-06-15T23:43:35.059590096Z"
       },
       {
         "adapter": "http",
@@ -180,7 +142,7 @@
         "candidate_status": 400,
         "classification": "suspicious_difference",
         "diff_count": 3,
-        "id": "67c82e3d-9fcf-4734-a99c-cf2df6749620",
+        "id": "480826c3-c97d-4c6d-bc65-541a00454596",
         "input": {
           "method": "GET",
           "path": "/status-regression",
@@ -191,64 +153,7 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.391379181Z"
-      },
-      {
-        "adapter": "http",
-        "candidate_latency_ms": 0,
-        "candidate_status": 200,
-        "classification": "suspicious_with_noise",
-        "diff_count": 1,
-        "id": "eeaa9188-078c-40ba-aa7b-2724fa11d341",
-        "input": {
-          "method": "GET",
-          "path": "/noisy-regression",
-          "query": null
-        },
-        "noise_count": 1,
-        "primary_latency_ms": 0,
-        "primary_status": 200,
-        "secondary_latency_ms": 0,
-        "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.380992083Z"
-      },
-      {
-        "adapter": "http",
-        "candidate_latency_ms": 0,
-        "candidate_status": 200,
-        "classification": "suspicious_difference",
-        "diff_count": 1,
-        "id": "512ec3cb-a96c-474c-98b3-081181c2504b",
-        "input": {
-          "method": "GET",
-          "path": "/regression",
-          "query": null
-        },
-        "noise_count": 0,
-        "primary_latency_ms": 0,
-        "primary_status": 200,
-        "secondary_latency_ms": 0,
-        "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.375160835Z"
-      },
-      {
-        "adapter": "http",
-        "candidate_latency_ms": 0,
-        "candidate_status": 200,
-        "classification": "reference_noise",
-        "diff_count": 0,
-        "id": "9578fa45-3003-4aff-a236-e91c5f372798",
-        "input": {
-          "method": "GET",
-          "path": "/noise",
-          "query": null
-        },
-        "noise_count": 2,
-        "primary_latency_ms": 0,
-        "primary_status": 200,
-        "secondary_latency_ms": 1,
-        "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.367056991Z"
+        "timestamp": "2026-06-15T23:43:35.059009374Z"
       },
       {
         "adapter": "http",
@@ -256,7 +161,7 @@
         "candidate_status": 200,
         "classification": "match",
         "diff_count": 0,
-        "id": "d04aea63-98a6-495c-ace8-320da98d04cf",
+        "id": "7ccb51d0-1660-492a-9103-77ee4df0b43c",
         "input": {
           "method": "GET",
           "path": "/success",
@@ -267,64 +172,7 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.360228387Z"
-      },
-      {
-        "adapter": "http",
-        "candidate_latency_ms": 0,
-        "candidate_status": 200,
-        "classification": "match",
-        "diff_count": 0,
-        "id": "f2a7b910-057c-4b38-8999-93d96e7c003d",
-        "input": {
-          "method": "GET",
-          "path": "/success",
-          "query": null
-        },
-        "noise_count": 0,
-        "primary_latency_ms": 0,
-        "primary_status": 200,
-        "secondary_latency_ms": 0,
-        "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.353679007Z"
-      },
-      {
-        "adapter": "http",
-        "candidate_latency_ms": 0,
-        "candidate_status": 400,
-        "classification": "suspicious_difference",
-        "diff_count": 3,
-        "id": "9eab02b9-1c06-48e2-98b9-18f6abfffedf",
-        "input": {
-          "method": "GET",
-          "path": "/status-regression",
-          "query": null
-        },
-        "noise_count": 0,
-        "primary_latency_ms": 0,
-        "primary_status": 200,
-        "secondary_latency_ms": 0,
-        "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.347807393Z"
-      },
-      {
-        "adapter": "http",
-        "candidate_latency_ms": 0,
-        "candidate_status": 200,
-        "classification": "reference_noise",
-        "diff_count": 0,
-        "id": "1f2dbe86-b2fc-421b-9afe-a0790cdc6853",
-        "input": {
-          "method": "GET",
-          "path": "/noise",
-          "query": null
-        },
-        "noise_count": 2,
-        "primary_latency_ms": 0,
-        "primary_status": 200,
-        "secondary_latency_ms": 0,
-        "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:48.347024069Z"
+        "timestamp": "2026-06-15T23:43:35.056291654Z"
       },
       {
         "adapter": "http",
@@ -332,7 +180,7 @@
         "candidate_status": 200,
         "classification": "suspicious_difference",
         "diff_count": 1,
-        "id": "acf90cbe-cf9a-404b-89e0-01164afd01d7",
+        "id": "2c63eba8-1d17-497c-99a6-d9a94f3e526e",
         "input": {
           "method": "GET",
           "path": "/regression",
@@ -343,7 +191,45 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:47.982809463Z"
+        "timestamp": "2026-06-15T23:43:35.051103228Z"
+      },
+      {
+        "adapter": "http",
+        "candidate_latency_ms": 0,
+        "candidate_status": 200,
+        "classification": "reference_noise",
+        "diff_count": 0,
+        "id": "10a2f4b5-acd6-4c4c-add1-7302a4518234",
+        "input": {
+          "method": "GET",
+          "path": "/noise",
+          "query": null
+        },
+        "noise_count": 2,
+        "primary_latency_ms": 0,
+        "primary_status": 200,
+        "secondary_latency_ms": 0,
+        "secondary_status": 200,
+        "timestamp": "2026-06-15T23:43:35.050241227Z"
+      },
+      {
+        "adapter": "http",
+        "candidate_latency_ms": 0,
+        "candidate_status": 200,
+        "classification": "suspicious_difference",
+        "diff_count": 1,
+        "id": "54d11fda-5e0c-4ab6-9307-41cf2153315f",
+        "input": {
+          "method": "GET",
+          "path": "/regression",
+          "query": null
+        },
+        "noise_count": 0,
+        "primary_latency_ms": 0,
+        "primary_status": 200,
+        "secondary_latency_ms": 0,
+        "secondary_status": 200,
+        "timestamp": "2026-06-15T23:43:35.039805065Z"
       },
       {
         "adapter": "http",
@@ -351,7 +237,7 @@
         "candidate_status": 200,
         "classification": "suspicious_with_noise",
         "diff_count": 1,
-        "id": "55be5f36-2669-4b25-9865-3ea69b416597",
+        "id": "168b87a4-a188-4d94-979f-9244864a56e1",
         "input": {
           "method": "GET",
           "path": "/noisy-regression",
@@ -362,7 +248,7 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:47.982002495Z"
+        "timestamp": "2026-06-15T23:43:35.028634181Z"
       },
       {
         "adapter": "http",
@@ -370,7 +256,7 @@
         "candidate_status": 400,
         "classification": "suspicious_difference",
         "diff_count": 3,
-        "id": "00e04f1c-e2d7-48ed-ae93-3faa98b1974a",
+        "id": "51104a09-02d2-4d1c-bf8d-74bf0740cb93",
         "input": {
           "method": "GET",
           "path": "/status-regression",
@@ -381,7 +267,64 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:47.970765799Z"
+        "timestamp": "2026-06-15T23:43:35.028354866Z"
+      },
+      {
+        "adapter": "http",
+        "candidate_latency_ms": 0,
+        "candidate_status": 200,
+        "classification": "reference_noise",
+        "diff_count": 0,
+        "id": "fe24de03-747d-4215-8bcd-34c79ed91181",
+        "input": {
+          "method": "GET",
+          "path": "/noise",
+          "query": null
+        },
+        "noise_count": 2,
+        "primary_latency_ms": 0,
+        "primary_status": 200,
+        "secondary_latency_ms": 0,
+        "secondary_status": 200,
+        "timestamp": "2026-06-15T23:43:35.015578593Z"
+      },
+      {
+        "adapter": "http",
+        "candidate_latency_ms": 0,
+        "candidate_status": 400,
+        "classification": "suspicious_difference",
+        "diff_count": 3,
+        "id": "34561562-e3e4-41bb-9112-1e29721260d7",
+        "input": {
+          "method": "GET",
+          "path": "/status-regression",
+          "query": null
+        },
+        "noise_count": 0,
+        "primary_latency_ms": 0,
+        "primary_status": 200,
+        "secondary_latency_ms": 0,
+        "secondary_status": 200,
+        "timestamp": "2026-06-15T23:43:35.004164903Z"
+      },
+      {
+        "adapter": "http",
+        "candidate_latency_ms": 0,
+        "candidate_status": 200,
+        "classification": "match",
+        "diff_count": 0,
+        "id": "de0c29a8-b7eb-410e-b327-3a4437c9a72e",
+        "input": {
+          "method": "GET",
+          "path": "/success",
+          "query": null
+        },
+        "noise_count": 0,
+        "primary_latency_ms": 0,
+        "primary_status": 200,
+        "secondary_latency_ms": 2,
+        "secondary_status": 200,
+        "timestamp": "2026-06-15T23:43:34.990256863Z"
       },
       {
         "adapter": "http",
@@ -389,7 +332,64 @@
         "candidate_status": 200,
         "classification": "suspicious_with_noise",
         "diff_count": 1,
-        "id": "8baa82b4-605b-488d-be32-56f60fd3ac40",
+        "id": "f22fe828-b342-4d5c-b25f-0d7bb1ed3aa5",
+        "input": {
+          "method": "GET",
+          "path": "/noisy-regression",
+          "query": null
+        },
+        "noise_count": 1,
+        "primary_latency_ms": 0,
+        "primary_status": 200,
+        "secondary_latency_ms": 2,
+        "secondary_status": 200,
+        "timestamp": "2026-06-15T23:43:34.985579589Z"
+      },
+      {
+        "adapter": "http",
+        "candidate_latency_ms": 0,
+        "candidate_status": 200,
+        "classification": "reference_noise",
+        "diff_count": 0,
+        "id": "5b377e30-8c30-450a-9769-791ac10c93d4",
+        "input": {
+          "method": "GET",
+          "path": "/noise",
+          "query": null
+        },
+        "noise_count": 2,
+        "primary_latency_ms": 0,
+        "primary_status": 200,
+        "secondary_latency_ms": 0,
+        "secondary_status": 200,
+        "timestamp": "2026-06-15T23:43:34.955383042Z"
+      },
+      {
+        "adapter": "http",
+        "candidate_latency_ms": 0,
+        "candidate_status": 200,
+        "classification": "suspicious_difference",
+        "diff_count": 1,
+        "id": "edd49119-4f66-4bbf-9bf0-9e5f63f40728",
+        "input": {
+          "method": "GET",
+          "path": "/regression",
+          "query": null
+        },
+        "noise_count": 0,
+        "primary_latency_ms": 0,
+        "primary_status": 200,
+        "secondary_latency_ms": 0,
+        "secondary_status": 200,
+        "timestamp": "2026-06-15T23:43:34.654986879Z"
+      },
+      {
+        "adapter": "http",
+        "candidate_latency_ms": 0,
+        "candidate_status": 200,
+        "classification": "suspicious_with_noise",
+        "diff_count": 1,
+        "id": "cd7b6691-96f9-45b3-902a-44f8cc1d761f",
         "input": {
           "method": "GET",
           "path": "/noisy-regression",
@@ -400,31 +400,31 @@
         "primary_status": 200,
         "secondary_latency_ms": 0,
         "secondary_status": 200,
-        "timestamp": "2026-06-13T14:10:47.962237608Z"
+        "timestamp": "2026-06-15T23:43:34.652845532Z"
       }
     ],
-    "matches": 447,
-    "reference_noise": 209,
-    "suspicious_differences": 424,
-    "suspicious_with_noise": 210,
+    "matches": 687,
+    "reference_noise": 328,
+    "suspicious_differences": 663,
+    "suspicious_with_noise": 329,
     "target_errors": 0,
-    "total_runs": 1290
+    "total_runs": 2007
   },
   "targets": {
     "diffy_b": {
       "base_url": "http://127.0.0.1:8890",
       "error_count": 0,
       "latency_ms": {
-        "max": 348.4012159970007,
-        "mean": 59.12266252824338,
-        "min": 2.3707189975539222,
-        "p50": 18.524673996580532,
-        "p90": 214.8315003985772,
-        "p95": 301.9118425461784,
-        "p99": 323.46646440382756
+        "max": 507.9969170037657,
+        "mean": 55.6493903065954,
+        "min": 2.8612800015253015,
+        "p50": 19.279469499451807,
+        "p90": 52.93718679749873,
+        "p95": 454.95409620416467,
+        "p99": 481.2061483152502
       },
       "name": "diffy_b",
-      "requests_per_second": 134.71195545818736,
+      "requests_per_second": 143.30210791220728,
       "status_counts": {
         "200": 600
       },
@@ -435,16 +435,16 @@
       "base_url": "http://127.0.0.1:8900",
       "error_count": 0,
       "latency_ms": {
-        "max": 569.6848290026537,
-        "mean": 55.11826553652403,
-        "min": 2.4377459994866513,
-        "p50": 13.953351499367272,
-        "p90": 49.73787779745181,
-        "p95": 490.42326134840533,
-        "p99": 534.2379479286319
+        "max": 561.8557249981677,
+        "mean": 55.309321181739506,
+        "min": 2.0480010061874054,
+        "p50": 14.051264002773678,
+        "p90": 49.39945169753628,
+        "p95": 503.7337618025049,
+        "p99": 535.4456205578754
       },
       "name": "diffy_c",
-      "requests_per_second": 144.88889688281185,
+      "requests_per_second": 144.16921417460188,
       "status_counts": {
         "200": 600
       },
@@ -455,16 +455,16 @@
       "base_url": "http://127.0.0.1:8080",
       "error_count": 0,
       "latency_ms": {
-        "max": 16.912973005673848,
-        "mean": 2.1953329134582114,
-        "min": 0.7304440005100332,
-        "p50": 1.762685500580119,
-        "p90": 2.5978229976317384,
-        "p95": 2.9652183508005683,
-        "p99": 15.940252323198365
+        "max": 14.467650995356962,
+        "mean": 2.2516278433128414,
+        "min": 0.8308120013680309,
+        "p50": 1.8849794978450518,
+        "p90": 3.070097395539052,
+        "p95": 4.092377103734173,
+        "p99": 11.026624100704792
       },
       "name": "moonlight",
-      "requests_per_second": 3511.838606862027,
+      "requests_per_second": 3425.7516825416146,
       "status_counts": {
         "200": 600
       },

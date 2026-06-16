@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- Added argv command forms for `run` and `batch`, including benchmark coverage.
+- Optimized CLI read commands to use exact-file JSONL access and avoid scanning sibling run files.
+- Updated CI, release, Rust, and frontend dependencies for the next release wave.
+- Refreshed CLI and HTTP benchmark reports.
+
 ## 0.1.0
 
 - Initial public Moonlight CLI packaging for crates.io and npm.

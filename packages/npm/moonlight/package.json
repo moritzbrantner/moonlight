@@ -1,6 +1,6 @@
 {
   "name": "@moritzbrantner/moonlight",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Compare command behavior against one or two reference commands.",
   "license": "MIT",
@@ -23,10 +23,10 @@
     "node": ">=18"
   },
   "optionalDependencies": {
-    "@moritzbrantner/moonlight-darwin-arm64": "0.1.0",
-    "@moritzbrantner/moonlight-darwin-x64": "0.1.0",
-    "@moritzbrantner/moonlight-linux-arm64-gnu": "0.1.0",
-    "@moritzbrantner/moonlight-linux-x64-gnu": "0.1.0",
-    "@moritzbrantner/moonlight-win32-x64-msvc": "0.1.0"
+    "@moritzbrantner/moonlight-darwin-arm64": "0.1.1",
+    "@moritzbrantner/moonlight-darwin-x64": "0.1.1",
+    "@moritzbrantner/moonlight-linux-arm64-gnu": "0.1.1",
+    "@moritzbrantner/moonlight-linux-x64-gnu": "0.1.1",
+    "@moritzbrantner/moonlight-win32-x64-msvc": "0.1.1"
   }
 }

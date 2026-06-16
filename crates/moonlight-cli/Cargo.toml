@@ -20,7 +20,7 @@ bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
 hex.workspace = true
-moonlight-core = { version = "0.1.0", path = "../moonlight-core" }
+moonlight-core = { version = "0.1.1", path = "../moonlight-core" }
 futures.workspace = true
 serde.workspace = true
 serde_json.workspace = true
