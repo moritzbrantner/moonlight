@@ -24,6 +24,7 @@ use moonlight_core::{
 };
 use std::sync::Arc;
 use tokio::task::JoinHandle;
+use tracing::Instrument;
 use uuid::Uuid;
 
 pub async fn proxy_handler(
@@ -67,35 +68,48 @@ pub async fn proxy_handler(
         headers,
         body,
     };
-
-    let primary = forward_target(
-        state.clone(),
-        "primary",
-        state.config.primary_url.clone(),
-        target_request.clone(),
-    );
-    let candidate = forward_target(
-        state.clone(),
-        "candidate",
-        state.config.candidate_url.clone(),
-        target_request.clone(),
-    );
-    let secondary = optional_forward_target(
-        state.clone(),
-        "secondary",
-        state.config.secondary_url.clone(),
-        state.config.enable_secondary,
-        target_request,
+    state.metrics.record_comparison_started();
+    let span = tracing::info_span!(
+        "moonlight_proxy_run",
+        run_id = %id,
+        method = %metadata.method,
+        path = %metadata.path,
+        return_target = ?state.config.return_target,
+        response_timing = ?state.config.response_timing,
     );
 
-    match state.config.response_timing {
-        ResponseTiming::WaitAll => {
-            proxy_wait_all(state, metadata, primary, candidate, secondary).await
-        }
-        ResponseTiming::ReturnSelected => {
-            proxy_return_selected(state, metadata, primary, candidate, secondary).await
+    async move {
+        let primary = forward_target(
+            state.clone(),
+            "primary",
+            state.config.primary_url.clone(),
+            target_request.clone(),
+        );
+        let candidate = forward_target(
+            state.clone(),
+            "candidate",
+            state.config.candidate_url.clone(),
+            target_request.clone(),
+        );
+        let secondary = optional_forward_target(
+            state.clone(),
+            "secondary",
+            state.config.secondary_url.clone(),
+            state.config.enable_secondary,
+            target_request,
+        );
+
+        match state.config.response_timing {
+            ResponseTiming::WaitAll => {
+                proxy_wait_all(state, metadata, primary, candidate, secondary).await
+            }
+            ResponseTiming::ReturnSelected => {
+                proxy_return_selected(state, metadata, primary, candidate, secondary).await
+            }
         }
     }
+    .instrument(span)
+    .await
 }
 
 async fn proxy_wait_all(
@@ -116,9 +130,7 @@ async fn proxy_wait_all(
         &state.config,
     );
 
-    if let Err(error) = state.storage.insert(run).await {
-        eprintln!("failed to persist moonlight comparison run {id}: {error}");
-    }
+    persist_run(state, id, run).await;
 
     response
 }
@@ -214,8 +226,40 @@ async fn persist_run_with_targets(
         &state.config,
     );
 
-    if let Err(error) = state.storage.insert(run).await {
-        eprintln!("failed to persist moonlight comparison run {id}: {error}");
+    persist_run(state, id, run).await;
+}
+
+async fn persist_run(state: Arc<AppState>, id: Uuid, run: ComparisonRun) {
+    let classification = run.comparison.classification.clone();
+    let target_error_count = [
+        run.primary.error.as_ref(),
+        run.candidate.error.as_ref(),
+        run.secondary
+            .as_ref()
+            .and_then(|target| target.error.as_ref()),
+    ]
+    .into_iter()
+    .flatten()
+    .count();
+
+    match state.storage.insert(run.clone()).await {
+        Ok(()) => {
+            state.metrics.record_persisted_run(&run);
+            tracing::info!(
+                run_id = %id,
+                classification = ?classification,
+                target_error_count,
+                "persisted moonlight comparison run"
+            );
+        }
+        Err(error) => {
+            state.metrics.record_persistence_failure();
+            tracing::error!(
+                run_id = %id,
+                error = %error,
+                "failed to persist moonlight comparison run"
+            );
+        }
     }
 }
 

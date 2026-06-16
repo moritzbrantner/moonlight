@@ -2,9 +2,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
+use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewStatus {
     New,
@@ -31,7 +32,7 @@ mod tests {
                 ReviewUpdate {
                     status: ReviewStatus::Ignored,
                     note: Some("known noise".to_string()),
-                    tags: vec!["noise".to_string()],
+                    tags: Some(vec!["noise".to_string()]),
                 },
             )
             .await
@@ -62,7 +63,7 @@ impl std::str::FromStr for ReviewStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 pub struct RunReviewState {
     pub run_id: Uuid,
     pub status: ReviewStatus,
@@ -83,13 +84,15 @@ impl RunReviewState {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
 pub struct ReviewUpdate {
     pub status: ReviewStatus,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub note: Option<String>,
     #[serde(default)]
-    pub tags: Vec<String>,
+    #[ts(optional = nullable)]
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Clone)]
@@ -143,6 +146,7 @@ impl ReviewStore {
             note: update.note.filter(|note| !note.trim().is_empty()),
             tags: update
                 .tags
+                .unwrap_or_default()
                 .into_iter()
                 .filter(|tag| !tag.trim().is_empty())
                 .collect(),

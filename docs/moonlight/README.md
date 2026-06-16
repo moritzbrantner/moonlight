@@ -83,6 +83,11 @@ cargo run -p moonlight-http -- \
   --secondary-url http://127.0.0.1:3003
 ```
 
+`moonlight-http` emits structured logs through `tracing`. Set `RUST_LOG` to
+adjust verbosity, for example `RUST_LOG=moonlight_http=debug,tower_http=info`.
+Without `RUST_LOG`, the default filter is
+`moonlight_http=info,moonlight_core=info,tower_http=info`.
+
 Pass flags to override `moonlight.conf` when comparing local services:
 
 ```sh
@@ -417,8 +422,13 @@ The live benchmark is intended for local or manual runs because it depends on a 
 - `GET /api/runs?limit=100&offset=0`
 - `GET /api/runs/:id`
 - `GET /api/stats`
+- `GET /api/metrics`
 
 All other routes are treated as proxy routes and forwarded to the configured targets.
+
+`GET /api/metrics` returns in-process counters for proxied comparisons,
+persisted comparisons, persistence failures, storage refresh failures, target
+errors, and classifications. Counters reset when `moonlight-http` restarts.
 
 `GET /api/runs` returns a JSON array for backwards compatibility. `limit`
 defaults to `100` and is capped at `1000`; `offset` defaults to `0`.

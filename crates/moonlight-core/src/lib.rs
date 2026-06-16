@@ -7,9 +7,10 @@ pub mod storage;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Classification {
     #[default]
@@ -35,7 +36,7 @@ impl std::str::FromStr for Classification {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum DiffKind {
     Status,
@@ -45,7 +46,7 @@ pub enum DiffKind {
     TargetError,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 pub struct DiffEntry {
     pub kind: DiffKind,
     pub path: String,
@@ -55,7 +56,7 @@ pub struct DiffEntry {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, TS)]
 pub struct ComparisonSummary {
     pub classification: Classification,
     pub raw_candidate_diffs: Vec<DiffEntry>,
@@ -65,7 +66,7 @@ pub struct ComparisonSummary {
     pub noise_summary: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct BodyCapture {
     pub size_bytes: usize,
     pub sha256: String,
@@ -73,17 +74,19 @@ pub struct BodyCapture {
     pub truncated: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct TargetObservation {
     pub status: Option<u16>,
+    #[ts(type = "Record<string, string>")]
     pub headers: BTreeMap<String, String>,
     pub body: BodyCapture,
     pub stderr: Option<BodyCapture>,
+    #[ts(type = "number")]
     pub latency_ms: u128,
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Adapter {
     Http,
@@ -102,7 +105,7 @@ impl std::str::FromStr for Adapter {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(untagged)]
 pub enum RunInput {
     Http {
@@ -117,12 +120,13 @@ pub enum RunInput {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ComparisonRun {
     pub id: Uuid,
     pub timestamp: DateTime<Utc>,
     pub adapter: Adapter,
     pub input: RunInput,
+    #[ts(type = "Record<string, string>")]
     pub request_headers: BTreeMap<String, String>,
     pub request_body: BodyCapture,
     pub primary: TargetObservation,
@@ -131,7 +135,7 @@ pub struct ComparisonRun {
     pub comparison: ComparisonSummary,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ComparisonRunListItem {
     pub id: Uuid,
     pub timestamp: DateTime<Utc>,
@@ -141,8 +145,11 @@ pub struct ComparisonRunListItem {
     pub candidate_status: Option<u16>,
     pub secondary_status: Option<u16>,
     pub classification: Classification,
+    #[ts(type = "number")]
     pub primary_latency_ms: u128,
+    #[ts(type = "number")]
     pub candidate_latency_ms: u128,
+    #[ts(type = "number | null")]
     pub secondary_latency_ms: Option<u128>,
     pub diff_count: usize,
     pub noise_count: usize,
@@ -168,14 +175,14 @@ impl From<&ComparisonRun> for ComparisonRunListItem {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct LatencyStats {
     pub primary_avg_ms: f64,
     pub candidate_avg_ms: f64,
     pub secondary_avg_ms: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct StatsSummary {
     pub total_runs: usize,
     pub matches: usize,
@@ -197,13 +204,32 @@ pub struct RunFilter {
     pub has_diff: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct RunPage {
     pub items: Vec<ComparisonRunListItem>,
     pub limit: usize,
     pub offset: usize,
     pub total: usize,
     pub next_offset: Option<usize>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, TS)]
+pub struct MetricsClassificationCounts {
+    pub matches: u64,
+    pub suspicious_differences: u64,
+    pub reference_noise: u64,
+    pub suspicious_with_noise: u64,
+    pub target_errors: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, TS)]
+pub struct MetricsSnapshot {
+    pub total_proxied_comparisons_started: u64,
+    pub persisted_comparisons: u64,
+    pub persistence_failures: u64,
+    pub storage_refresh_failures: u64,
+    pub target_errors_observed: u64,
+    pub classifications: MetricsClassificationCounts,
 }
 
 pub fn run_matches_filter(run: &ComparisonRun, filter: &RunFilter) -> bool {

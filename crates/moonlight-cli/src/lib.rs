@@ -72,7 +72,7 @@ pub async fn run_cli() -> anyhow::Result<()> {
                     ReviewUpdate {
                         status: args.status.parse::<ReviewStatus>()?,
                         note: args.note,
-                        tags: args.tags,
+                        tags: Some(args.tags),
                     },
                 )
                 .await?;

@@ -1,18 +1,25 @@
 pub mod proxy;
 
 use crate::proxy::{
-    get_config, get_health, get_run, get_run_report, get_run_review, get_runs, get_stats,
-    proxy_handler, put_run_review,
+    get_config, get_health, get_metrics, get_run, get_run_report, get_run_review, get_runs,
+    get_stats, proxy_handler, put_run_review,
 };
 use axum::{http::HeaderValue, routing::get, Router};
 use moonlight_core::{
     config::AppConfig,
     review::ReviewStore,
     storage::{Storage, StorageOptions},
+    Classification, ComparisonRun, MetricsClassificationCounts, MetricsSnapshot,
 };
 use reqwest::Client;
-use std::sync::Arc;
-use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
+use tower_http::{
+    cors::{AllowOrigin, Any, CorsLayer},
+    trace::TraceLayer,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -20,6 +27,99 @@ pub struct AppState {
     pub client: Client,
     pub storage: Storage,
     pub review_store: ReviewStore,
+    pub metrics: AppMetrics,
+}
+
+#[derive(Clone, Default)]
+pub struct AppMetrics {
+    counters: Arc<MetricsCounters>,
+}
+
+#[derive(Default)]
+struct MetricsCounters {
+    total_proxied_comparisons_started: AtomicU64,
+    persisted_comparisons: AtomicU64,
+    persistence_failures: AtomicU64,
+    storage_refresh_failures: AtomicU64,
+    target_errors_observed: AtomicU64,
+    matches: AtomicU64,
+    suspicious_differences: AtomicU64,
+    reference_noise: AtomicU64,
+    suspicious_with_noise: AtomicU64,
+    target_errors: AtomicU64,
+}
+
+impl AppMetrics {
+    pub fn record_comparison_started(&self) {
+        self.counters
+            .total_proxied_comparisons_started
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_persisted_run(&self, run: &ComparisonRun) {
+        self.counters
+            .persisted_comparisons
+            .fetch_add(1, Ordering::Relaxed);
+        let target_errors = [
+            run.primary.error.as_ref(),
+            run.candidate.error.as_ref(),
+            run.secondary
+                .as_ref()
+                .and_then(|target| target.error.as_ref()),
+        ]
+        .into_iter()
+        .flatten()
+        .count() as u64;
+        self.counters
+            .target_errors_observed
+            .fetch_add(target_errors, Ordering::Relaxed);
+        match run.comparison.classification {
+            Classification::Match => &self.counters.matches,
+            Classification::SuspiciousDifference => &self.counters.suspicious_differences,
+            Classification::ReferenceNoise => &self.counters.reference_noise,
+            Classification::SuspiciousWithNoise => &self.counters.suspicious_with_noise,
+            Classification::TargetError => &self.counters.target_errors,
+        }
+        .fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_persistence_failure(&self) {
+        self.counters
+            .persistence_failures
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_storage_refresh_failure(&self) {
+        self.counters
+            .storage_refresh_failures
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn snapshot(&self) -> MetricsSnapshot {
+        MetricsSnapshot {
+            total_proxied_comparisons_started: self
+                .counters
+                .total_proxied_comparisons_started
+                .load(Ordering::Relaxed),
+            persisted_comparisons: self.counters.persisted_comparisons.load(Ordering::Relaxed),
+            persistence_failures: self.counters.persistence_failures.load(Ordering::Relaxed),
+            storage_refresh_failures: self
+                .counters
+                .storage_refresh_failures
+                .load(Ordering::Relaxed),
+            target_errors_observed: self.counters.target_errors_observed.load(Ordering::Relaxed),
+            classifications: MetricsClassificationCounts {
+                matches: self.counters.matches.load(Ordering::Relaxed),
+                suspicious_differences: self
+                    .counters
+                    .suspicious_differences
+                    .load(Ordering::Relaxed),
+                reference_noise: self.counters.reference_noise.load(Ordering::Relaxed),
+                suspicious_with_noise: self.counters.suspicious_with_noise.load(Ordering::Relaxed),
+                target_errors: self.counters.target_errors.load(Ordering::Relaxed),
+            },
+        }
+    }
 }
 
 pub async fn build_state(config: AppConfig) -> anyhow::Result<Arc<AppState>> {
@@ -37,6 +137,7 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<Arc<AppState>> {
         client: Client::new(),
         storage,
         review_store,
+        metrics: AppMetrics::default(),
     }))
 }
 
@@ -52,7 +153,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             get(get_run_review).put(put_run_review),
         )
         .route("/api/stats", get(get_stats))
+        .route("/api/metrics", get(get_metrics))
         .fallback(proxy_handler)
+        .layer(TraceLayer::new_for_http())
         .layer(cors_layer(&state.config))
         .with_state(state)
 }

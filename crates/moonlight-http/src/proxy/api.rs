@@ -8,7 +8,7 @@ use axum::{
 use moonlight_core::{
     report::{render_report, ReportFormat},
     review::{ReviewUpdate, RunReviewState},
-    Adapter, Classification, ComparisonRun, RunFilter, RunPage,
+    Adapter, Classification, ComparisonRun, MetricsSnapshot, RunFilter, RunPage,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -76,6 +76,14 @@ pub async fn get_stats(
     Ok(Json(state.storage.stats().await))
 }
 
+pub async fn get_metrics(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<MetricsSnapshot>, StatusCode> {
+    require_admin(&state, &headers)?;
+    Ok(Json(state.metrics.snapshot()))
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct ReportQuery {
     format: Option<String>,
@@ -131,7 +139,8 @@ pub async fn put_run_review(
 
 async fn refresh_storage(state: &AppState) {
     if let Err(error) = state.storage.refresh().await {
-        eprintln!("failed to refresh moonlight run storage: {error}");
+        state.metrics.record_storage_refresh_failure();
+        tracing::warn!(error = %error, "failed to refresh moonlight run storage");
     }
 }
 

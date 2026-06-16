@@ -7,6 +7,7 @@ use std::{
     io::{BufRead, BufReader as StdBufReader},
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 use tokio::{
     fs::{self, File, OpenOptions},
@@ -23,6 +24,7 @@ pub struct Storage {
     options: StorageOptions,
     insert_lock: Arc<Mutex<()>>,
     runs: Arc<RwLock<Vec<ComparisonRun>>>,
+    scan_signature: Arc<Mutex<Vec<JsonlFileSignature>>>,
 }
 
 #[derive(Clone)]
@@ -33,6 +35,13 @@ pub struct RunWriter {
 #[derive(Clone)]
 pub struct JsonlStorageReader {
     path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JsonlFileSignature {
+    path: PathBuf,
+    len: u64,
+    modified: Option<SystemTime>,
 }
 
 impl RunWriter {
@@ -61,6 +70,18 @@ impl RunWriter {
 
     pub async fn flush(&self) -> anyhow::Result<()> {
         self.file.lock().await.flush().await?;
+        Ok(())
+    }
+
+    pub async fn reopen(&self, write_path: &Path) -> anyhow::Result<()> {
+        let mut writer = self.file.lock().await;
+        writer.flush().await?;
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(write_path)
+            .await?;
+        *writer = BufWriter::new(file);
         Ok(())
     }
 }
@@ -193,7 +214,8 @@ impl Storage {
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
-        let runs = load_runs_from_dir(&scan_dir).await?;
+        let scan_signature = scan_jsonl_files(&scan_dir).await?;
+        let runs = load_runs_from_signature(&scan_signature).await?;
         let writer = RunWriter::open(write_path.clone()).await?;
 
         Ok(Self {
@@ -203,6 +225,7 @@ impl Storage {
             options,
             insert_lock: Arc::new(Mutex::new(())),
             runs: Arc::new(RwLock::new(runs)),
+            scan_signature: Arc::new(Mutex::new(scan_signature)),
         })
     }
 
@@ -215,10 +238,19 @@ impl Storage {
         Ok(())
     }
 
-    pub async fn refresh(&self) -> anyhow::Result<()> {
-        let runs = load_runs_from_dir(&self.scan_dir).await?;
+    pub async fn refresh(&self) -> anyhow::Result<bool> {
+        let scan_signature = scan_jsonl_files(&self.scan_dir).await?;
+        {
+            let current = self.scan_signature.lock().await;
+            if *current == scan_signature {
+                return Ok(false);
+            }
+        }
+
+        let runs = load_runs_from_signature(&scan_signature).await?;
         *self.runs.write().await = runs;
-        Ok(())
+        *self.scan_signature.lock().await = scan_signature;
+        Ok(true)
     }
 
     pub async fn list(&self) -> Vec<ComparisonRunListItem> {
@@ -313,16 +345,36 @@ impl Storage {
             content.push_str(&serde_json::to_string(&run)?);
             content.push('\n');
         }
-        fs::write(&self.write_path, content).await?;
-        self.refresh().await?;
+        atomic_write(&self.write_path, content).await?;
+        self.writer.reopen(&self.write_path).await?;
+        self.force_refresh().await?;
+        Ok(())
+    }
+
+    async fn force_refresh(&self) -> anyhow::Result<()> {
+        let scan_signature = scan_jsonl_files(&self.scan_dir).await?;
+        let runs = load_runs_from_signature(&scan_signature).await?;
+        *self.runs.write().await = runs;
+        *self.scan_signature.lock().await = scan_signature;
         Ok(())
     }
 }
 
-async fn load_runs_from_dir(scan_dir: &Path) -> anyhow::Result<Vec<ComparisonRun>> {
+async fn load_runs_from_signature(
+    signature: &[JsonlFileSignature],
+) -> anyhow::Result<Vec<ComparisonRun>> {
     let mut runs = Vec::new();
+    for file in signature {
+        load_runs_from_file(&file.path, &mut runs).await?;
+    }
+    runs.sort_by_key(|run| run.timestamp);
+    Ok(runs)
+}
+
+async fn scan_jsonl_files(scan_dir: &Path) -> anyhow::Result<Vec<JsonlFileSignature>> {
+    let mut signature = Vec::new();
     if !fs::try_exists(scan_dir).await? {
-        return Ok(runs);
+        return Ok(signature);
     }
 
     let mut entries = fs::read_dir(scan_dir).await?;
@@ -331,11 +383,16 @@ async fn load_runs_from_dir(scan_dir: &Path) -> anyhow::Result<Vec<ComparisonRun
         if path.extension().and_then(|value| value.to_str()) != Some("jsonl") {
             continue;
         }
-        load_runs_from_file(&path, &mut runs).await?;
+        let metadata = entry.metadata().await?;
+        signature.push(JsonlFileSignature {
+            path,
+            len: metadata.len(),
+            modified: metadata.modified().ok(),
+        });
     }
 
-    runs.sort_by_key(|run| run.timestamp);
-    Ok(runs)
+    signature.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(signature)
 }
 
 async fn load_runs_from_file(path: &Path, runs: &mut Vec<ComparisonRun>) -> anyhow::Result<()> {
@@ -354,10 +411,40 @@ async fn load_runs_from_file(path: &Path, runs: &mut Vec<ComparisonRun>) -> anyh
 }
 
 fn warn_corrupt_line(path: &Path, error: &serde_json::Error) {
-    eprintln!(
+    tracing::warn!(
+        path = %path.display(),
+        error = %error,
         "skipping corrupt moonlight JSONL run in {}: {error}",
         path.display()
     );
+}
+
+async fn atomic_write(path: &Path, content: String) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("moonlight-runs.jsonl");
+    let temp_path = parent.join(format!(
+        ".{file_name}.{}.{}.tmp",
+        std::process::id(),
+        Uuid::new_v4()
+    ));
+
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temp_path)
+        .await?;
+    file.write_all(content.as_bytes()).await?;
+    file.flush().await?;
+    file.sync_data().await?;
+    drop(file);
+    fs::rename(&temp_path, path).await?;
+    Ok(())
 }
 
 #[derive(Default)]

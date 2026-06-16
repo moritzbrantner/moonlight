@@ -413,6 +413,64 @@ async fn storage_load_still_scans_directory_for_admin_views() {
 }
 
 #[tokio::test]
+async fn refresh_skips_reload_when_jsonl_files_are_unchanged() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("http-runs.jsonl");
+    write_runs(&path, &[run("initial", 1, Classification::Match, false)]);
+    let storage = Storage::load(path).await.unwrap();
+
+    let refreshed = storage.refresh().await.unwrap();
+
+    assert!(!refreshed);
+    assert_eq!(storage.list().await.len(), 1);
+}
+
+#[tokio::test]
+async fn refresh_loads_new_runs_when_write_file_changes() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("http-runs.jsonl");
+    write_runs(&path, &[run("initial", 1, Classification::Match, false)]);
+    let storage = Storage::load(path.clone()).await.unwrap();
+    write_runs(
+        &path,
+        &[
+            run("initial", 1, Classification::Match, false),
+            run("changed", 2, Classification::SuspiciousDifference, false),
+        ],
+    );
+
+    let refreshed = storage.refresh().await.unwrap();
+    let runs = storage.list().await;
+
+    assert!(refreshed);
+    assert_eq!(runs.len(), 2);
+    assert!(matches!(
+        runs[0].input,
+        RunInput::Http { ref path, .. } if path == "changed"
+    ));
+}
+
+#[tokio::test]
+async fn refresh_loads_new_runs_when_sibling_jsonl_file_changes() {
+    let dir = tempdir().unwrap();
+    let http_path = dir.path().join("http-runs.jsonl");
+    let cli_path = dir.path().join("cli-runs.jsonl");
+    write_runs(&http_path, &[run("http", 1, Classification::Match, false)]);
+    let storage = Storage::load(http_path).await.unwrap();
+    write_runs(
+        &cli_path,
+        &[run("cli", 2, Classification::ReferenceNoise, true)],
+    );
+
+    let refreshed = storage.refresh().await.unwrap();
+    let stats = storage.stats().await;
+
+    assert!(refreshed);
+    assert_eq!(stats.total_runs, 2);
+    assert_eq!(stats.reference_noise, 1);
+}
+
+#[tokio::test]
 async fn stats_limits_latest_runs_to_20() {
     let dir = tempdir().unwrap();
     let storage = Storage::load(dir.path().join("http-runs.jsonl"))
@@ -461,4 +519,43 @@ async fn stats_handles_missing_secondary_latencies() {
     assert_eq!(stats.latency.primary_avg_ms, 10.0);
     assert_eq!(stats.latency.candidate_avg_ms, 20.0);
     assert_eq!(stats.latency.secondary_avg_ms, None);
+}
+
+#[tokio::test]
+async fn retention_rewrite_replaces_file_atomically() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("http-runs.jsonl");
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(2),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+    for index in 0..5 {
+        storage
+            .insert(run(
+                format!("run-{index}"),
+                index,
+                Classification::Match,
+                false,
+            ))
+            .await
+            .unwrap();
+    }
+
+    let lines = std::fs::read_to_string(&path).unwrap();
+    let temp_files = std::fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("tmp"))
+        .count();
+
+    assert_eq!(lines.lines().count(), 2);
+    assert_eq!(temp_files, 0);
+    assert!(lines.contains("run-4"));
+    assert!(lines.contains("run-3"));
+    assert!(!lines.contains("run-2"));
 }

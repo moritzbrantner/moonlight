@@ -5,7 +5,7 @@ use super::test_support::{
 use axum::http::{header, HeaderValue, StatusCode};
 use moonlight_core::{
     config::{ResponseTiming, ReturnFallback, ReturnTarget},
-    Classification, RunInput, RunPage,
+    Classification, MetricsSnapshot, RunInput, RunPage,
 };
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
@@ -118,6 +118,35 @@ async fn review_and_report_endpoints_work() {
 
     assert_eq!(review["status"], "ignored");
     assert!(report.contains("# Moonlight Report"));
+}
+
+#[tokio::test]
+async fn metrics_endpoint_reports_proxy_counters() {
+    let primary = spawn_target(r#"{"source":"primary"}"#).await;
+    let candidate = spawn_target(r#"{"source":"candidate"}"#).await;
+    let dir = tempdir().unwrap();
+    let config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    client
+        .get(format!("http://{proxy_addr}/anything"))
+        .send()
+        .await
+        .unwrap();
+    let metrics: MetricsSnapshot = client
+        .get(format!("http://{proxy_addr}/api/metrics"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert_eq!(metrics.total_proxied_comparisons_started, 1);
+    assert_eq!(metrics.persisted_comparisons, 1);
+    assert_eq!(metrics.persistence_failures, 0);
+    assert_eq!(metrics.classifications.suspicious_differences, 1);
 }
 
 #[tokio::test]
@@ -309,6 +338,13 @@ async fn admin_token_protects_admin_routes_but_not_health_or_proxy() {
         .await
         .unwrap();
     assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+
+    let unauthorized_metrics = client
+        .get(format!("http://{proxy_addr}/api/metrics"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthorized_metrics.status(), StatusCode::UNAUTHORIZED);
 
     let health = client
         .get(format!("http://{proxy_addr}/api/health"))

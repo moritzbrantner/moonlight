@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
+use ts_rs::TS;
 
 pub const DEFAULT_CONFIG_PATH: &str = "moonlight.conf";
 pub const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8080";
@@ -43,8 +44,9 @@ pub const DEFAULT_REDACT_QUERY_PARAMS: &[&str] = &[
 ];
 pub const DEFAULT_CORS_ORIGINS: &[&str] = &["http://127.0.0.1:5173", "http://localhost:5173"];
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct AppConfig {
+    #[ts(type = "string")]
     pub bind_addr: SocketAddr,
     pub primary_url: String,
     pub candidate_url: String,
@@ -64,16 +66,19 @@ pub struct AppConfig {
     pub ignore_headers: Vec<String>,
     pub ignore_stderr: bool,
     pub target_timeout_ms: u64,
+    #[ts(type = "string")]
     pub storage_path: PathBuf,
+    #[ts(type = "string")]
     pub review_state_path: PathBuf,
     pub cors_origins: Vec<String>,
     #[serde(skip_serializing, skip_deserializing)]
+    #[ts(skip)]
     pub admin_token: Option<String>,
     pub retention_max_runs: Option<usize>,
     pub retention_max_bytes: Option<u64>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ReturnTarget {
     Primary,
@@ -92,7 +97,7 @@ impl FromStr for ReturnTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ReturnFallback {
     None,
@@ -111,7 +116,7 @@ impl FromStr for ReturnFallback {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ResponseTiming {
     WaitAll,
