@@ -227,9 +227,9 @@ fn build_run(
     config: &AppConfig,
 ) -> ComparisonRun {
     let compare_config = CompareConfig::new_with_redactions(
-        &config.ignored_json_paths,
+        &config.ignore_json_paths,
         &config.redact_json_paths,
-        &config.ignored_headers,
+        &config.ignore_headers,
         config.ignore_stderr,
     );
     let comparison = compare_targets(primary, candidate, secondary, &compare_config);

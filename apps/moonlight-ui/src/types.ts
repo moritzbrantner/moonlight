@@ -115,8 +115,8 @@ export interface AppConfig {
   redact_headers: string[];
   redact_json_paths: string[];
   redact_query_params: string[];
-  ignored_json_paths: string[];
-  ignored_headers: string[];
+  ignore_json_paths: string[];
+  ignore_headers: string[];
   ignore_stderr: boolean;
   storage_path: string;
   cors_origins: string[];

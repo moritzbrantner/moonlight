@@ -79,7 +79,7 @@ fn run_ignores_default_json_ids() {
 }
 
 #[test]
-fn run_custom_ignored_json_path_overrides_defaults() {
+fn run_custom_ignore_json_path_extends_defaults() {
     let dir = TempDir::new().unwrap();
     let storage = storage_path(&dir);
     let primary = json_command(r#"{"dynamic":"one","stable":true}"#);
@@ -92,7 +92,7 @@ fn run_custom_ignored_json_path_overrides_defaults() {
             &primary,
             "--candidate",
             &candidate,
-            "--ignored-json-path",
+            "--ignore-json-path",
             "$.dynamic",
         ],
     );

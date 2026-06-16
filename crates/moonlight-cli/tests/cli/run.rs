@@ -11,6 +11,7 @@ fn help_prints_command_surface() {
         .arg("--help")
         .assert()
         .success()
+        .stdout(predicate::str::contains("Usage: moonlight"))
         .stdout(predicate::str::contains("run"))
         .stdout(predicate::str::contains("batch"))
         .stdout(predicate::str::contains("list"))
@@ -54,6 +55,69 @@ fn run_records_match() {
     assert_eq!(record["primary"]["status"], 0);
     assert_eq!(record["candidate"]["status"], 0);
     assert_eq!(record["comparison"]["classification"], "match");
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_uses_configured_targets_and_storage() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let config = dir.path().join("moonlight.conf");
+    fs::write(
+        &config,
+        format!(
+            "[storage]\npath = \"{}\"\n\n[cli.run]\nprimary = \"printf ok\"\ncandidate = \"printf ok\"\nquiet = true\n",
+            storage.replace('\\', "\\\\")
+        ),
+    )
+    .unwrap();
+
+    cli()
+        .arg("--config")
+        .arg(&config)
+        .arg("run")
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let records = read_jsonl(&storage);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["comparison"]["classification"], "match");
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_target_flags_override_configured_targets_by_role() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let config = dir.path().join("moonlight.conf");
+    fs::write(
+        &config,
+        format!(
+            "[storage]\npath = \"{}\"\n\n[cli.run]\nprimary = \"printf config\"\ncandidate = \"printf config\"\n",
+            storage.replace('\\', "\\\\")
+        ),
+    )
+    .unwrap();
+
+    let output = cli()
+        .arg("--config")
+        .arg(&config)
+        .arg("run")
+        .args(["--candidate", "printf flag"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let record: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(record["input"]["primary_command"], "printf config");
+    assert_eq!(record["input"]["candidate_command"], "printf flag");
+    assert_eq!(
+        record["comparison"]["classification"],
+        "suspicious_difference"
+    );
     dir.close().unwrap();
 }
 

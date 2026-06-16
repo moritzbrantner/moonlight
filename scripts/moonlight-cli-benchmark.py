@@ -149,7 +149,7 @@ SCENARIOS = {
             shell_json('{"dynamic":"one","stable":true}'),
             "--candidate",
             shell_json('{"dynamic":"two","stable":true}'),
-            "--ignored-json-path",
+            "--ignore-json-path",
             "$.dynamic",
         ],
     },
@@ -205,16 +205,16 @@ SCENARIOS = {
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Benchmark moonlight-cli scenarios.")
+    parser = argparse.ArgumentParser(description="Benchmark moonlight CLI scenarios.")
     parser.add_argument(
         "--bin",
-        default=os.getenv("MOONLIGHT_CLI_BIN", "target/release/moonlight-cli"),
-        help="Path to the moonlight-cli binary.",
+        default=os.getenv("MOONLIGHT_CLI_BIN", "target/release/moonlight"),
+        help="Path to the moonlight binary.",
     )
     parser.add_argument(
         "--baseline-bin",
         default=os.getenv("MOONLIGHT_CLI_BASELINE_BIN"),
-        help="Optional baseline moonlight-cli binary to run side-by-side with --bin.",
+        help="Optional baseline moonlight binary to run side-by-side with --bin.",
     )
     parser.add_argument("--warmup", type=int, default=int(os.getenv("BENCHMARK_WARMUP", "20")))
     parser.add_argument(
@@ -1068,7 +1068,7 @@ def markdown_cell(value):
 
 def write_markdown(report, path):
     lines = [
-        "# moonlight-cli Benchmark",
+        "# moonlight CLI Benchmark",
         "",
         f"Generated: `{report['generated_at']}`",
         "",
@@ -1168,10 +1168,10 @@ def main():
 
     binary = Path(args.bin)
     if not binary.exists():
-        raise SystemExit(f"moonlight-cli binary not found: {binary}")
+        raise SystemExit(f"moonlight binary not found: {binary}")
     baseline_binary = Path(args.baseline_bin) if args.baseline_bin else None
     if baseline_binary is not None and not baseline_binary.exists():
-        raise SystemExit(f"baseline moonlight-cli binary not found: {baseline_binary}")
+        raise SystemExit(f"baseline moonlight binary not found: {baseline_binary}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

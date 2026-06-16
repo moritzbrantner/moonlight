@@ -1,0 +1,3 @@
+# Clean breaking CLI and config interface
+
+Moonlight keeps `moonlight` as the canonical command runner and `moonlight-http` as the separate HTTP proxy executable, but now uses a shared `moonlight.conf` TOML file plus explicit flags instead of `MOONLIGHT_*` runtime environment variables. We chose a clean break with no compatibility aliases so the public surface uses one vocabulary: config is sectioned by concern, user-facing enum values are kebab-case, and comparison filters are named `ignore_json_paths`, `ignore_headers`, `--ignore-json-path`, and `--ignore-header` rather than the previous `ignored_*` wording.

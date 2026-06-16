@@ -289,11 +289,19 @@ fn show_missing_id_exits_nonzero() {
 }
 
 #[test]
-fn cli_read_commands_use_env_storage_default() {
+fn cli_read_commands_use_config_storage_default() {
     let dir = TempDir::new().unwrap();
     let storage = storage_path(&dir);
+    let config = dir.path().join("moonlight.conf");
+    fs::write(
+        &config,
+        format!("[storage]\npath = \"{}\"\n", storage.replace('\\', "\\\\")),
+    )
+    .unwrap();
 
     cli()
+        .arg("--config")
+        .arg(&config)
         .arg("run")
         .args([
             "--primary",
@@ -302,13 +310,13 @@ fn cli_read_commands_use_env_storage_default() {
             &json_command(r#"{"value":42}"#),
             "--quiet",
         ])
-        .env("MOONLIGHT_CLI_STORAGE_PATH", &storage)
         .assert()
         .success();
 
     let stats = cli()
+        .arg("--config")
+        .arg(&config)
         .arg("stats")
-        .env("MOONLIGHT_CLI_STORAGE_PATH", &storage)
         .assert()
         .success()
         .get_output()
@@ -321,11 +329,11 @@ fn cli_read_commands_use_env_storage_default() {
 }
 
 #[test]
-fn explicit_storage_path_overrides_env_default() {
+fn explicit_storage_path_overrides_config_default() {
     let dir = TempDir::new().unwrap();
-    let env_storage = dir
+    let config_storage = dir
         .path()
-        .join("env-runs.jsonl")
+        .join("config-runs.jsonl")
         .to_string_lossy()
         .into_owned();
     let explicit_storage = dir
@@ -333,6 +341,15 @@ fn explicit_storage_path_overrides_env_default() {
         .join("explicit-runs.jsonl")
         .to_string_lossy()
         .into_owned();
+    let config = dir.path().join("moonlight.conf");
+    fs::write(
+        &config,
+        format!(
+            "[storage]\npath = \"{}\"\n",
+            config_storage.replace('\\', "\\\\")
+        ),
+    )
+    .unwrap();
     run_record(
         &explicit_storage,
         &[
@@ -344,8 +361,9 @@ fn explicit_storage_path_overrides_env_default() {
     );
 
     let stats = cli()
+        .arg("--config")
+        .arg(&config)
         .args(["stats", "--storage-path", &explicit_storage])
-        .env("MOONLIGHT_CLI_STORAGE_PATH", &env_storage)
         .assert()
         .success()
         .get_output()
@@ -354,7 +372,7 @@ fn explicit_storage_path_overrides_env_default() {
     let stats: serde_json::Value = serde_json::from_slice(&stats).unwrap();
 
     assert_eq!(stats["total_runs"], 1);
-    assert!(!Path::new(&env_storage).exists());
+    assert!(!Path::new(&config_storage).exists());
     dir.close().unwrap();
 }
 

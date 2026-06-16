@@ -27,9 +27,10 @@ Sensitive headers are redacted by default:
 - `x-csrf-token`
 
 Large bodies are captured as a SHA-256 hash plus a preview. Configure
-`MOONLIGHT_REDACT_JSON_PATHS` to redact exact JSON body paths from stored
-previews and diff values. Hashes still represent the original body bytes, and
-non-JSON bodies are not rewritten by JSON path redaction.
+`[comparison].redact_json_paths` in `moonlight.conf` or pass
+`--redact-json-path` to redact exact JSON body paths from stored previews and
+diff values. Hashes still represent the original body bytes, and non-JSON
+bodies are not rewritten by JSON path redaction.
 
 Moonlight is not a data-loss-prevention system. Full secrets should never be
 sent to the UI, logs, or comparison storage, and sensitive write traffic should
@@ -76,7 +77,20 @@ cargo run -p moonlight-demo-services -- secondary
 Start the proxy:
 
 ```sh
-cargo run -p moonlight-http
+cargo run -p moonlight-http -- \
+  --primary-url http://127.0.0.1:3001 \
+  --candidate-url http://127.0.0.1:3002 \
+  --secondary-url http://127.0.0.1:3003
+```
+
+Pass flags to override `moonlight.conf` when comparing local services:
+
+```sh
+cargo run -p moonlight-http -- \
+  --primary-url http://127.0.0.1:3001 \
+  --candidate-url http://127.0.0.1:3002 \
+  --return-target primary \
+  --storage-path data/moonlight/json-server-runs.jsonl
 ```
 
 Start the UI:
@@ -157,7 +171,8 @@ moonlight run \
 
 For each required target role, provide exactly one shell string flag or argv flag: `--primary` or `--primary-argv`, and `--candidate` or `--candidate-argv`. For the optional secondary target, provide at most one of `--secondary` or `--secondary-argv`. Argv values must be JSON string arrays with a nonblank executable as the first element. Stored CLI run input remains backward compatible by recording the argv command as a shell-escaped display string.
 
-For trycmd-like command suites, use `batch` so many cases run inside one `moonlight-cli` process with bounded concurrency:
+For trycmd-like command suites, use `batch` so many cases run inside one
+`moonlight` process with bounded concurrency:
 
 ```sh
 cat > cases.jsonl <<'JSONL'
@@ -168,7 +183,10 @@ JSONL
 moonlight batch --input cases.jsonl --jobs 8
 ```
 
-Each JSONL case accepts `primary`, `candidate`, optional `secondary`, optional `max_body_capture_bytes`, optional `ignored_json_paths`, optional `ignored_headers`, and optional `ignore_stderr`. Shell string commands remain the default and run through `sh -lc`.
+Each JSONL case accepts `primary`, `candidate`, optional `secondary`, optional
+`max_body_capture_bytes`, optional `ignore_json_paths`, optional
+`ignore_headers`, and optional `ignore_stderr`. Shell string commands remain
+the default and run through `sh -lc`.
 
 Trusted deterministic batch fixtures can use direct argv fields to avoid shell startup and parsing:
 
@@ -178,7 +196,11 @@ Trusted deterministic batch fixtures can use direct argv fields to avoid shell s
 
 For each target role, provide exactly one form: `primary` or `primary_argv`, `candidate` or `candidate_argv`, and optionally `secondary` or `secondary_argv`. Argv arrays must be non-empty and start with a nonblank executable. Stored CLI run input remains backward compatible by recording a display string for argv commands.
 
-Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or `--emit-runs` to print compact JSONL run records as cases complete. For deterministic command-output suites, prefer `batch` with `*_argv` fields because it avoids one `moonlight-cli` process per case and bypasses shell startup for each target.
+Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or
+`--emit-runs` to print compact JSONL run records as cases complete. For
+deterministic command-output suites, prefer `batch` with `*_argv` fields because
+it avoids one `moonlight` process per case and bypasses shell startup for each
+target.
 
 The CLI stores comparison runs in the same JSONL format as the HTTP proxy. Use `moonlight list` or `moonlight stats` to inspect them:
 
@@ -189,7 +211,10 @@ moonlight stats --compact
 moonlight show "$RUN_ID" --compact
 ```
 
-`moonlight ls` is an alias for `moonlight list`. CLI read commands inspect only the requested JSONL file, so nearby HTTP or benchmark JSONL files do not affect `list`, `stats`, or `show`. Set `MOONLIGHT_CLI_STORAGE_PATH=/path/to/runs.jsonl` to change the default CLI storage file; an explicit `--storage-path` flag always wins.
+`moonlight ls` is an alias for `moonlight list`. CLI read commands inspect only
+the requested JSONL file, so nearby HTTP or benchmark JSONL files do not affect
+`list`, `stats`, or `show`. Set `[storage].path` in `moonlight.conf` to change
+the default storage file; an explicit `--storage-path` flag always wins.
 
 CLI non-zero exit statuses and HTTP 4xx/5xx response statuses are observed target statuses, so Moonlight compares and stores them like other target output. `target_error` is reserved for invocation or capture failures such as spawn, read, wait, signal, transport, or body-read failures that prevent a complete target observation.
 
@@ -265,7 +290,9 @@ Run the benchmark stack:
 scripts/moonlight-benchmark.sh
 ```
 
-This uses `docker-compose.moonlight-benchmark.yml` to run the Rust services from release-built containers and configures moonlight with `MOONLIGHT_RESPONSE_TIMING=return_selected`.
+This uses `docker-compose.moonlight-benchmark.yml` to run the Rust services
+from release-built containers and starts moonlight with
+`--response-timing return-selected`.
 
 Diffy A is a correctness harness, not the latency baseline. Its proxy adds another fan-out layer, so the benchmark compares latency by sending measured traffic directly to:
 
@@ -322,15 +349,19 @@ The scenario runner builds the release CLI binary, invokes deterministic local c
 
 The report also includes a tool comparison table for simple command-output checks:
 
-- `moonlight`, measured through `moonlight-cli batch` with primary/candidate command cases.
-- `moonlight-argv`, measured through `moonlight-cli batch` with direct argv primary/candidate cases.
+- `moonlight`, measured through `moonlight batch` with primary/candidate command cases.
+- `moonlight-argv`, measured through `moonlight batch` with direct argv primary/candidate cases.
 - `trycmd`, measured through a generated throwaway Cargo test harness.
 - `insta`, measured through a generated throwaway Cargo test harness with inline snapshots.
 - `cram`, measured when a `cram` executable is available on `PATH`; otherwise it is reported as skipped.
 - `bats`, measured when a `bats` executable is available on `PATH`; otherwise it is reported as skipped.
 - `shellspec`, measured when a `shellspec` executable is available on `PATH`; otherwise it is reported as skipped.
 
-`moonlight-cli batch` still compares primary and candidate behavior for every case, while snapshot-style targets generally check one command against stored stdout/stderr expectations. The report keeps raw per-case latency and also includes normalized per-target latency columns so Moonlight's two target invocations per case are visible.
+`moonlight batch` still compares primary and candidate behavior for every case,
+while snapshot-style targets generally check one command against stored
+stdout/stderr expectations. The report keeps raw per-case latency and also
+includes normalized per-target latency columns so Moonlight's two target
+invocations per case are visible.
 
 Performance improvement candidates for the CLI and shared core are tracked in [`cli-performance-ideas.md`](cli-performance-ideas.md).
 
@@ -339,8 +370,8 @@ Useful overrides:
 ```sh
 BENCHMARK_REQUESTS=500 BENCHMARK_CONCURRENCY=1 scripts/moonlight-cli-benchmark.sh
 BENCHMARK_COMPARISON_RUNS=50 BENCHMARK_COMPARISON_CASES=100 scripts/moonlight-cli-benchmark.sh
-python3 scripts/moonlight-cli-benchmark.py --bin target/release/moonlight-cli --scenario candidate-diff
-python3 scripts/moonlight-cli-benchmark.py --bin target/release/moonlight-cli --baseline-bin /path/to/old/moonlight-cli --target moonlight --target moonlight-argv
+python3 scripts/moonlight-cli-benchmark.py --bin target/release/moonlight --scenario candidate-diff
+python3 scripts/moonlight-cli-benchmark.py --bin target/release/moonlight --baseline-bin /path/to/old/moonlight --target moonlight --target moonlight-argv
 python3 scripts/moonlight-cli-benchmark.py --target moonlight --target moonlight-argv --target trycmd --target insta --target cram --target bats --target shellspec
 ```
 
@@ -392,36 +423,81 @@ All other routes are treated as proxy routes and forwarded to the configured tar
 `GET /api/runs` returns a JSON array for backwards compatibility. `limit`
 defaults to `100` and is capped at `1000`; `offset` defaults to `0`.
 
-Set `MOONLIGHT_ADMIN_TOKEN` to require admin requests, except `GET
-/api/health`, to include either `Authorization: Bearer <token>` or
-`X-Moonlight-Admin-Token: <token>`. Proxy fallback routes remain unauthenticated
-because they represent the traffic under comparison.
+Set `[http].admin_token` in `moonlight.conf` or pass `--admin-token` to require
+admin requests, except `GET /api/health`, to include either
+`Authorization: Bearer <token>` or `X-Moonlight-Admin-Token: <token>`. Proxy
+fallback routes remain unauthenticated because they represent the traffic under
+comparison. Avoid committing config files with real tokens; passing tokens as
+flags can also expose them through shell history or process listings.
 
 ## Configuration
 
-Environment variables:
+`moonlight` and `moonlight-http` automatically read `./moonlight.conf` when it
+exists. Use `--config <PATH>` to read a different TOML file or `--no-config` to
+skip config discovery. Built-in defaults are applied first, then
+`moonlight.conf`, then explicit CLI flags.
 
-- `MOONLIGHT_BIND_ADDR`, default `127.0.0.1:8080`
-- `MOONLIGHT_PRIMARY_URL`, default `http://127.0.0.1:3001`
-- `MOONLIGHT_CANDIDATE_URL`, default `http://127.0.0.1:3002`
-- `MOONLIGHT_SECONDARY_URL`, default `http://127.0.0.1:3003`
-- `MOONLIGHT_ENABLE_SECONDARY`, default `true`
-- `MOONLIGHT_RETURN_TARGET`, default `primary`; use `candidate` to return the candidate response
-- `MOONLIGHT_RETURN_FALLBACK`, default `none`; use `primary` to fall back when candidate return has a target error
-- `MOONLIGHT_RESPONSE_TIMING`, default `wait_all`; use `return_selected` to return the selected response before remaining comparison work finishes
-- `MOONLIGHT_MAX_BODY_CAPTURE_BYTES`, default `8192`
-- `MOONLIGHT_MAX_REQUEST_BODY_BYTES`, default `10485760`
-- `MOONLIGHT_REDACT_HEADERS`, comma-separated
-- `MOONLIGHT_REDACT_JSON_PATHS`, comma-separated exact paths such as `$.token` or `$.items[0].secret`
-- `MOONLIGHT_REDACT_QUERY_PARAMS`, comma-separated, default `token,access_token,id_token,api_key,key,secret,password`
-- `MOONLIGHT_IGNORED_JSON_PATHS`, comma-separated
-- `MOONLIGHT_IGNORED_HEADERS`, comma-separated
-- `MOONLIGHT_IGNORE_STDERR`, default `false`
-- `MOONLIGHT_STORAGE_PATH`, default `data/moonlight/http-runs.jsonl`
-- `MOONLIGHT_CORS_ORIGINS`, comma-separated, default `http://127.0.0.1:5173,http://localhost:5173`; use `*` only for intentionally permissive local setups
-- `MOONLIGHT_ADMIN_TOKEN`, optional admin API bearer token
-- `MOONLIGHT_RETENTION_MAX_RUNS`, optional maximum active JSONL runs to retain
-- `MOONLIGHT_RETENTION_MAX_BYTES`, optional maximum active JSONL bytes to retain
+Example `moonlight.conf`:
+
+```toml
+[storage]
+path = "data/moonlight/runs.jsonl"
+
+[comparison]
+max_body_capture_bytes = 8192
+ignore_json_paths = ["$.timestamp", "$.requestId"]
+ignore_headers = ["date", "x-request-id"]
+ignore_stderr = false
+redact_headers = ["x-internal-secret"]
+redact_json_paths = ["$.token"]
+redact_query_params = ["token"]
+
+[cli.run]
+primary = "printf '{\"value\":42}\n'"
+candidate = "printf '{\"value\":43}\n'"
+quiet = false
+compact = false
+serial_targets = false
+
+[cli.batch]
+input = "-"
+jobs = 8
+quiet = false
+emit_runs = false
+serial_targets = false
+
+[http]
+bind_addr = "127.0.0.1:8080"
+primary_url = "http://127.0.0.1:3001"
+candidate_url = "http://127.0.0.1:3002"
+secondary_url = "http://127.0.0.1:3003"
+return_target = "primary"
+return_fallback = "none"
+response_timing = "wait-all"
+max_request_body_bytes = 10485760
+cors_origins = ["http://127.0.0.1:5173"]
+retention_max_runs = 1000
+retention_max_bytes = 104857600
+```
+
+List settings extend built-in safe defaults. For example, configured
+`redact_headers` add to the default sensitive header redaction list, and
+repeatable flags such as `--ignore-header date --ignore-header server` add more
+comparison filters.
+
+`moonlight-http` requires `primary_url` and `candidate_url` from config or
+flags. The secondary reference is disabled by default and is enabled when
+`secondary_url` is configured or `--enable-secondary` is passed.
+
+Flags can override config:
+
+```sh
+cargo run -p moonlight-http -- \
+  --primary-url http://127.0.0.1:3001 \
+  --candidate-url http://127.0.0.1:3002 \
+  --return-target primary \
+  --storage-path data/moonlight/json-server-runs.jsonl
+```
 
 The exposed config also includes:
 
@@ -434,14 +510,14 @@ The exposed config also includes:
 - `redact_headers`
 - `redact_json_paths`
 - `redact_query_params`
-- `ignored_json_paths`
-- `ignored_headers`
+- `ignore_json_paths`
+- `ignore_headers`
 - `ignore_stderr`
 - `cors_origins`
 - `retention_max_runs`
 - `retention_max_bytes`
 
-`MOONLIGHT_ADMIN_TOKEN` is intentionally omitted from `GET /api/config`.
+`admin_token` is intentionally omitted from `GET /api/config`.
 
 ## Implemented
 
@@ -456,7 +532,7 @@ The exposed config also includes:
 - Ignored JSON paths and ignored headers.
 - Noise filtering using primary-secondary differences and candidate-must-match-reference semantics.
 - React dashboard, run list, detail view, diff viewer, and config panel.
-- CLI command comparison through `moonlight-cli`.
+- CLI command comparison through `moonlight`.
 - Rust demo services and sample traffic generator.
 - Optional Docker Compose profile with Diffy A comparing Moonlight against Diffy B and Diffy C.
 - Release-container benchmark profile and JSON/Markdown benchmark report generator.

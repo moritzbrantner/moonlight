@@ -35,9 +35,9 @@ export function ConfigPanel({ config }: ConfigPanelProps) {
           <dt>Redacted query</dt>
           <dd>{config.redact_query_params.join(", ")}</dd>
           <dt>Ignored JSON</dt>
-          <dd>{config.ignored_json_paths.join(", ")}</dd>
+          <dd>{config.ignore_json_paths.join(", ")}</dd>
           <dt>Ignored headers</dt>
-          <dd>{config.ignored_headers.join(", ")}</dd>
+          <dd>{config.ignore_headers.join(", ")}</dd>
           <dt>CORS</dt>
           <dd>{config.cors_origins.join(", ")}</dd>
           <dt>Retention</dt>

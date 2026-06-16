@@ -96,13 +96,13 @@ pub(super) fn test_config(
             "secret".into(),
             "password".into(),
         ],
-        ignored_json_paths: vec![
+        ignore_json_paths: vec![
             "$.timestamp".into(),
             "$.requestId".into(),
             "$.traceId".into(),
             "$.id".into(),
         ],
-        ignored_headers: vec![
+        ignore_headers: vec![
             "date".into(),
             "server".into(),
             "set-cookie".into(),

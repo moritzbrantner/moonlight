@@ -175,7 +175,7 @@ fn target_errors_are_top_level_errors() {
 }
 
 #[test]
-fn ignored_json_fields_do_not_diff() {
+fn ignore_json_fields_do_not_diff() {
     let primary = target(200, &[], r#"{"id":"a","value":1}"#);
     let candidate = target(200, &[], r#"{"id":"b","value":1}"#);
     let result = compare_targets(&primary, &candidate, None, &config());
@@ -183,7 +183,7 @@ fn ignored_json_fields_do_not_diff() {
 }
 
 #[test]
-fn ignored_headers_do_not_diff() {
+fn ignore_headers_do_not_diff() {
     let primary = target(200, &[("date", "one"), ("x-mode", "a")], "ok");
     let candidate = target(200, &[("date", "two"), ("x-mode", "a")], "ok");
     let result = compare_targets(&primary, &candidate, None, &config());

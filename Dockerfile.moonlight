@@ -15,6 +15,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /workspace/target/release/moonlight-http /usr/local/bin/moonlight-http
+COPY --from=builder /workspace/target/release/moonlight /usr/local/bin/moonlight
 COPY --from=builder /workspace/target/release/moonlight-cli /usr/local/bin/moonlight-cli
 COPY --from=builder /workspace/target/release/moonlight-demo-services /usr/local/bin/moonlight-demo-services
 

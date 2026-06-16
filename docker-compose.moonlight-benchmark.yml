@@ -28,9 +28,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.moonlight
-    command: moonlight-http
-    environment:
-      MOONLIGHT_RESPONSE_TIMING: return_selected
-      MOONLIGHT_STORAGE_PATH: /workspace/data/moonlight/benchmark-runs.jsonl
+    command:
+      - moonlight-http
+      - --primary-url
+      - http://primary:3001
+      - --candidate-url
+      - http://candidate:3002
+      - --secondary-url
+      - http://secondary:3003
+      - --response-timing
+      - return-selected
+      - --storage-path
+      - /workspace/data/moonlight/benchmark-runs.jsonl
     volumes:
       - .:/workspace

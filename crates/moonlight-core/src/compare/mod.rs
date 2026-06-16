@@ -11,31 +11,31 @@ pub use diff::CapturedTarget;
 
 #[derive(Debug, Clone)]
 pub struct CompareConfig {
-    pub ignored_json_paths: HashSet<String>,
+    pub ignore_json_paths: HashSet<String>,
     pub redact_json_paths: HashSet<String>,
-    pub ignored_headers: HashSet<String>,
+    pub ignore_headers: HashSet<String>,
     pub ignore_stderr: bool,
 }
 
 impl CompareConfig {
     pub fn new(
-        ignored_json_paths: &[String],
-        ignored_headers: &[String],
+        ignore_json_paths: &[String],
+        ignore_headers: &[String],
         ignore_stderr: bool,
     ) -> Self {
-        Self::new_with_redactions(ignored_json_paths, &[], ignored_headers, ignore_stderr)
+        Self::new_with_redactions(ignore_json_paths, &[], ignore_headers, ignore_stderr)
     }
 
     pub fn new_with_redactions(
-        ignored_json_paths: &[String],
+        ignore_json_paths: &[String],
         redact_json_paths: &[String],
-        ignored_headers: &[String],
+        ignore_headers: &[String],
         ignore_stderr: bool,
     ) -> Self {
         Self {
-            ignored_json_paths: ignored_json_paths.iter().cloned().collect(),
+            ignore_json_paths: ignore_json_paths.iter().cloned().collect(),
             redact_json_paths: redact_json_paths.iter().cloned().collect(),
-            ignored_headers: ignored_headers
+            ignore_headers: ignore_headers
                 .iter()
                 .map(|value| value.to_ascii_lowercase())
                 .collect(),

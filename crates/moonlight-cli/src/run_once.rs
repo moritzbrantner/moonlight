@@ -4,38 +4,56 @@ use crate::{
         parse_json_argv_flag, parse_optional_command_form, parse_required_command_form,
         CommandFormLabels,
     },
-    config::build_compare_config,
+    config::{build_compare_config, CliDefaults},
     execute::execute_case,
     types::{Case, PreparedCase},
 };
+use moonlight_core::config::CliTargetConfig;
 use moonlight_core::storage::RunWriter;
 use std::sync::Arc;
 
-pub(crate) async fn run(args: RunArgs) -> anyhow::Result<()> {
+pub(crate) async fn run(args: RunArgs, defaults: &CliDefaults) -> anyhow::Result<()> {
+    let targets = merge_targets(&args, &defaults.run.targets)?;
+    let mut ignore_json_paths = defaults.ignore_json_paths.clone();
+    ignore_json_paths.extend(args.ignore_json_paths);
+    let mut ignore_headers = defaults.ignore_headers.clone();
+    ignore_headers.extend(args.ignore_headers);
+    let ignore_stderr = defaults.ignore_stderr || args.ignore_stderr;
+    let max_body_capture_bytes = args
+        .max_body_capture_bytes
+        .unwrap_or(defaults.max_body_capture_bytes);
+    let serial_targets = defaults.run.serial_targets || args.serial_targets;
+    let quiet = defaults.run.quiet || args.quiet;
+    let compact = defaults.run.compact || args.compact;
+    let storage_path = args
+        .storage
+        .storage_path
+        .unwrap_or_else(|| defaults.storage_path.clone());
+
     let case = Case {
         primary: parse_required_command_form(
             run_labels("primary"),
-            args.primary,
-            parse_json_argv_flag("--primary-argv", args.primary_argv)?,
+            targets.primary,
+            targets.primary_argv,
         )?,
         candidate: parse_required_command_form(
             run_labels("candidate"),
-            args.candidate,
-            parse_json_argv_flag("--candidate-argv", args.candidate_argv)?,
+            targets.candidate,
+            targets.candidate_argv,
         )?,
         secondary: parse_optional_command_form(
             run_labels("secondary"),
-            args.secondary,
-            parse_json_argv_flag("--secondary-argv", args.secondary_argv)?,
+            targets.secondary,
+            targets.secondary_argv,
         )?,
-        max_body_capture_bytes: args.max_body_capture_bytes,
-        ignored_json_paths: args.ignored_json_paths,
-        ignored_headers: args.ignored_headers,
-        ignore_stderr: args.ignore_stderr,
+        max_body_capture_bytes,
+        ignore_json_paths,
+        ignore_headers,
+        ignore_stderr,
     };
     let compare_config = Arc::new(build_compare_config(
-        &case.ignored_json_paths,
-        &case.ignored_headers,
+        &case.ignore_json_paths,
+        &case.ignore_headers,
         case.ignore_stderr,
     ));
     let run = execute_case(
@@ -43,22 +61,73 @@ pub(crate) async fn run(args: RunArgs) -> anyhow::Result<()> {
             case,
             compare_config,
         },
-        args.serial_targets,
+        serial_targets,
     )
     .await;
 
-    let writer = RunWriter::open(args.storage.storage_path()).await?;
+    let writer = RunWriter::open(storage_path).await?;
     writer.append(&run).await?;
     writer.flush().await?;
 
-    if !args.quiet {
-        if args.compact {
+    if !quiet {
+        if compact {
             println!("{}", serde_json::to_string(&run)?);
         } else {
             println!("{}", serde_json::to_string_pretty(&run)?);
         }
     }
     Ok(())
+}
+
+fn merge_targets(args: &RunArgs, defaults: &CliTargetConfig) -> anyhow::Result<CliTargetConfig> {
+    Ok(CliTargetConfig {
+        primary: merge_shell(&args.primary, &args.primary_argv, &defaults.primary),
+        primary_argv: merge_argv(
+            "--primary-argv",
+            &args.primary,
+            &args.primary_argv,
+            &defaults.primary_argv,
+        )?,
+        candidate: merge_shell(&args.candidate, &args.candidate_argv, &defaults.candidate),
+        candidate_argv: merge_argv(
+            "--candidate-argv",
+            &args.candidate,
+            &args.candidate_argv,
+            &defaults.candidate_argv,
+        )?,
+        secondary: merge_shell(&args.secondary, &args.secondary_argv, &defaults.secondary),
+        secondary_argv: merge_argv(
+            "--secondary-argv",
+            &args.secondary,
+            &args.secondary_argv,
+            &defaults.secondary_argv,
+        )?,
+    })
+}
+
+fn merge_shell(
+    arg_shell: &Option<String>,
+    arg_argv: &Option<String>,
+    default_shell: &Option<String>,
+) -> Option<String> {
+    if arg_shell.is_some() || arg_argv.is_some() {
+        arg_shell.clone()
+    } else {
+        default_shell.clone()
+    }
+}
+
+fn merge_argv(
+    label: &'static str,
+    arg_shell: &Option<String>,
+    arg_argv: &Option<String>,
+    default_argv: &Option<Vec<String>>,
+) -> anyhow::Result<Option<Vec<String>>> {
+    if arg_shell.is_some() || arg_argv.is_some() {
+        parse_json_argv_flag(label, arg_argv.clone())
+    } else {
+        Ok(default_argv.clone())
+    }
 }
 
 fn run_labels(role: &'static str) -> CommandFormLabels {

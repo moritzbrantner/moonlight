@@ -277,7 +277,7 @@ fn batch_default_and_custom_compare_config_classify_expected() {
             serde_json::json!({
                 "primary": "printf '%s' '{\"dynamic\":\"one\",\"stable\":true}'",
                 "candidate": "printf '%s' '{\"dynamic\":\"two\",\"stable\":true}'",
-                "ignored_json_paths": ["$.dynamic"]
+                "ignore_json_paths": ["$.dynamic"]
             }),
         ],
     );

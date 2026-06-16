@@ -39,17 +39,17 @@ services:
       - primary
       - candidate
       - secondary
-    environment:
-      MOONLIGHT_BIND_ADDR: 0.0.0.0:8080
-      MOONLIGHT_PRIMARY_URL: http://primary:3001
-      MOONLIGHT_CANDIDATE_URL: http://candidate:3002
-      MOONLIGHT_SECONDARY_URL: http://secondary:3003
-      MOONLIGHT_STORAGE_PATH: /workspace/data/moonlight/http-runs.jsonl
     volumes:
       - .:/workspace
       - cargo-cache:/usr/local/cargo/registry
       - target-cache:/workspace/target
-    command: cargo run -p moonlight-http
+    command: >
+      cargo run -p moonlight-http --
+      --bind-addr 0.0.0.0:8080
+      --primary-url http://primary:3001
+      --candidate-url http://candidate:3002
+      --secondary-url http://secondary:3003
+      --storage-path /workspace/data/moonlight/http-runs.jsonl
     ports:
       - "8080:8080"
 

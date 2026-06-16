@@ -22,5 +22,6 @@ requests.
 
 Sensitive headers are redacted by default. Request and response bodies are still
 captured as hashes plus previews unless JSON body redaction is configured with
-`MOONLIGHT_REDACT_JSON_PATHS`. Moonlight is not a data-loss-prevention system;
+`[comparison].redact_json_paths` in `moonlight.conf` or `--redact-json-path`.
+Moonlight is not a data-loss-prevention system;
 avoid sending secrets or regulated data through comparison runs.

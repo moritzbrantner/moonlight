@@ -10,14 +10,21 @@ pub(crate) struct Case {
     pub(crate) candidate: TargetCommand,
     pub(crate) secondary: Option<TargetCommand>,
     pub(crate) max_body_capture_bytes: usize,
-    pub(crate) ignored_json_paths: Vec<String>,
-    pub(crate) ignored_headers: Vec<String>,
+    pub(crate) ignore_json_paths: Vec<String>,
+    pub(crate) ignore_headers: Vec<String>,
     pub(crate) ignore_stderr: bool,
 }
 
 impl Case {
-    pub(crate) fn uses_default_compare_config(&self) -> bool {
-        self.ignored_json_paths.is_empty() && self.ignored_headers.is_empty() && !self.ignore_stderr
+    pub(crate) fn uses_compare_config(
+        &self,
+        ignore_json_paths: &[String],
+        ignore_headers: &[String],
+        ignore_stderr: bool,
+    ) -> bool {
+        self.ignore_json_paths == ignore_json_paths
+            && self.ignore_headers == ignore_headers
+            && self.ignore_stderr == ignore_stderr
     }
 }
 
@@ -34,6 +41,7 @@ pub(crate) struct PreparedCase {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct BatchCase {
     #[serde(default)]
     pub(crate) primary: Option<String>,
@@ -50,9 +58,9 @@ pub(crate) struct BatchCase {
     #[serde(default)]
     pub(crate) max_body_capture_bytes: Option<usize>,
     #[serde(default)]
-    pub(crate) ignored_json_paths: Vec<String>,
+    pub(crate) ignore_json_paths: Vec<String>,
     #[serde(default)]
-    pub(crate) ignored_headers: Vec<String>,
+    pub(crate) ignore_headers: Vec<String>,
     #[serde(default)]
     pub(crate) ignore_stderr: bool,
 }

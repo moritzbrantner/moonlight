@@ -100,7 +100,7 @@ fn diff_headers(
         .headers
         .keys()
         .chain(other.observation.headers.keys())
-        .filter(|name| !config.ignored_headers.contains(*name))
+        .filter(|name| !config.ignore_headers.contains(*name))
         .cloned()
         .collect();
 
@@ -191,7 +191,7 @@ fn diff_json(
     config: &CompareConfig,
     diffs: &mut Vec<DiffEntry>,
 ) {
-    if config.ignored_json_paths.contains(path) {
+    if config.ignore_json_paths.contains(path) {
         return;
     }
     if config.redact_json_paths.contains(path) {

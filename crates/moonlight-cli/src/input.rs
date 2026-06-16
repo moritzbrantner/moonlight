@@ -1,6 +1,6 @@
 use crate::{
     command_form::{parse_optional_command_form, parse_required_command_form, CommandFormLabels},
-    config::{build_compare_config, DEFAULT_MAX_BODY_CAPTURE_BYTES},
+    config::{build_compare_config, CliDefaults},
     types::{BatchCase, Case, PreparedCase},
 };
 use anyhow::Context;
@@ -10,7 +10,10 @@ use tokio::{
     io::{self, AsyncBufReadExt, BufReader},
 };
 
-pub(crate) async fn read_batch_cases(input: &PathBuf) -> anyhow::Result<Vec<Case>> {
+pub(crate) async fn read_batch_cases(
+    input: &PathBuf,
+    defaults: &CliDefaults,
+) -> anyhow::Result<Vec<Case>> {
     let lines = if input.as_os_str() == "-" {
         read_stdin_lines().await?
     } else {
@@ -30,23 +33,31 @@ pub(crate) async fn read_batch_cases(input: &PathBuf) -> anyhow::Result<Vec<Case
         }
         let case: BatchCase = serde_json::from_str(&line)
             .with_context(|| format!("invalid batch JSONL on line {line_number}"))?;
-        cases.push(case_from_batch(line_number, case)?);
+        cases.push(case_from_batch(line_number, case, defaults)?);
     }
 
     Ok(cases)
 }
 
-pub(crate) fn prepare_cases(cases: Vec<Case>) -> Vec<PreparedCase> {
-    let default_compare_config = Arc::new(build_compare_config(&[], &[], false));
+pub(crate) fn prepare_cases(cases: Vec<Case>, defaults: &CliDefaults) -> Vec<PreparedCase> {
+    let default_compare_config = Arc::new(build_compare_config(
+        &defaults.ignore_json_paths,
+        &defaults.ignore_headers,
+        defaults.ignore_stderr,
+    ));
     cases
         .into_iter()
         .map(|case| {
-            let compare_config = if case.uses_default_compare_config() {
+            let compare_config = if case.uses_compare_config(
+                &defaults.ignore_json_paths,
+                &defaults.ignore_headers,
+                defaults.ignore_stderr,
+            ) {
                 Arc::clone(&default_compare_config)
             } else {
                 Arc::new(build_compare_config(
-                    &case.ignored_json_paths,
-                    &case.ignored_headers,
+                    &case.ignore_json_paths,
+                    &case.ignore_headers,
                     case.ignore_stderr,
                 ))
             };
@@ -58,7 +69,16 @@ pub(crate) fn prepare_cases(cases: Vec<Case>) -> Vec<PreparedCase> {
         .collect()
 }
 
-fn case_from_batch(line_number: usize, case: BatchCase) -> anyhow::Result<Case> {
+fn case_from_batch(
+    line_number: usize,
+    case: BatchCase,
+    defaults: &CliDefaults,
+) -> anyhow::Result<Case> {
+    let mut ignore_json_paths = defaults.ignore_json_paths.clone();
+    ignore_json_paths.extend(case.ignore_json_paths);
+    let mut ignore_headers = defaults.ignore_headers.clone();
+    ignore_headers.extend(case.ignore_headers);
+
     Ok(Case {
         primary: parse_required_command_form(
             batch_labels("primary"),
@@ -80,10 +100,10 @@ fn case_from_batch(line_number: usize, case: BatchCase) -> anyhow::Result<Case> 
         .with_context(|| format!("invalid batch JSONL on line {line_number}"))?,
         max_body_capture_bytes: case
             .max_body_capture_bytes
-            .unwrap_or(DEFAULT_MAX_BODY_CAPTURE_BYTES),
-        ignored_json_paths: case.ignored_json_paths,
-        ignored_headers: case.ignored_headers,
-        ignore_stderr: case.ignore_stderr,
+            .unwrap_or(defaults.max_body_capture_bytes),
+        ignore_json_paths,
+        ignore_headers,
+        ignore_stderr: defaults.ignore_stderr || case.ignore_stderr,
     })
 }
 

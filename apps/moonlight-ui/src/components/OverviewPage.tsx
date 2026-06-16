@@ -75,7 +75,7 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           <ul className="feature-list">
             <li><strong>moonlight-core</strong><span>Shared comparison, diffing, classification, and JSONL storage primitives.</span></li>
             <li><strong>moonlight-http</strong><span>An Axum proxy that shadows HTTP traffic to reference and candidate services.</span></li>
-            <li><strong>moonlight-cli</strong><span>A command runner for direct comparisons and batch command-output suites.</span></li>
+            <li><strong>moonlight</strong><span>A command runner for direct comparisons and batch command-output suites.</span></li>
             <li><strong>moonlight-ui</strong><span>A Vite admin UI for inspecting comparison runs and configuration.</span></li>
           </ul>
         </div>

@@ -55,7 +55,7 @@ This list ranks likely speedups for `moonlight-cli` and `moonlight-core`. Items 
 - Current status: completed batch runs are sent to a dedicated writer task, so the polling loop can continue driving ready cases while storage writes are serialized by that task.
 - Expected impact: Medium when `--jobs` is high and target commands complete quickly.
 - Risk level: Low to medium. Ordering may remain completion-order unless the product requires input-order persistence.
-- Metric to watch: `moonlight-cli batch --jobs N` suite latency across `N = 1, 4, 8, 16`.
+- Metric to watch: `moonlight batch --jobs N` suite latency across `N = 1, 4, 8, 16`.
 - Acceptance criterion: batch writes through one writer task fed by a channel, preserves every record exactly once, and does not regress error handling or flush behavior.
 
 ## 6. Compact Output Mode For `run`

@@ -4,4 +4,4 @@ set -euo pipefail
 cargo build --release -p moonlight-cli
 python3 scripts/moonlight-cli-benchmark.py "$@"
 
-echo "moonlight-cli benchmark complete"
+echo "moonlight CLI benchmark complete"

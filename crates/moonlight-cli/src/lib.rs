@@ -11,27 +11,30 @@ mod types;
 use anyhow::Context;
 use args::{Cli, CliCommand};
 use clap::Parser;
-use moonlight_core::storage::JsonlStorageReader;
+use config::CliDefaults;
+use moonlight_core::{config::load_optional_config, storage::JsonlStorageReader};
 
 pub async fn run_cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let file_config = load_optional_config(cli.config.config.as_deref(), cli.config.no_config)?;
+    let defaults = CliDefaults::from_config(&file_config);
 
     match cli.command {
-        CliCommand::Run(args) => run_once::run(args).await,
-        CliCommand::Batch(args) => batch::batch(args).await,
+        CliCommand::Run(args) => run_once::run(args, &defaults).await,
+        CliCommand::Batch(args) => batch::batch(args, &defaults).await,
         CliCommand::List(args) => {
-            let storage = JsonlStorageReader::new(args.output.storage.storage_path());
+            let storage = JsonlStorageReader::new(storage_path(args.output.storage, &defaults));
             let runs = storage.list_page(args.limit, args.offset).await?;
             print_json(&runs, args.output.compact)?;
             Ok(())
         }
         CliCommand::Stats(args) => {
-            let storage = JsonlStorageReader::new(args.storage.storage_path());
+            let storage = JsonlStorageReader::new(storage_path(args.storage, &defaults));
             print_json(&storage.stats().await?, args.compact)?;
             Ok(())
         }
         CliCommand::Show(args) => {
-            let storage = JsonlStorageReader::new(args.output.storage.storage_path());
+            let storage = JsonlStorageReader::new(storage_path(args.output.storage, &defaults));
             let run = storage
                 .get(args.id)
                 .await?
@@ -40,6 +43,11 @@ pub async fn run_cli() -> anyhow::Result<()> {
             Ok(())
         }
     }
+}
+
+fn storage_path(args: args::StorageArgs, defaults: &CliDefaults) -> std::path::PathBuf {
+    args.storage_path
+        .unwrap_or_else(|| defaults.storage_path.clone())
 }
 
 fn print_json(value: &impl serde::Serialize, compact: bool) -> anyhow::Result<()> {
