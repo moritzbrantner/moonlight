@@ -19,14 +19,14 @@ The runner:
 5. Independently diffs the normalized published output against the normalized source output.
 6. Prints a concise pass/fail summary and exits non-zero if any case differs.
 
-Temporary raw output, normalized output, generated batch input, and per-case diffs are written under `.moonlight/selfdogfood/` by default. This directory is git-ignored.
+Temporary raw output, normalized output, generated batch input, isolated per-case storage JSONL files, and per-case diffs are written under `.moonlight/selfdogfood/` by default. This directory is git-ignored.
 
 ## Reference binary resolution
 
 Resolution order is deliberately practical and independent of unpublished local state:
 
 1. If `MOONLIGHT_PUBLISHED_BIN` is set, that exact executable is used.
-2. Otherwise, the runner uses `npx -y @moritzbrantner/moonlight@latest` when `npx` is available.
+2. Otherwise, the runner uses `npm exec --yes --package @moritzbrantner/moonlight@latest` once to resolve the package-provided `moonlight` executable, validates it with `--help`, and then invokes that executable directly for each case.
 3. If neither works, the runner fails with instructions to set `MOONLIGHT_PUBLISHED_BIN`.
 
 Example with an explicit stable binary:
@@ -55,8 +55,9 @@ target/release/moonlight
 - temporary directory paths
 - source binary path strings
 - version fields that can legitimately differ between published and source builds
+- JSON formatting markers so compact-vs-pretty output shape changes remain visible even after JSON values are normalized
 
-The normalizer keeps meaningful behavior fields such as exit codes, classifications, stdout/stderr bodies, JSON diffs, and batch counts intact.
+The normalizer keeps meaningful behavior fields such as exit codes, classifications, stdout/stderr bodies, JSON formatting, JSON diffs, and batch counts intact.
 
 ## Add a case
 

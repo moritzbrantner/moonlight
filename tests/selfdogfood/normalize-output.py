@@ -5,32 +5,71 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
-import os
 import re
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
-VOLATILE_KEY_RE = re.compile(r"(^|_)(id|uuid|timestamp|started_at|finished_at|duration|elapsed|latency)(_ms|_ns|_s)?$|^(version)$", re.I)
-UUID_RE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b", re.I)
+VOLATILE_KEY_RE = re.compile(
+    r"(^|_)(id|uuid|timestamp|started_at|finished_at|duration|elapsed|latency)"
+    r"(_ms|_ns|_s)?$|^(version)$",
+    re.I,
+)
+UUID_RE = re.compile(
+    r"\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b",
+    re.I,
+)
 TMP_RE = re.compile(r"/(?:tmp|var/folders)/[^\s\"']+")
 
 
 def load_jsonish(text: str) -> Any:
     stripped = text.strip()
     if not stripped:
-        return ""
+        return {"raw": ""}
     try:
-        return normalize_value(json.loads(stripped))
+        return {
+            "format": json_format_marker(text),
+            "json": normalize_value(json.loads(stripped)),
+        }
     except json.JSONDecodeError:
         records = []
         for line in stripped.splitlines():
             try:
                 records.append(normalize_value(json.loads(line)))
             except json.JSONDecodeError:
-                return normalize_string(text)
-        return records
+                return {"raw": normalize_string(text)}
+        return {
+            "format": json_format_marker(text),
+            "jsonl": records,
+        }
+
+
+def json_format_marker(text: str) -> str:
+    marker = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == '"':
+            marker.append('"<string>"')
+            index += 1
+            escaped = False
+            while index < len(text):
+                current = text[index]
+                if escaped:
+                    escaped = False
+                elif current == "\\":
+                    escaped = True
+                elif current == '"':
+                    index += 1
+                    break
+                index += 1
+            continue
+        marker.append(char)
+        index += 1
+    value = "".join(marker)
+    value = re.sub(r"-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b", "<number>", value)
+    value = re.sub(r"\b(?:true|false|null)\b", "<literal>", value)
+    return normalize_string(value)
 
 
 def normalize_string(value: str) -> str:
@@ -67,12 +106,32 @@ def normalized_process_result(result: subprocess.CompletedProcess[str]) -> dict[
 
 
 def run_one(label: str, command: list[str], case_dir: Path) -> dict[str, Any]:
+    storage_path = case_dir / f"{label}-runs.jsonl"
+    command = command_with_storage_path(command, storage_path)
     result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (case_dir / f"{label}.stdout").write_text(result.stdout)
     (case_dir / f"{label}.stderr").write_text(result.stderr)
+    (case_dir / f"{label}.command.json").write_text(json.dumps(command, indent=2) + "\n")
     normalized = normalized_process_result(result)
     (case_dir / f"{label}.normalized.json").write_text(json.dumps(normalized, indent=2, sort_keys=True) + "\n")
     return normalized
+
+
+def command_with_storage_path(command: list[str], storage_path: Path) -> list[str]:
+    if not command:
+        return command
+    subcommand_index = 0
+    for index, value in enumerate(command):
+        if value in {"run", "batch"}:
+            subcommand_index = index
+            break
+    else:
+        return command
+    return (
+        command[: subcommand_index + 1]
+        + ["--storage-path", str(storage_path)]
+        + command[subcommand_index + 1 :]
+    )
 
 
 def read_cases(path: Path) -> list[dict[str, Any]]:
@@ -89,7 +148,12 @@ def materialize_args(case: dict[str, Any], case_dir: Path) -> list[str]:
     args = list(case["args"])
     if "batch_cases" in case:
         batch_input = case_dir / "batch-cases.jsonl"
-        batch_input.write_text("".join(json.dumps(item, separators=(",", ":")) + "\n" for item in case["batch_cases"]))
+        batch_input.write_text(
+            "".join(
+                json.dumps(item, separators=(",", ":")) + "\n"
+                for item in case["batch_cases"]
+            )
+        )
         args = [str(batch_input) if arg == "{batch_input}" else arg for arg in args]
     return args
 
@@ -122,12 +186,14 @@ def main() -> int:
             print(f"PASS {case_id}")
         else:
             failed += 1
-            diff = "".join(difflib.unified_diff(
-                json.dumps(reference, indent=2, sort_keys=True).splitlines(True),
-                json.dumps(candidate, indent=2, sort_keys=True).splitlines(True),
-                fromfile="published.normalized.json",
-                tofile="source.normalized.json",
-            ))
+            diff = "".join(
+                difflib.unified_diff(
+                    json.dumps(reference, indent=2, sort_keys=True).splitlines(True),
+                    json.dumps(candidate, indent=2, sort_keys=True).splitlines(True),
+                    fromfile="published.normalized.json",
+                    tofile="source.normalized.json",
+                )
+            )
             diff_path = case_dir / f"{case_id}.diff"
             diff_path.write_text(diff)
             print(f"FAIL {case_id}")
