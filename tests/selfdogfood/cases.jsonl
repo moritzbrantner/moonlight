@@ -1,0 +1,9 @@
+{"id":"match","args":["run","--primary-argv","[\"python3\",\"-c\",\"print('42')\"]","--candidate-argv","[\"python3\",\"-c\",\"print('42')\"]","--compact"]}
+{"id":"stdout-diff","args":["run","--primary-argv","[\"python3\",\"-c\",\"print('42')\"]","--candidate-argv","[\"python3\",\"-c\",\"print('43')\"]","--compact"]}
+{"id":"json-diff","args":["run","--primary-argv","[\"python3\",\"-c\",\"import json; print(json.dumps({'value': 42, 'stable': True}))\"]","--candidate-argv","[\"python3\",\"-c\",\"import json; print(json.dumps({'value': 43, 'stable': True}))\"]","--compact"]}
+{"id":"stderr-diff","args":["run","--primary-argv","[\"python3\",\"-c\",\"import sys; sys.stderr.write('left\\n')\"]","--candidate-argv","[\"python3\",\"-c\",\"import sys; sys.stderr.write('right\\n')\"]","--compact"]}
+{"id":"ignore-stderr","args":["run","--primary-argv","[\"python3\",\"-c\",\"import sys; sys.stderr.write('left\\n')\"]","--candidate-argv","[\"python3\",\"-c\",\"import sys; sys.stderr.write('right\\n')\"]","--ignore-stderr","--compact"]}
+{"id":"target-error","args":["run","--primary-argv","[\"python3\",\"-c\",\"raise SystemExit(7)\"]","--candidate-argv","[\"python3\",\"-c\",\"raise SystemExit(7)\"]","--compact"]}
+{"id":"secondary-reference-noise","args":["run","--primary-argv","[\"python3\",\"-c\",\"print('42')\"]","--secondary-argv","[\"python3\",\"-c\",\"print('41')\"]","--candidate-argv","[\"python3\",\"-c\",\"print('43')\"]","--compact"]}
+{"id":"pretty-output-shape","args":["run","--primary-argv","[\"python3\",\"-c\",\"print('pretty')\"]","--candidate-argv","[\"python3\",\"-c\",\"print('pretty')\"]"]}
+{"id":"batch-two-cases","args":["batch","--input","{batch_input}","--jobs","1","--emit-runs"],"batch_cases":[{"primary_argv":["python3","-c","print('batch-match')"],"candidate_argv":["python3","-c","print('batch-match')"]},{"primary_argv":["python3","-c","print('batch-left')"],"candidate_argv":["python3","-c","print('batch-right')"]}]}

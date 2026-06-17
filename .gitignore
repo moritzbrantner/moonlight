@@ -15,3 +15,5 @@ data/**
 performance-results/
 apps/moonlight-ui/storybook-static/
 apps/moonlight-ui/.unlighthouse/
+
+.moonlight/selfdogfood/

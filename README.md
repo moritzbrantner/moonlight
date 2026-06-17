@@ -39,3 +39,5 @@ The GitHub Pages site explains the repository layout and shows the latest HTTP a
 <https://moritzbrantner.github.io/moonlight/?page=overview>
 
 For detailed local usage, see [docs/moonlight/README.md](docs/moonlight/README.md).
+
+A local self-dogfood regression harness compares the published CLI against the current source build; see [tests/selfdogfood/README.md](tests/selfdogfood/README.md).
