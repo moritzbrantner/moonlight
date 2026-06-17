@@ -17,3 +17,6 @@ apps/moonlight-ui/storybook-static/
 apps/moonlight-ui/.unlighthouse/
 
 .moonlight/selfdogfood/
+.moonlight/evals/
+.moonlight/agent-runs.jsonl
+.moonlight/agent.patch

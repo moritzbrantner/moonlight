@@ -1,0 +1,74 @@
+[project]
+name = "moonlight"
+repo = "."
+baseline_ref = "main"
+
+[eval]
+work_dir = ".moonlight/evals"
+keep_worktrees = "failed"
+jobs = 1
+target_timeout_ms = 900000
+max_body_capture_bytes = 20000
+
+[[checks]]
+id = "bootstrap"
+name = "Install frontend dependencies"
+command = "bun install --frozen-lockfile"
+cwd = "."
+timeout_ms = 300000
+ignore_stdout = true
+ignore_stderr = true
+
+[[checks]]
+id = "rust-format"
+name = "Rust format"
+argv = ["cargo", "fmt", "--all", "--", "--check"]
+cwd = "."
+timeout_ms = 120000
+ignore_stdout = true
+ignore_stderr = true
+
+[[checks]]
+id = "rust-clippy"
+name = "Rust clippy"
+command = "cargo clippy --workspace --all-targets -- -D warnings"
+cwd = "."
+timeout_ms = 900000
+ignore_stdout = true
+ignore_stderr = true
+
+[[checks]]
+id = "rust-tests"
+name = "Rust workspace tests"
+command = "cargo test --workspace"
+cwd = "."
+timeout_ms = 900000
+ignore_stdout = true
+ignore_stderr = true
+
+[[checks]]
+id = "ui-typecheck"
+name = "Generated API types and UI typecheck"
+command = "bun run typegen:check && bun run typecheck"
+cwd = "."
+timeout_ms = 600000
+ignore_stdout = true
+ignore_stderr = true
+
+[[checks]]
+id = "ui-tests"
+name = "Vitest UI tests"
+command = "bun run test:run"
+cwd = "."
+timeout_ms = 600000
+ignore_stdout = true
+ignore_stderr = true
+
+[[checks]]
+id = "ui-build"
+name = "UI and Storybook builds"
+command = "bun run build && bun run storybook:build"
+cwd = "."
+timeout_ms = 900000
+ignore_stdout = true
+ignore_stderr = true

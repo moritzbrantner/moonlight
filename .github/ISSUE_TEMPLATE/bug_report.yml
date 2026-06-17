@@ -1,0 +1,82 @@
+name: Bug Report
+description: Report broken Moonlight behavior with enough detail for triage.
+title: "[Bug]: "
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: textarea
+    id: observed_behavior
+    attributes:
+      label: Observed Behavior
+      description: What happened?
+      placeholder: Describe the incorrect behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected Behavior
+      description: What should have happened?
+      placeholder: Describe the correct behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction_steps
+    attributes:
+      label: Reproduction Steps
+      description: Provide exact commands or UI steps.
+      value: |
+        1. Run the command or open the page.
+        2. Trigger the broken behavior.
+        3. Observe the failure.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected_interface
+    attributes:
+      label: Affected Interface
+      description: Choose the interface where the bug is visible.
+      options:
+        - CLI command or flags
+        - Rust public type/function
+        - HTTP route/API response
+        - UI behavior
+        - docs/process
+        - unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: suspected_area
+    attributes:
+      label: Suspected Area
+      description: Name likely files, crates, modules, or components.
+      placeholder: "Example: crates/moonlight-core/src/compare/tests.rs and compare logic."
+    validations:
+      required: true
+
+  - type: textarea
+    id: required_regression_test
+    attributes:
+      label: Required Regression Test
+      description: Describe the behavior test that should fail before the fix.
+      placeholder: "Example: Add a CLI test proving the command exits nonzero for invalid config."
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification_commands
+    attributes:
+      label: Verification Commands
+      description: Commands the fixer must run before handoff.
+      value: |
+        ```sh
+        bun run tdd:check
+        bun run agent:check
+        ```
+    validations:
+      required: true

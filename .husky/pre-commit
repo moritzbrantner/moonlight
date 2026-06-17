@@ -1,0 +1,7 @@
+bunx lint-staged
+unset GIT_INDEX_FILE
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+bun run typegen:check
+bun run typecheck
+bun run test:run

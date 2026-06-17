@@ -3,7 +3,7 @@ use assert_cmd::prelude::*;
 use assert_fs::TempDir;
 use predicates::prelude::*;
 use serde_json::Value;
-use std::{fs, time::Instant};
+use std::fs;
 
 #[test]
 fn help_prints_command_surface() {
@@ -233,18 +233,31 @@ fn run_serial_targets_preserves_order() {
 fn run_parallel_targets_is_default() {
     let dir = TempDir::new().unwrap();
     let storage = storage_path(&dir);
-    let primary = "sleep 0.5; printf '%s\\n' ok";
-    let candidate = "sleep 0.5; printf '%s\\n' ok";
+    let primary_marker = dir.path().join("primary-started");
+    let candidate_marker = dir.path().join("candidate-started");
+    let primary_marker = primary_marker.to_string_lossy();
+    let candidate_marker = candidate_marker.to_string_lossy();
+    let primary = format!(
+        "printf started > '{primary_marker}'; \
+         for i in $(seq 1 50); do test -f '{candidate_marker}' && break; sleep 0.02; done; \
+         test -f '{candidate_marker}'; \
+         printf '%s\\n' ok"
+    );
+    let candidate = format!(
+        "printf started > '{candidate_marker}'; \
+         for i in $(seq 1 50); do test -f '{primary_marker}' && break; sleep 0.02; done; \
+         test -f '{primary_marker}'; \
+         printf '%s\\n' ok"
+    );
 
-    let started = Instant::now();
-    let record = run_record(&storage, &["--primary", primary, "--candidate", candidate]);
-    let elapsed = started.elapsed();
+    let record = run_record(
+        &storage,
+        &["--primary", &primary, "--candidate", &candidate],
+    );
 
     assert_eq!(record["comparison"]["classification"], "match");
-    assert!(
-        elapsed.as_millis() < 900,
-        "expected parallel target execution, elapsed {elapsed:?}"
-    );
+    assert!(dir.path().join("primary-started").exists());
+    assert!(dir.path().join("candidate-started").exists());
     dir.close().unwrap();
 }
 

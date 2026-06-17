@@ -34,6 +34,21 @@ git diff --binary main > agent.patch
 moonlight eval run --project moonlight.eval.toml --candidate-patch agent.patch --format markdown
 ```
 
+## Agent Workflow
+
+For coding-agent goals, create an Agent Goal issue and follow
+[`AGENTS.md`](AGENTS.md). Before handoff, run:
+
+```sh
+bun run agent:check
+```
+
+Moonlight can also evaluate an agent branch or patch against the baseline:
+
+```sh
+bun run agent:eval -- --candidate-ref <branch-or-sha>
+```
+
 The GitHub Pages site explains the repository layout and shows the latest HTTP and CLI benchmark reports:
 
 <https://moritzbrantner.github.io/moonlight/?page=overview>
