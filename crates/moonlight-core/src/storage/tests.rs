@@ -382,6 +382,50 @@ async fn jsonl_reader_get_returns_matching_run() {
 }
 
 #[tokio::test]
+async fn jsonl_reader_filters_and_summarizes_runs_from_public_reader() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("cli-runs.jsonl");
+    let first = run("first", 1, Classification::Match, false);
+    let noisy = run("noisy", 2, Classification::ReferenceNoise, true);
+    let diff = run("diff", 3, Classification::SuspiciousDifference, false);
+    write_runs(&path, &[first, noisy, diff]);
+
+    let reader = JsonlStorageReader::new(path);
+    let page = reader
+        .filtered_page(
+            &RunFilter {
+                classification: Some(Classification::SuspiciousDifference),
+                adapter: Some(Adapter::Http),
+                query: Some("diff".to_string()),
+                status: Some(0),
+                has_noise: Some(false),
+                has_diff: Some(false),
+            },
+            10,
+            0,
+        )
+        .await
+        .unwrap();
+    let stats = reader.stats().await.unwrap();
+
+    assert_eq!(page.total, 1);
+    assert_eq!(page.items.len(), 1);
+    assert!(matches!(
+        page.items[0].input,
+        RunInput::Http { ref path, .. } if path == "diff"
+    ));
+    assert_eq!(stats.total_runs, 3);
+    assert_eq!(stats.matches, 1);
+    assert_eq!(stats.reference_noise, 1);
+    assert_eq!(stats.suspicious_differences, 1);
+    assert_eq!(stats.latest_runs.len(), 3);
+    assert!(matches!(
+        stats.latest_runs[0].input,
+        RunInput::Http { ref path, .. } if path == "diff"
+    ));
+}
+
+#[tokio::test]
 async fn storage_load_still_scans_directory_for_admin_views() {
     let dir = tempdir().unwrap();
     let http_path = dir.path().join("http-runs.jsonl");

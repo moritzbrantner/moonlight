@@ -18,22 +18,26 @@ pub(super) struct StatsAccumulator {
 
 impl StatsAccumulator {
     pub(super) fn record(&mut self, run: &ComparisonRun) {
+        self.record_list_item(ComparisonRunListItem::from(run));
+    }
+
+    pub(super) fn record_list_item(&mut self, item: ComparisonRunListItem) {
         self.total_runs += 1;
-        match run.comparison.classification {
+        match item.classification {
             Classification::Match => self.matches += 1,
             Classification::SuspiciousDifference => self.suspicious_differences += 1,
             Classification::ReferenceNoise => self.reference_noise += 1,
             Classification::SuspiciousWithNoise => self.suspicious_with_noise += 1,
             Classification::TargetError => self.target_errors += 1,
         }
-        self.primary_total += run.primary.latency_ms;
-        self.candidate_total += run.candidate.latency_ms;
-        if let Some(secondary) = &run.secondary {
-            self.secondary_total += secondary.latency_ms;
+        self.primary_total += item.primary_latency_ms;
+        self.candidate_total += item.candidate_latency_ms;
+        if let Some(secondary_latency_ms) = item.secondary_latency_ms {
+            self.secondary_total += secondary_latency_ms;
             self.secondary_count += 1;
         }
 
-        self.latest_runs.push_back(ComparisonRunListItem::from(run));
+        self.latest_runs.push_back(item);
         if self.latest_runs.len() > 20 {
             self.latest_runs.pop_front();
         }
