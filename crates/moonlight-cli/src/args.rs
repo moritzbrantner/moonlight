@@ -414,7 +414,7 @@ pub(crate) struct RunArgs {
         long = "redact-json-path",
         value_name = "PATH",
         help_heading = "Redaction",
-        help = "Exact JSON diff path to redact"
+        help = "Exact JSON body path to redact from stored previews and diffs"
     )]
     pub(crate) redact_json_paths: Vec<String>,
 
@@ -422,7 +422,7 @@ pub(crate) struct RunArgs {
         long = "redact-json-path-pattern",
         value_name = "PATTERN",
         help_heading = "Redaction",
-        help = "JSON diff path pattern to redact; supports * and [*]"
+        help = "JSON body path pattern to redact from stored previews and diffs; supports * and [*]"
     )]
     pub(crate) redact_json_path_patterns: Vec<String>,
 

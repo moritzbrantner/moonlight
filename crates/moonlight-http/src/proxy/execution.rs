@@ -15,7 +15,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use futures::future::{join3, BoxFuture};
 use moonlight_core::{
-    compare::{capture_body_with_redactions, capture_headers, CompareConfig},
+    compare::{capture_body_with_redaction_patterns, capture_headers, CompareConfig},
     config::{AppConfig, ResponseTiming, ReturnFallback, ReturnTarget},
     run::{build_comparison_run, CapturedTargets, RunMetadata},
     target::CapturedTarget,
@@ -60,10 +60,11 @@ pub async fn proxy_handler(
             query,
         },
         request_headers: capture_headers(&headers, &state.config.redact_headers),
-        request_body: capture_body_with_redactions(
+        request_body: capture_body_with_redaction_patterns(
             &body,
             state.config.max_body_capture_bytes,
             &state.config.redact_json_paths,
+            &state.config.redact_json_path_patterns,
         ),
     };
     let target_request = TargetRequest {

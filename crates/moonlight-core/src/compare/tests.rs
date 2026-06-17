@@ -285,6 +285,43 @@ fn capture_body_redacts_json_preview_but_keeps_original_hash_and_size() {
 }
 
 #[test]
+fn capture_body_redacts_array_pattern_matches_from_json_preview() {
+    let body = br#"{"items":[{"secret":"a"},{"secret":"b","visible":true}]}"#;
+    let capture =
+        capture_body_with_redaction_patterns(body, 1024, &[], &["$.items[*].secret".into()]);
+
+    assert!(capture.preview.contains(r#""secret":"[redacted]""#));
+    assert!(!capture.preview.contains(r#""secret":"a""#));
+    assert!(!capture.preview.contains(r#""secret":"b""#));
+    assert!(capture.preview.contains(r#""visible":true"#));
+    assert_eq!(
+        capture.sha256,
+        capture_body(body, 1024).sha256,
+        "hash should stay tied to original body bytes"
+    );
+}
+
+#[test]
+fn capture_body_redacts_object_pattern_matches_from_json_preview() {
+    let body = br#"{"metadata":{"token":"secret","trace":"abc"},"value":1}"#;
+    let capture = capture_body_with_redaction_patterns(body, 1024, &[], &["$.metadata.*".into()]);
+
+    assert!(capture.preview.contains(r#""metadata""#));
+    assert!(!capture.preview.contains("secret"));
+    assert!(!capture.preview.contains("abc"));
+    assert!(capture.preview.contains(r#""value":1"#));
+}
+
+#[test]
+fn capture_body_treats_exact_redaction_paths_as_exact() {
+    let body = br#"{"metadata":{"token":"secret","trace":"abc"},"value":1}"#;
+    let capture = capture_body_with_redactions(body, 1024, &["$.metadata.*".into()]);
+
+    assert!(capture.preview.contains("secret"));
+    assert!(capture.preview.contains("abc"));
+}
+
+#[test]
 fn non_json_body_redaction_is_unchanged() {
     let body = b"token=secret";
     let capture = capture_body_with_redactions(body, 1024, &["$.token".into()]);

@@ -9,7 +9,9 @@ use axum::{
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use moonlight_core::{
-    compare::{capture_body, capture_body_with_redactions, capture_headers, is_hop_by_hop_header},
+    compare::{
+        capture_body, capture_body_with_redaction_patterns, capture_headers, is_hop_by_hop_header,
+    },
     config::{ReturnFallback, ReturnTarget},
     target::CapturedTarget,
     TargetObservation,
@@ -185,10 +187,11 @@ async fn capture_response(
             observation: TargetObservation {
                 status: Some(status),
                 headers,
-                body: capture_body_with_redactions(
+                body: capture_body_with_redaction_patterns(
                     &body_bytes,
                     state.config.max_body_capture_bytes,
                     &state.config.redact_json_paths,
+                    &state.config.redact_json_path_patterns,
                 ),
                 stderr: None,
                 latency_ms: started.elapsed().as_millis(),

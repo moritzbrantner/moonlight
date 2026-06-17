@@ -27,8 +27,9 @@ Sensitive headers are redacted by default:
 - `x-csrf-token`
 
 Large bodies are captured as a SHA-256 hash plus a preview. Configure
-`[comparison].redact_json_paths` in `moonlight.conf` or pass
-`--redact-json-path` to redact exact JSON body paths from stored previews and
+`[comparison].redact_json_paths` or `[comparison].redact_json_path_patterns` in
+`moonlight.conf`, or pass `--redact-json-path` or
+`--redact-json-path-pattern`, to redact JSON body paths from stored previews and
 diff values. Hashes still represent the original body bytes, and non-JSON
 bodies are not rewritten by JSON path redaction.
 
@@ -582,8 +583,10 @@ The exposed config also includes:
 - `max_request_body_bytes`
 - `redact_headers`
 - `redact_json_paths`
+- `redact_json_path_patterns`
 - `redact_query_params`
 - `ignore_json_paths`
+- `ignore_json_path_patterns`
 - `ignore_headers`
 - `ignore_stderr`
 - `cors_origins`

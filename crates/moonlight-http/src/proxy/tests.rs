@@ -5,7 +5,7 @@ use super::test_support::{
 use axum::http::{header, HeaderValue, StatusCode};
 use moonlight_core::{
     config::{ResponseTiming, ReturnFallback, ReturnTarget},
-    Classification, MetricsSnapshot, RunInput, RunPage,
+    Classification, ComparisonRun, MetricsSnapshot, RunInput, RunPage,
 };
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
@@ -451,4 +451,42 @@ async fn query_param_redaction_stores_redacted_query_but_forwards_original() {
         RunInput::Http { ref query, .. }
             if query.as_deref() == Some("token=[redacted]&safe=visible")
     ));
+}
+
+#[tokio::test]
+async fn json_path_pattern_redaction_applies_to_stored_previews() {
+    let primary = spawn_target(r#"{"items":[{"secret":"primary","visible":true}]}"#).await;
+    let candidate = spawn_target(r#"{"items":[{"secret":"candidate","visible":true}]}"#).await;
+    let dir = tempdir().unwrap();
+    let mut config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    config
+        .redact_json_path_patterns
+        .push("$.items[*].secret".to_string());
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    client
+        .post(format!("http://{proxy_addr}/anything"))
+        .body(r#"{"items":[{"secret":"request","visible":true}]}"#)
+        .send()
+        .await
+        .unwrap();
+    let run = wait_for_run(&client, proxy_addr).await;
+    let run: ComparisonRun = client
+        .get(format!("http://{proxy_addr}/api/runs/{}", run.id))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert!(!run.request_body.preview.contains("request"));
+    assert!(!run.primary.body.preview.contains("primary"));
+    assert!(!run.candidate.body.preview.contains("candidate"));
+    assert!(run
+        .request_body
+        .preview
+        .contains(r#""secret":"[redacted]""#));
+    assert!(run.primary.body.preview.contains(r#""visible":true"#));
 }

@@ -1,11 +1,13 @@
 mod capture;
 mod diff;
+mod json_path;
 
 use crate::{target::CapturedTarget, Classification, ComparisonSummary, DiffEntry};
 use std::collections::HashSet;
 
 pub use capture::{
-    capture_body, capture_body_with_redactions, capture_headers, is_hop_by_hop_header,
+    capture_body, capture_body_with_redaction_patterns, capture_body_with_redactions,
+    capture_headers, is_hop_by_hop_header,
 };
 
 #[derive(Debug, Clone)]
