@@ -7,7 +7,7 @@ homepage.workspace = true
 include = ["src/**", "Cargo.toml", "../../README.md", "../../LICENSE"]
 keywords = ["http", "proxy", "testing", "diff", "comparison"]
 license.workspace = true
-publish = false
+publish = true
 readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
@@ -21,7 +21,7 @@ chrono.workspace = true
 clap.workspace = true
 futures.workspace = true
 http.workspace = true
-moonlight-core = { path = "../moonlight-core" }
+moonlight-core = { version = "0.1.2", path = "../moonlight-core" }
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
