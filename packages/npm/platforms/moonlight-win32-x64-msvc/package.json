@@ -1,6 +1,6 @@
 {
   "name": "@moritzbrantner/moonlight-win32-x64-msvc",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Native Moonlight CLI binary for Windows x64 MSVC.",
   "license": "MIT",

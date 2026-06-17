@@ -1,6 +1,6 @@
 {
   "name": "@moritzbrantner/moonlight-darwin-x64",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Native Moonlight CLI binary for macOS x64.",
   "license": "MIT",
