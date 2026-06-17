@@ -1,8 +1,7 @@
 use crate::types::{CommandForm, TargetCommand};
 use bytes::Bytes;
 use moonlight_core::{
-    compare::{capture_body, CapturedTarget},
-    BodyCapture, TargetObservation,
+    compare::capture_body, target::CapturedTarget, BodyCapture, TargetObservation,
 };
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, process::Stdio, time::Instant};

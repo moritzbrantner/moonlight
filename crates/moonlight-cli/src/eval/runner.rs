@@ -18,7 +18,8 @@ use anyhow::bail;
 use chrono::Utc;
 use futures::{stream, StreamExt};
 use moonlight_core::{
-    compare::{capture_body, compare_targets},
+    compare::capture_body,
+    run::{build_comparison_run, CapturedTargets, RunMetadata},
     storage::RunWriter,
     Adapter, ComparisonRun, RunInput,
 };
@@ -185,11 +186,10 @@ async fn execute_check(
     } else {
         compare_config
     };
-    let comparison = compare_targets(&primary, &candidate, None, &compare_config);
     let check_id = check.config.id;
     let check_name = check.config.name;
 
-    Ok(ComparisonRun {
+    let metadata = RunMetadata {
         id: Uuid::new_v4(),
         timestamp: Utc::now(),
         adapter: Adapter::Project,
@@ -207,11 +207,14 @@ async fn execute_check(
         },
         request_headers: BTreeMap::new(),
         request_body: capture_body(&[], max_body_capture_bytes),
-        primary: primary.observation,
-        candidate: candidate.observation,
+    };
+    let targets = CapturedTargets {
+        primary,
+        candidate,
         secondary: None,
-        comparison,
-    })
+    };
+
+    Ok(build_comparison_run(metadata, targets, &compare_config))
 }
 
 fn target_command(check: &CheckConfig, worktree: &Path) -> TargetCommand {

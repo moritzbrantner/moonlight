@@ -1,16 +1,8 @@
-use crate::{DiffEntry, DiffKind, TargetObservation};
-use bytes::Bytes;
+use crate::{target::CapturedTarget, DiffEntry, DiffKind};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
 use super::CompareConfig;
-
-#[derive(Debug, Clone)]
-pub struct CapturedTarget {
-    pub observation: TargetObservation,
-    pub body_bytes: Bytes,
-    pub stderr_bytes: Bytes,
-}
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum TargetRole {

@@ -1,10 +1,11 @@
 use crate::{
     command::run_command,
-    types::{CapturedTargets, Case, PreparedCase, TargetCommand},
+    types::{Case, PreparedCase, TargetCommand},
 };
 use chrono::Utc;
 use moonlight_core::{
-    compare::{capture_body, compare_targets},
+    compare::capture_body,
+    run::{build_comparison_run, CapturedTargets, RunMetadata},
     Adapter, ComparisonRun, RunInput,
 };
 use std::collections::BTreeMap;
@@ -16,14 +17,7 @@ pub(crate) async fn execute_case(prepared: PreparedCase, serial_targets: bool) -
         compare_config,
     } = prepared;
     let targets = run_targets(&case, serial_targets).await;
-    let comparison = compare_targets(
-        &targets.primary,
-        &targets.candidate,
-        targets.secondary.as_ref(),
-        &compare_config,
-    );
-
-    ComparisonRun {
+    let metadata = RunMetadata {
         id: Uuid::new_v4(),
         timestamp: Utc::now(),
         adapter: Adapter::Cli,
@@ -34,11 +28,9 @@ pub(crate) async fn execute_case(prepared: PreparedCase, serial_targets: bool) -
         },
         request_headers: BTreeMap::new(),
         request_body: capture_body(&[], case.max_body_capture_bytes),
-        primary: targets.primary.observation,
-        candidate: targets.candidate.observation,
-        secondary: targets.secondary.map(|target| target.observation),
-        comparison,
-    }
+    };
+
+    build_comparison_run(metadata, targets, &compare_config)
 }
 
 async fn run_targets(case: &Case, serial_targets: bool) -> CapturedTargets {

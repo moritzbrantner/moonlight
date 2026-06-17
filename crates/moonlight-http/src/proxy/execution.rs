@@ -3,7 +3,7 @@ use super::{
         forward_target, join_optional_target, join_required_target, optional_forward_target,
         response_from_target, selected_response,
     },
-    RunMetadata, TargetRequest,
+    TargetRequest,
 };
 use crate::AppState;
 use axum::{
@@ -15,11 +15,10 @@ use bytes::Bytes;
 use chrono::Utc;
 use futures::future::{join3, BoxFuture};
 use moonlight_core::{
-    compare::{
-        capture_body_with_redactions, capture_headers, compare_targets, CapturedTarget,
-        CompareConfig,
-    },
+    compare::{capture_body_with_redactions, capture_headers, CompareConfig},
     config::{AppConfig, ResponseTiming, ReturnFallback, ReturnTarget},
+    run::{build_comparison_run, CapturedTargets, RunMetadata},
+    target::CapturedTarget,
     Adapter, ComparisonRun, RunInput,
 };
 use std::sync::Arc;
@@ -40,6 +39,8 @@ pub async fn proxy_handler(
 
     let id = Uuid::new_v4();
     let timestamp = Utc::now();
+    let method_label = method.to_string();
+    let path_label = uri.path().to_string();
     let path = uri.path().to_string();
     let query = uri
         .query()
@@ -52,9 +53,12 @@ pub async fn proxy_handler(
     let metadata = RunMetadata {
         id,
         timestamp,
-        method: method.to_string(),
-        path,
-        query,
+        adapter: Adapter::Http,
+        input: RunInput::Http {
+            method: method_label.clone(),
+            path,
+            query,
+        },
         request_headers: capture_headers(&headers, &state.config.redact_headers),
         request_body: capture_body_with_redactions(
             &body,
@@ -72,8 +76,8 @@ pub async fn proxy_handler(
     let span = tracing::info_span!(
         "moonlight_proxy_run",
         run_id = %id,
-        method = %metadata.method,
-        path = %metadata.path,
+        method = %method_label,
+        path = %path_label,
         return_target = ?state.config.return_target,
         response_timing = ?state.config.response_timing,
     );
@@ -122,13 +126,7 @@ async fn proxy_wait_all(
     let (primary, candidate, secondary) = join3(primary, candidate, secondary).await;
     let response = selected_response(&state, &primary, &candidate);
     let id = metadata.id;
-    let run = build_run(
-        metadata,
-        &primary,
-        &candidate,
-        secondary.as_ref(),
-        &state.config,
-    );
+    let run = build_run(metadata, primary, candidate, secondary, &state.config);
 
     persist_run(state, id, run).await;
 
@@ -218,13 +216,7 @@ async fn persist_run_with_targets(
 ) {
     let secondary = join_optional_target(secondary, "secondary").await;
     let id = metadata.id;
-    let run = build_run(
-        metadata,
-        &primary,
-        &candidate,
-        secondary.as_ref(),
-        &state.config,
-    );
+    let run = build_run(metadata, primary, candidate, secondary, &state.config);
 
     persist_run(state, id, run).await;
 }
@@ -265,9 +257,9 @@ async fn persist_run(state: Arc<AppState>, id: Uuid, run: ComparisonRun) {
 
 fn build_run(
     metadata: RunMetadata,
-    primary: &CapturedTarget,
-    candidate: &CapturedTarget,
-    secondary: Option<&CapturedTarget>,
+    primary: CapturedTarget,
+    candidate: CapturedTarget,
+    secondary: Option<CapturedTarget>,
     config: &AppConfig,
 ) -> ComparisonRun {
     let compare_config = CompareConfig::new_with_patterns(
@@ -278,24 +270,15 @@ fn build_run(
         &config.ignore_headers,
         config.ignore_stderr,
     );
-    let comparison = compare_targets(primary, candidate, secondary, &compare_config);
-
-    ComparisonRun {
-        id: metadata.id,
-        timestamp: metadata.timestamp,
-        adapter: Adapter::Http,
-        input: RunInput::Http {
-            method: metadata.method,
-            path: metadata.path,
-            query: metadata.query,
+    build_comparison_run(
+        metadata,
+        CapturedTargets {
+            primary,
+            candidate,
+            secondary,
         },
-        request_headers: metadata.request_headers,
-        request_body: metadata.request_body,
-        primary: primary.observation.clone(),
-        candidate: candidate.observation.clone(),
-        secondary: secondary.map(|target| target.observation.clone()),
-        comparison,
-    }
+        &compare_config,
+    )
 }
 
 fn redact_query(query: &str, redact_query_params: &[String]) -> String {

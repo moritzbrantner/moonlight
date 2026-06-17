@@ -1,7 +1,7 @@
 use crate::eval_config::CheckConfig;
 use anyhow::Context;
 use bytes::Bytes;
-use moonlight_core::compare::{capture_body, CapturedTarget};
+use moonlight_core::{compare::capture_body, target::CapturedTarget};
 use regex::Regex;
 
 pub(super) struct PreparedEvalCheck {

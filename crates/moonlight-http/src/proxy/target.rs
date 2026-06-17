@@ -9,11 +9,9 @@ use axum::{
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use moonlight_core::{
-    compare::{
-        capture_body, capture_body_with_redactions, capture_headers, is_hop_by_hop_header,
-        CapturedTarget,
-    },
+    compare::{capture_body, capture_body_with_redactions, capture_headers, is_hop_by_hop_header},
     config::{ReturnFallback, ReturnTarget},
+    target::CapturedTarget,
     TargetObservation,
 };
 use std::{collections::BTreeMap, sync::Arc, time::Instant};

@@ -1,5 +1,5 @@
 use crate::config::CliDefaults;
-use moonlight_core::{compare::CapturedTarget, Classification};
+use moonlight_core::Classification;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
@@ -100,13 +100,6 @@ pub(crate) struct BatchCase {
     pub(crate) ignore_stderr: bool,
     #[serde(default)]
     pub(crate) target_timeout_ms: Option<u64>,
-}
-
-#[derive(Debug)]
-pub(crate) struct CapturedTargets {
-    pub(crate) primary: CapturedTarget,
-    pub(crate) candidate: CapturedTarget,
-    pub(crate) secondary: Option<CapturedTarget>,
 }
 
 #[derive(Debug, Default, Serialize)]

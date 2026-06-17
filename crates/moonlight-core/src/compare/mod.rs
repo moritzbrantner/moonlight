@@ -1,13 +1,12 @@
 mod capture;
 mod diff;
 
-use crate::{Classification, ComparisonSummary, DiffEntry};
+use crate::{target::CapturedTarget, Classification, ComparisonSummary, DiffEntry};
 use std::collections::HashSet;
 
 pub use capture::{
     capture_body, capture_body_with_redactions, capture_headers, is_hop_by_hop_header,
 };
-pub use diff::CapturedTarget;
 
 #[derive(Debug, Clone)]
 pub struct CompareConfig {

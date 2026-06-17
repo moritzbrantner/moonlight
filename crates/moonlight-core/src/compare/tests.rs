@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Classification, DiffKind, TargetObservation};
+use crate::{target::CapturedTarget, Classification, DiffKind, TargetObservation};
 use bytes::Bytes;
 use std::collections::BTreeMap;
 
