@@ -11,8 +11,8 @@
     "url": "git+https://github.com/moritzbrantner/moonlight.git"
   },
   "bin": {
-    "moonlight": "./bin/moonlight.js",
-    "moonlight-cli": "./bin/moonlight.js"
+    "moonlight": "bin/moonlight.js",
+    "moonlight-cli": "bin/moonlight.js"
   },
   "files": [
     "bin",

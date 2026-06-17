@@ -7,6 +7,7 @@
     "packages/npm/platforms/*"
   ],
   "scripts": {
+    "prepack": "echo 'This repository root is not publishable. Publish packages/npm/moonlight or packages/npm/platforms/* instead.' >&2; exit 1",
     "dev": "cd apps/moonlight-ui && bun run dev",
     "build": "cd apps/moonlight-ui && bun run build",
     "typegen": "bun scripts/generate-ui-api-types.mjs",
