@@ -153,10 +153,7 @@ fn git_checked(_repo: &Path, command: &mut Command) -> anyhow::Result<()> {
     if output.status.success() {
         Ok(())
     } else {
-        bail!(
-            "{}",
-            String::from_utf8_lossy(&output.stderr).trim().to_string()
-        );
+        bail!("{}", String::from_utf8_lossy(&output.stderr).trim());
     }
 }
 

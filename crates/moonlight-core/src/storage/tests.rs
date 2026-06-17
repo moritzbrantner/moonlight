@@ -559,3 +559,31 @@ async fn retention_rewrite_replaces_file_atomically() {
     assert!(lines.contains("run-3"));
     assert!(!lines.contains("run-2"));
 }
+
+#[tokio::test]
+async fn retention_skip_rewrite_when_active_runs_are_already_within_limits() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("http-runs.jsonl");
+    write_runs(
+        &path,
+        &[
+            run("first", 1, Classification::Match, false),
+            run("second", 2, Classification::Match, false),
+        ],
+    );
+    let before = std::fs::read_to_string(&path).unwrap();
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(10),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    storage.apply_retention().await.unwrap();
+
+    let after = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(after, before);
+}
