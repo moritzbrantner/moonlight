@@ -13,6 +13,16 @@ checks are green, or stop only with a concrete blocker report.
 4. Any ADR touching the area being changed
 5. Relevant tests near the target behavior
 
+## Landscape boundaries
+
+- Moonlight owns baseline/candidate comparison and evaluator-specific records.
+- Cross-repository evaluation results belong to `agent-contracts`; do not make Moonlight-native structs the orchestrator contract.
+- Evidence producers such as `runtime-profiler` own capture and normalization. Consume them through adapters; do not move collection logic into Moonlight.
+- `coding-tooling` owns deterministic repository capability discovery and execution semantics.
+- `coding-agent-conventions` owns policy about when evaluation is required and what evidence is sufficient.
+- `agent-loop-orchestrator` owns candidate identity, scheduling, durable run state, and decisions.
+- A producer-specific adapter must retain source evidence references in the neutral evaluation result rather than copying the producer's entire payload into orchestration state.
+
 ## Work Loop
 
 1. Restate the goal and acceptance criteria.
@@ -58,6 +68,7 @@ An agent is done only when:
 - behavior tests exist or were deliberately deemed unnecessary
 - `bun run agent:check` passes
 - Moonlight eval passes when applicable
+- cross-repository output remains compatible with the `agent-contracts` version it claims to emit
 - PR description includes verification evidence
 
 ## Blocker Report
