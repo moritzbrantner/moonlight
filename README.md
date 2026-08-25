@@ -1,35 +1,36 @@
 # Moonlight
 
-Moonlight is a Rust and React behavior comparer plus project-check evaluator for validating new implementations against known-good baselines.
+Moonlight is a Rust and React behavior comparer plus project-check evaluator for validating new implementations against known-good baselines. It is independently usable from the CLI and does not require an orchestrator.
 
 ## Landscape role
 
 Moonlight is an evaluator, not an orchestrator or evidence collector:
 
-- **agent-contracts** defines the neutral cross-repository evaluation result and evidence-reference contracts. Moonlight's landscape-facing target is `agent.evaluation-result/v1`; Moonlight-native run records remain internal.
+- **agent-contracts** defines the neutral cross-repository evaluation result and evidence-reference contracts when Moonlight exchanges results with another ecosystem component. Moonlight's landscape-facing target is `agent.evaluation-result/v1`; Moonlight-native run records remain internal.
 - **coding-tooling** discovers and runs deterministic project checks. Moonlight may evaluate their baseline/candidate outcomes but does not own repository capability discovery.
-- **runtime-profiler** produces immutable runtime evidence. Direct profiler-bundle comparison is intentionally a later adapter; the neutral `agent.evidence/v1` and `agent.evaluation-result/v1` boundaries come first.
+- **runtime-profiler** produces immutable runtime evidence. Direct profiler-bundle comparison is intentionally a later adapter; the neutral `agent.evidence/v1` and `agent.evaluation-result/v1` boundaries come first when cross-component interchange is needed.
 - **coding-agent-conventions** owns policy about when evaluation is required, acceptable thresholds, and how agents should react to evidence.
-- **agent-loop-orchestrator** owns scheduling, candidate identity, durable run state, and the decision to request/store a Moonlight evaluation.
-- **agent-loop-setup** owns reusable worker procedures and installation composition; it should call Moonlight through stable evaluator interfaces rather than embed Moonlight semantics.
+- **agent-loop-orchestrator**, when orchestrated mode is selected, may own scheduling, candidate identity, durable run state, and the decision to request/store a Moonlight evaluation.
+- **agent-loop-setup** owns reusable worker procedures and installation composition; its procedures may invoke Moonlight directly or through a coordinating runtime without embedding Moonlight semantics.
 
-The intended landscape flow is:
+The core flow is deliberately independent:
 
 ```text
-candidate + baseline + referenced evidence
+candidate + baseline + optional evidence
                   |
                   v
               Moonlight
                   |
                   +--> Moonlight-native comparison records
                   |
-                  +--> agent.evaluation-result/v1
+                  +--> optional agent.evaluation-result/v1
                                |
-                               v
-                    agent-loop-orchestrator
+                               +--> orchestrator or another consumer
 ```
 
-Moonlight must keep producer-specific adapters at its edge. Adding support for a runtime-profiler bundle must not make runtime-profiler's internal schema the shared orchestration contract.
+A developer, coding agent, CI job, or lightweight loop may invoke Moonlight directly. An orchestrator is one possible consumer of the neutral result, not a prerequisite for producing an evaluation.
+
+Moonlight must keep producer-specific adapters at its edge. Adding support for a runtime-profiler bundle must not make runtime-profiler's internal schema the shared interchange contract.
 
 ## Install
 
