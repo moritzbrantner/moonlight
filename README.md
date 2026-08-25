@@ -10,7 +10,7 @@ Moonlight is an evaluator, not an orchestrator or evidence collector:
 - **coding-tooling** discovers and runs deterministic project checks. Moonlight may evaluate their baseline/candidate outcomes but does not own repository capability discovery.
 - **runtime-profiler** produces immutable runtime evidence. Direct profiler-bundle comparison is intentionally a later adapter; the neutral `agent.evidence/v1` and `agent.evaluation-result/v1` boundaries come first when cross-component interchange is needed.
 - **coding-agent-conventions** owns policy about when evaluation is required, acceptable thresholds, and how agents should react to evidence.
-- **agent-loop-orchestrator**, when orchestrated mode is selected, may own scheduling, candidate identity, durable run state, and the decision to request/store a Moonlight evaluation.
+- **agent-loop-orchestrator**, when orchestrated mode is selected, owns scheduling and durable run state for that mode, the candidate identity used by the coordinated run, and the decision to request/store a Moonlight evaluation. Outside orchestrated mode these responsibilities remain with the direct caller or other coordinating environment rather than moving into Moonlight.
 - **agent-loop-setup** owns reusable worker procedures and installation composition; its procedures may invoke Moonlight directly or through a coordinating runtime without embedding Moonlight semantics.
 
 The core flow is deliberately independent:
