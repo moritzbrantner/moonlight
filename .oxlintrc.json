@@ -6,6 +6,17 @@
   },
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
+    "eslint/no-shadow": "off",
+    "react/jsx-uses-react": "off",
+    "react/react-in-jsx-scope": "off",
     "react/rules-of-hooks": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+      "rules": {
+        "eslint/no-unused-vars": "warn"
+      }
+    }
+  ]
 }
