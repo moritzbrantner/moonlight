@@ -1,0 +1,9 @@
+schema_version = 1
+id = "moritzbrantner/moonlight"
+kind = "infrastructure"
+status = "active"
+summary = "Evidence evaluator for baseline/candidate comparisons in the coding-agent landscape."
+depends_on = ["moritzbrantner/agent-contracts", "moritzbrantner/runtime-profiler", "moritzbrantner/coding-tooling"]
+consumed_by = ["moritzbrantner/agent-loop-orchestrator"]
+supersedes = []
+replaced_by = []

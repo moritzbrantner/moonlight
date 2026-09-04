@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "source": "https://github.com/moritzbrantner/agent-contracts",
+  "revision": "1cd35af9cdaf8f5ef58715132f087ae6712be9f9",
+  "files": [
+    {
+      "sourcePath": "schemas/evidence/v1.schema.json",
+      "localPath": "contracts/agent-contracts/evidence-v1.schema.json",
+      "sha256": "bd5ebac98d98e03656d07a28f079e1544e3f37ba7bf8756935ad997e73485e92"
+    },
+    {
+      "sourcePath": "schemas/evaluation/result-v1.schema.json",
+      "localPath": "contracts/agent-contracts/evaluation-result-v1.schema.json",
+      "sha256": "e3a2d2499f5741ebd6ffc4b450b1436a94148598458200aaa754d3d8b5515cd6"
+    }
+  ]
+}
