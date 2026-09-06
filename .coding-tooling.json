@@ -4,5 +4,13 @@
   "tiers": {
     "fast": ["lint", "typecheck", "build", "test:unit"]
   },
-  "requiredCapabilities": ["lint", "typecheck", "build", "test:unit"]
+  "requiredCapabilities": ["lint", "typecheck", "build", "test:unit"],
+  "merge": {
+    "authority": "hosted",
+    "requiredChecks": [
+      "Lint, build, and test / Fast Validation",
+      "Benchmark / Performance Validation",
+      "Dependency security policy"
+    ]
+  }
 }
