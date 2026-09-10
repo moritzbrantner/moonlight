@@ -57,10 +57,11 @@ jobs:
 
       - name: Ensure benchmark history branch exists
         run: |
-          if ! git ls-remote --exit-code --heads origin cli-benchmark-history >/dev/null 2>&1; then
-            git push origin "$GITHUB_SHA:refs/heads/cli-benchmark-history" || true
+          history_ref="refs/heads/cli-benchmark-history"
+          if ! git ls-remote --exit-code --heads origin "$history_ref" >/dev/null 2>&1; then
+            git push origin "$GITHUB_SHA:$history_ref" || true
           fi
-          git ls-remote --exit-code --heads origin cli-benchmark-history >/dev/null
+          git ls-remote --exit-code --heads origin "$history_ref" >/dev/null
 
       - name: Check out benchmark history branch
         uses: actions/checkout@v6
