@@ -32,29 +32,41 @@ candidate + baseline + referenced evidence
 
 Moonlight must keep producer-specific adapters at its edge. Adding support for a runtime-profiler bundle must not make runtime-profiler's internal schema the shared orchestration contract.
 
+## Rust toolchain
+
+`rust-toolchain.toml` is the canonical development, CI, release, and benchmark toolchain and currently pins Rust **1.98.1**. The workspace `rust-version = "1.87"` remains the MSRV compatibility floor; it is not the repository's development toolchain.
+
+## Command execution
+
+Direct argv execution is the canonical command form for deterministic CLI targets. It avoids shell startup and parsing, is easier to reason about, and is the path Moonlight dogfoods by default.
+
+The legacy shell-string forms (`--primary`, `--candidate`, `--secondary`, batch `primary`/`candidate`/`secondary`, and eval `command`) remain accepted for backward compatibility but are deprecated. Use them only when a target genuinely requires shell semantics such as pipelines, redirects, expansion, or `&&` composition. Moonlight emits a deprecation warning when those shell forms are used.
+
 ## Install
 
 Install the Rust CLI:
 
 ```sh
 cargo install moonlight-cli --locked
-moonlight run --primary 'printf "{\"value\":42}\n"' --candidate 'printf "{\"value\":43}\n"'
+moonlight run \
+  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
+  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
 ```
 
 Run it through npm:
 
 ```sh
 npx @moritzbrantner/moonlight run \
-  --primary 'printf "{\"value\":42}\n"' \
-  --candidate 'printf "{\"value\":43}\n"'
+  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
+  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
 ```
 
 Run it through Bun:
 
 ```sh
 bunx @moritzbrantner/moonlight run \
-  --primary 'printf "{\"value\":42}\n"' \
-  --candidate 'printf "{\"value\":43}\n"'
+  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
+  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
 ```
 
 Evaluate a coding-agent patch against an existing project:
@@ -63,6 +75,8 @@ Evaluate a coding-agent patch against an existing project:
 git diff --binary main > agent.patch
 moonlight eval run --project moonlight.eval.toml --candidate-patch agent.patch --format markdown
 ```
+
+Inside `moonlight.eval.toml`, prefer `argv = ["program", "arg", ...]` for checks. Retain `command = "..."` only for checks that actually need shell syntax.
 
 ## Agent Workflow
 
