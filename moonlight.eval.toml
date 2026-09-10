@@ -13,7 +13,7 @@ max_body_capture_bytes = 20000
 [[checks]]
 id = "bootstrap"
 name = "Install frontend dependencies"
-command = "bun install --frozen-lockfile"
+argv = ["bun", "install", "--frozen-lockfile"]
 cwd = "."
 timeout_ms = 300000
 ignore_stdout = true
@@ -31,7 +31,7 @@ ignore_stderr = true
 [[checks]]
 id = "rust-clippy"
 name = "Rust clippy"
-command = "cargo clippy --workspace --all-targets -- -D warnings"
+argv = ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
 cwd = "."
 timeout_ms = 900000
 ignore_stdout = true
@@ -40,12 +40,14 @@ ignore_stderr = true
 [[checks]]
 id = "rust-tests"
 name = "Rust workspace tests"
-command = "cargo test --workspace"
+argv = ["cargo", "test", "--workspace"]
 cwd = "."
 timeout_ms = 900000
 ignore_stdout = true
 ignore_stderr = true
 
+# These two checks intentionally retain the deprecated shell form because they
+# compose existing package commands with shell `&&` semantics.
 [[checks]]
 id = "ui-typecheck"
 name = "Generated API types and UI typecheck"
@@ -58,7 +60,7 @@ ignore_stderr = true
 [[checks]]
 id = "ui-tests"
 name = "Vitest UI tests"
-command = "bun run test:run"
+argv = ["bun", "run", "test:run"]
 cwd = "."
 timeout_ms = 600000
 ignore_stdout = true
