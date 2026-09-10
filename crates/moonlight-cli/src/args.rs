@@ -42,7 +42,7 @@ pub(crate) struct ConfigArgs {
 pub(crate) enum CliCommand {
     #[command(
         about = "Run one primary/candidate comparison",
-        after_help = "Examples:\n  moonlight run --primary 'printf \"{\\\"value\\\":42}\\n\"' --candidate 'printf \"{\\\"value\\\":43}\\n\"'\n  moonlight run --primary-argv '[\"printf\",\"%s\\n\",\"{\\\"value\\\":42}\"]' --candidate-argv '[\"printf\",\"%s\\n\",\"{\\\"value\\\":42}\"]' --compact"
+        after_help = "Preferred direct argv example:\n  moonlight run --primary-argv '[\"printf\",\"%s\\n\",\"{\\\"value\\\":42}\"]' --candidate-argv '[\"printf\",\"%s\\n\",\"{\\\"value\\\":42}\"]' --compact\n\nDeprecated shell compatibility:\n  moonlight run --primary 'printf \"{\\\"value\\\":42}\\n\"' --candidate 'printf \"{\\\"value\\\":43}\\n\"'"
     )]
     Run(RunArgs),
     #[command(
@@ -344,7 +344,7 @@ pub(crate) struct RunArgs {
     #[arg(
         long,
         help_heading = "Target Commands",
-        help = "Primary reference shell command run through sh -lc"
+        help = "Deprecated primary reference shell command run through sh -lc; prefer --primary-argv"
     )]
     pub(crate) primary: Option<String>,
 
@@ -352,14 +352,14 @@ pub(crate) struct RunArgs {
         long,
         value_name = "JSON",
         help_heading = "Target Commands",
-        help = "Primary reference argv as a JSON string array, bypassing sh -lc"
+        help = "Preferred primary reference argv as a JSON string array, bypassing sh -lc"
     )]
     pub(crate) primary_argv: Option<String>,
 
     #[arg(
         long,
         help_heading = "Target Commands",
-        help = "Candidate shell command run through sh -lc"
+        help = "Deprecated candidate shell command run through sh -lc; prefer --candidate-argv"
     )]
     pub(crate) candidate: Option<String>,
 
@@ -367,14 +367,14 @@ pub(crate) struct RunArgs {
         long,
         value_name = "JSON",
         help_heading = "Target Commands",
-        help = "Candidate argv as a JSON string array, bypassing sh -lc"
+        help = "Preferred candidate argv as a JSON string array, bypassing sh -lc"
     )]
     pub(crate) candidate_argv: Option<String>,
 
     #[arg(
         long,
         help_heading = "Target Commands",
-        help = "Optional secondary reference shell command run through sh -lc"
+        help = "Deprecated optional secondary reference shell command run through sh -lc; prefer --secondary-argv"
     )]
     pub(crate) secondary: Option<String>,
 
@@ -382,7 +382,7 @@ pub(crate) struct RunArgs {
         long,
         value_name = "JSON",
         help_heading = "Target Commands",
-        help = "Optional secondary reference argv as a JSON string array"
+        help = "Preferred optional secondary reference argv as a JSON string array"
     )]
     pub(crate) secondary_argv: Option<String>,
 
