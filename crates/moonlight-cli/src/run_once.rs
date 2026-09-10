@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 pub(crate) async fn run(args: RunArgs, defaults: &CliDefaults) -> anyhow::Result<()> {
     let targets = merge_targets(&args, &defaults.run.targets)?;
+    warn_deprecated_shell_targets(&targets);
     let mut ignore_json_paths = defaults.ignore_json_paths.clone();
     ignore_json_paths.extend(args.ignore_json_paths);
     let mut ignore_json_path_patterns = defaults.ignore_json_path_patterns.clone();
@@ -95,6 +96,26 @@ pub(crate) async fn run(args: RunArgs, defaults: &CliDefaults) -> anyhow::Result
         }
     }
     Ok(())
+}
+
+fn warn_deprecated_shell_targets(targets: &CliTargetConfig) {
+    let mut roles = Vec::new();
+    if targets.primary.is_some() {
+        roles.push("primary");
+    }
+    if targets.candidate.is_some() {
+        roles.push("candidate");
+    }
+    if targets.secondary.is_some() {
+        roles.push("secondary");
+    }
+
+    if !roles.is_empty() {
+        eprintln!(
+            "warning: shell command execution is deprecated for {}; prefer direct argv command forms and keep shell execution only for targets that require shell syntax",
+            roles.join(", ")
+        );
+    }
 }
 
 fn merge_targets(args: &RunArgs, defaults: &CliTargetConfig) -> anyhow::Result<CliTargetConfig> {

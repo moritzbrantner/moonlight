@@ -4,12 +4,9 @@ Moonlight publishes fresh CLI performance evidence from the default branch witho
 
 ## Measurement model
 
-The `Publish CLI benchmark history` workflow runs after every push to `main` and can also be started manually. It builds `moonlight-cli` in release mode with the pinned Rust 1.96.0 toolchain and runs the full `scripts/moonlight-cli-benchmark.py` suite.
+The `Publish CLI benchmark history` workflow runs after every push to `main` and can also be started manually. It builds `moonlight-cli` in release mode with the canonical toolchain from `rust-toolchain.toml`, currently Rust 1.98.1, and runs the full `scripts/moonlight-cli-benchmark.py` suite.
 
-The benchmark keeps two Moonlight execution paths visible:
-
-- `moonlight-argv` is the preferred path for trusted deterministic commands because it bypasses shell startup and parsing;
-- `moonlight` remains the shell-command compatibility path.
+Direct argv is the canonical deterministic command path. The benchmark deliberately keeps the deprecated shell path beside it as a compatibility comparison so the cost of shell startup and parsing stays visible rather than being folded into the preferred-path number.
 
 The report retains suite, per-case, and per-target p50/p95 measurements for both paths. The history also records the direct-argv latency reduction relative to the shell path; this is descriptive benchmark evidence, not a universal performance guarantee.
 
@@ -22,7 +19,7 @@ Generated evidence is written to the dedicated `cli-benchmark-history` branch:
 
 Each commit appears at most once. Re-running a commit replaces its prior history entry rather than duplicating it. The existing committed June 2026 benchmark is retained as the initial historical anchor, while new exact-head measurements remain off `main`.
 
-The workflow records the benchmark Rust/Cargo versions and source SHA with every snapshot. The benchmark toolchain is pinned so the trend does not silently move merely because the hosted runner's default Rust version changes.
+The workflow records the benchmark Rust/Cargo versions and source SHA with every snapshot. Toolchain upgrades are therefore explicit history boundaries: a point measured with Rust 1.98.1 is not silently presented as if it used the older Rust 1.96.0 environment. Historical observations remain immutable evidence of the environment in which they were measured.
 
 ## Pages
 
@@ -31,7 +28,7 @@ The GitHub Pages overview loads `latest.json` and `history.json` directly from t
 The overview:
 
 - uses direct argv for the headline CLI p95 when it is available;
-- explicitly shows its p95 reduction relative to shell-command execution;
+- explicitly shows its p95 reduction relative to deprecated shell-command execution;
 - plots shell and argv p95 latency through the latest 60 measured commits;
 - links the latest plotted point to its exact Git commit.
 

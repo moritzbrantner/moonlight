@@ -43,27 +43,34 @@ Install with Cargo:
 
 ```sh
 cargo install moonlight-cli --locked
-moonlight run --primary 'printf "{\"value\":42}\n"' --candidate 'printf "{\"value\":43}\n"'
+moonlight run \
+  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
+  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
 ```
 
 Run through npm:
 
 ```sh
 npx @moritzbrantner/moonlight run \
-  --primary 'printf "{\"value\":42}\n"' \
-  --candidate 'printf "{\"value\":43}\n"'
+  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
+  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
 ```
 
 Run through Bun:
 
 ```sh
 bunx @moritzbrantner/moonlight run \
-  --primary 'printf "{\"value\":42}\n"' \
-  --candidate 'printf "{\"value\":43}\n"'
+  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
+  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
 ```
 
 The installed commands are `moonlight` and `moonlight-cli`. They run the same
 CLI; `moonlight-cli` is kept as a compatibility alias.
+
+Direct argv is the canonical form for deterministic CLI targets. The shell-string
+flags remain accepted for backward compatibility but are deprecated; use them
+only when a target genuinely requires shell syntax such as pipelines,
+redirection, expansion, or command composition.
 
 ## Run Locally
 
@@ -149,8 +156,8 @@ Run an installed CLI comparison:
 
 ```sh
 moonlight run \
-  --primary 'printf "{\"value\":42}\n"' \
-  --candidate 'printf "{\"value\":43}\n"'
+  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
+  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
 ```
 
 For contributor builds from this repository, use `cargo run -p moonlight-cli --`
@@ -160,13 +167,13 @@ before the subcommand.
 
 ```sh
 moonlight run \
-  --primary 'printf primary\n' \
-  --candidate 'printf candidate\n' \
+  --primary-argv '["printf","primary\n"]' \
+  --candidate-argv '["printf","candidate\n"]' \
   --serial-targets \
   --quiet
 ```
 
-Trusted deterministic `run` commands can use direct argv flags to avoid shell startup and parsing:
+Direct argv flags are the preferred form because they avoid shell startup and parsing:
 
 ```sh
 moonlight run \
@@ -175,32 +182,34 @@ moonlight run \
   --compact
 ```
 
-For each required target role, provide exactly one shell string flag or argv flag: `--primary` or `--primary-argv`, and `--candidate` or `--candidate-argv`. For the optional secondary target, provide at most one of `--secondary` or `--secondary-argv`. Argv values must be JSON string arrays with a nonblank executable as the first element. Stored CLI run input remains backward compatible by recording the argv command as a shell-escaped display string.
+For each required target role, provide exactly one shell string flag or argv flag: `--primary` or `--primary-argv`, and `--candidate` or `--candidate-argv`. For the optional secondary target, provide at most one of `--secondary` or `--secondary-argv`. Argv values must be JSON string arrays with a nonblank executable as the first element. Stored CLI run input remains backward compatible by recording the argv command as a shell-escaped display string. The shell-string alternatives are deprecated compatibility forms and emit a warning.
 
 For trycmd-like command suites, use `batch` so many cases run inside one
 `moonlight` process with bounded concurrency:
 
 ```sh
 cat > cases.jsonl <<'JSONL'
-{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":42}'"}
-{"primary":"printf '%s\n' '{\"value\":42}'","candidate":"printf '%s\n' '{\"value\":43}'"}
+{"primary_argv":["printf","%s\n","{\"value\":42}"],"candidate_argv":["printf","%s\n","{\"value\":42}"]}
+{"primary_argv":["printf","%s\n","{\"value\":42}"],"candidate_argv":["printf","%s\n","{\"value\":43}"]}
 JSONL
 
 moonlight batch --input cases.jsonl --jobs 8
 ```
 
-Each JSONL case accepts `primary`, `candidate`, optional `secondary`, optional
-`max_body_capture_bytes`, optional `ignore_json_paths`, optional
-`ignore_headers`, and optional `ignore_stderr`. Shell string commands remain
-the default and run through `sh -lc`.
+Each JSONL case accepts preferred `primary_argv`, `candidate_argv`, optional
+`secondary_argv`, optional `max_body_capture_bytes`, optional
+`ignore_json_paths`, optional `ignore_headers`, and optional `ignore_stderr`.
+The legacy `primary`, `candidate`, and `secondary` shell-string fields remain
+accepted for compatibility, run through `sh -lc`, emit a deprecation warning,
+and should be reserved for cases that require shell syntax.
 
-Trusted deterministic batch fixtures can use direct argv fields to avoid shell startup and parsing:
+Direct argv batch fixtures avoid shell startup and parsing:
 
 ```json
 {"primary_argv":["printf","%s\n","{\"value\":42}"],"candidate_argv":["printf","%s\n","{\"value\":42}"]}
 ```
 
-For each target role, provide exactly one form: `primary` or `primary_argv`, `candidate` or `candidate_argv`, and optionally `secondary` or `secondary_argv`. Argv arrays must be non-empty and start with a nonblank executable. Stored CLI run input remains backward compatible by recording a display string for argv commands.
+For each target role, provide exactly one form: `primary_argv` or deprecated `primary`, `candidate_argv` or deprecated `candidate`, and optionally `secondary_argv` or deprecated `secondary`. Argv arrays must be non-empty and start with a nonblank executable. Stored CLI run input remains backward compatible by recording a display string for argv commands.
 
 Use `--input -` to read cases from stdin, `--quiet` to suppress the summary, or
 `--emit-runs` to print compact JSONL run records as cases complete. For
@@ -328,7 +337,7 @@ Moonlight can evaluate a coding-agent patch against an existing Git project by
 creating isolated local worktrees, running the same checks against the baseline
 and candidate, and storing one project comparison run per check.
 
-Create `moonlight.eval.toml` in the project you want to evaluate:
+Create `moonlight.eval.toml` in the project you want to evaluate. `argv` is the canonical check form; deprecated `command` remains available only for checks that require shell syntax:
 
 ```toml
 [project]
@@ -345,7 +354,7 @@ max_body_capture_bytes = 20000
 
 [[checks]]
 id = "test"
-command = "cargo test --workspace"
+argv = ["cargo", "test", "--workspace"]
 cwd = "."
 timeout_ms = 600000
 
@@ -374,11 +383,12 @@ reference noise, exits `1` when a check shows a suspicious difference or target
 error, and exits `2` for setup failures such as invalid config, git worktree
 errors, or a patch that does not apply.
 
-Each `[[checks]]` entry accepts exactly one of `command` or `argv`, plus
-optional `cwd`, `env`, `timeout_ms`, `ignore_stdout`, `ignore_stderr`,
-`normalize_stdout_patterns`, and `normalize_stderr_patterns`. Normalization
-patterns are Rust regular expressions replaced with `<normalized>` before
-output comparison and storage.
+Each `[[checks]]` entry accepts exactly one of preferred `argv` or deprecated
+`command`, plus optional `cwd`, `env`, `timeout_ms`, `ignore_stdout`,
+`ignore_stderr`, `normalize_stdout_patterns`, and `normalize_stderr_patterns`.
+Use `command` only when shell syntax is required; Moonlight emits a deprecation
+warning for that form. Normalization patterns are Rust regular expressions
+replaced with `<normalized>` before output comparison and storage.
 
 By default, eval worktrees are removed after successful runs and kept after
 failed runs for debugging. Use `--keep-worktrees never`, `failed`, or `always`
@@ -418,8 +428,8 @@ The scenario runner builds the release CLI binary, invokes deterministic local c
 
 The report also includes a tool comparison table for simple command-output checks:
 
-- `moonlight`, measured through `moonlight batch` with primary/candidate command cases.
-- `moonlight-argv`, measured through `moonlight batch` with direct argv primary/candidate cases.
+- `moonlight-argv`, the canonical Moonlight path, measured through `moonlight batch` with direct argv primary/candidate cases.
+- `moonlight`, the deprecated shell compatibility path, measured through `moonlight batch` with primary/candidate shell command cases.
 - `trycmd`, measured through a generated throwaway Cargo test harness.
 - `insta`, measured through a generated throwaway Cargo test harness with inline snapshots.
 - `cram`, measured when a `cram` executable is available on `PATH`; otherwise it is reported as skipped.
@@ -527,8 +537,8 @@ redact_json_paths = ["$.token"]
 redact_query_params = ["token"]
 
 [cli.run]
-primary = "printf '{\"value\":42}\n'"
-candidate = "printf '{\"value\":43}\n'"
+primary_argv = ["printf", "%s\n", "{\"value\":42}"]
+candidate_argv = ["printf", "%s\n", "{\"value\":43}"]
 quiet = false
 compact = false
 serial_targets = false
@@ -608,7 +618,7 @@ The exposed config also includes:
 - Ignored JSON paths and ignored headers.
 - Noise filtering using primary-secondary differences and candidate-must-match-reference semantics.
 - React dashboard, run list, detail view, diff viewer, and config panel.
-- CLI command comparison through `moonlight`.
+- CLI command comparison through `moonlight`, with direct argv as the canonical command form and deprecated shell compatibility for shell-dependent targets.
 - Project eval for checking candidate refs or patches against baseline Git worktrees.
 - Rust demo services and sample traffic generator.
 - Optional Docker Compose profile with Diffy A comparing Moonlight against Diffy B and Diffy C.

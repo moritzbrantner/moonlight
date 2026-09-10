@@ -37,10 +37,10 @@ jobs:
       - name: Check release version consistency
         run: bun scripts/release/check-release-version.mjs "$VERSION"
 
-      - name: Install Rust
+      - name: Resolve canonical Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
-          rustup default stable
+          rustc --version
+          cargo --version
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
@@ -67,10 +67,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Rust
+      - name: Resolve canonical Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+          rustc --version
+          cargo --version
 
       - name: Dry-run moonlight-core
         run: cargo publish -p moonlight-core --dry-run --locked
@@ -109,11 +109,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Rust
+      - name: Resolve canonical Rust toolchain and target
         shell: bash
         run: |
-          rustup toolchain install stable --profile minimal --target "${{ matrix.target }}"
-          rustup default stable
+          rustc --version
+          cargo --version
+          rustup target add "${{ matrix.target }}"
 
       - name: Build release binary
         shell: bash
@@ -182,10 +183,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Rust
+      - name: Resolve canonical Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+          rustc --version
+          cargo --version
 
       - name: Resolve release version
         run: |
