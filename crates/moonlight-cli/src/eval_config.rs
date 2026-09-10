@@ -197,6 +197,10 @@ impl RawCheckConfig {
                 if command.trim().is_empty() {
                     bail!("check {} command must not be empty", self.id);
                 }
+                eprintln!(
+                    "warning: eval check {} uses deprecated shell command form `command`; prefer `argv` and keep shell execution only when shell syntax is required",
+                    self.id
+                );
                 CheckCommand::Shell(command)
             }
             (None, Some(argv)) => {
@@ -244,7 +248,7 @@ mod tests {
 
             [[checks]]
             id = "test"
-            command = "cargo test"
+            argv = ["cargo", "test"]
             "#,
         )
         .unwrap();
