@@ -8,12 +8,9 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: moonlight-cli-benchmark-history
-  cancel-in-progress: false
-
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     name: Measure and publish CLI history
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -61,8 +58,9 @@ jobs:
       - name: Ensure benchmark history branch exists
         run: |
           if ! git ls-remote --exit-code --heads origin cli-benchmark-history >/dev/null 2>&1; then
-            git push origin "$GITHUB_SHA:refs/heads/cli-benchmark-history"
+            git push origin "$GITHUB_SHA:refs/heads/cli-benchmark-history" || true
           fi
+          git ls-remote --exit-code --heads origin cli-benchmark-history >/dev/null
 
       - name: Check out benchmark history branch
         uses: actions/checkout@v6
@@ -71,38 +69,64 @@ jobs:
           path: .cli-benchmark-history
           fetch-depth: 1
 
-      - name: Seed the existing committed benchmark snapshot
+      - name: Append and publish benchmark snapshot
         shell: bash
         run: |
+          set -euo pipefail
+
           seed_report="data/moonlight/cli-benchmark-analysis/latest.json"
           seed_commit="$(node -p "require('./${seed_report}').environment.git_sha")"
-          seed_timestamp="$(node -p "require('./${seed_report}').generated_at")"
-          node scripts/append-cli-benchmark-history.mjs \
-            --history .cli-benchmark-history/history.json \
-            --report "$seed_report" \
-            --repository "$GITHUB_REPOSITORY" \
-            --commit "$seed_commit" \
-            --timestamp "$seed_timestamp"
-
-      - name: Append current exact-head benchmark
-        shell: bash
-        run: |
+          if git cat-file -e "${seed_commit}^{commit}" 2>/dev/null; then
+            seed_timestamp="$(git show -s --format=%cI "$seed_commit")"
+          else
+            seed_timestamp="$(node -p "require('./${seed_report}').generated_at")"
+          fi
           commit_timestamp="$(git show -s --format=%cI "$GITHUB_SHA")"
-          node scripts/append-cli-benchmark-history.mjs \
-            --history .cli-benchmark-history/history.json \
-            --report target/cli-benchmark-history/latest.json \
-            --repository "$GITHUB_REPOSITORY" \
-            --commit "$GITHUB_SHA" \
-            --timestamp "$commit_timestamp"
-          cp target/cli-benchmark-history/latest.json .cli-benchmark-history/latest.json
 
-      - name: Publish benchmark history
-        run: |
           git -C .cli-benchmark-history config user.name "github-actions[bot]"
           git -C .cli-benchmark-history config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C .cli-benchmark-history add history.json latest.json
-          if git -C .cli-benchmark-history diff --cached --quiet; then
-            exit 0
-          fi
-          git -C .cli-benchmark-history commit -m "cli-benchmark-history: ${GITHUB_SHA:0:12}"
-          git -C .cli-benchmark-history push origin HEAD:cli-benchmark-history
+
+          write_snapshot() {
+            node scripts/append-cli-benchmark-history.mjs \
+              --history .cli-benchmark-history/history.json \
+              --report "$seed_report" \
+              --repository "$GITHUB_REPOSITORY" \
+              --commit "$seed_commit" \
+              --timestamp "$seed_timestamp"
+
+            node scripts/append-cli-benchmark-history.mjs \
+              --history .cli-benchmark-history/history.json \
+              --report target/cli-benchmark-history/latest.json \
+              --repository "$GITHUB_REPOSITORY" \
+              --commit "$GITHUB_SHA" \
+              --timestamp "$commit_timestamp"
+
+            newest_commit="$(node -e 'const fs=require("fs"); const h=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(h.entries[h.entries.length-1].commit);' .cli-benchmark-history/history.json)"
+            if [[ "$newest_commit" == "$GITHUB_SHA" ]]; then
+              cp target/cli-benchmark-history/latest.json .cli-benchmark-history/latest.json
+            fi
+          }
+
+          for attempt in 1 2 3 4 5; do
+            if [[ "$attempt" -gt 1 ]]; then
+              git -C .cli-benchmark-history fetch origin cli-benchmark-history
+              git -C .cli-benchmark-history reset --hard origin/cli-benchmark-history
+            fi
+
+            write_snapshot
+            git -C .cli-benchmark-history add history.json latest.json
+
+            if git -C .cli-benchmark-history diff --cached --quiet; then
+              exit 0
+            fi
+
+            git -C .cli-benchmark-history commit -m "cli-benchmark-history: ${GITHUB_SHA:0:12}"
+            if git -C .cli-benchmark-history push origin HEAD:cli-benchmark-history; then
+              exit 0
+            fi
+
+            sleep "$attempt"
+          done
+
+          echo "Failed to publish benchmark history after concurrent update retries." >&2
+          exit 1
