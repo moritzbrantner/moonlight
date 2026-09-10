@@ -94,7 +94,7 @@ function CliPerformanceHistory({ history }: { history: CliBenchmarkHistory | nul
   const shellPoints = chartPolyline(entries, (entry) => entry.shell!.case_p95_ms!, maxValue);
   const argvPoints = chartPolyline(entries, (entry) => entry.argv!.case_p95_ms!, maxValue);
   const first = entries[0];
-  const latest = entries.at(-1)!;
+  const latest = entries[entries.length - 1];
 
   return (
     <figure className="benchmark-history">
