@@ -1,0 +1,93 @@
+{
+  "schema_version": "moonlight/cli-benchmark-history/v1",
+  "repository": "moritzbrantner/moonlight",
+  "updated_at": "2026-09-10T13:14:48.243Z",
+  "entries": [
+    {
+      "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
+      "timestamp": "2026-06-16T01:35:21+02:00",
+      "generated_at": "2026-06-15T23:40:32.843853+00:00",
+      "environment": {
+        "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+        "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+        "benchmark_git_sha": "4d7f58117933159176885e1d8fa46b9c54162f05"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 111.24030199789559,
+        "suite_p95_ms": 123.92276789760218,
+        "case_p50_ms": 4.449612079915823,
+        "case_p95_ms": 4.956910715904088,
+        "target_p50_ms": 2.2248060399579117,
+        "target_p95_ms": 2.478455357952044,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 26.236347501253476,
+        "suite_p95_ms": 32.24248014666955,
+        "case_p50_ms": 1.049453900050139,
+        "case_p95_ms": 1.289699205866782,
+        "target_p50_ms": 0.5247269500250695,
+        "target_p95_ms": 0.644849602933391,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 76.41471028930701,
+        "case_p95_reduction_percent": 73.98179471482462,
+        "target_p50_reduction_percent": 76.41471028930701,
+        "target_p95_reduction_percent": 73.98179471482462
+      }
+    },
+    {
+      "commit": "ccff430a75e668ea7ce5c7a1ef9d57749a72430a",
+      "timestamp": "2026-09-10T15:12:30+02:00",
+      "generated_at": "2026-09-10T13:13:37.575435+00:00",
+      "environment": {
+        "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+        "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+        "benchmark_git_sha": "ccff430a75e668ea7ce5c7a1ef9d57749a72430a"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 71.72438050000096,
+        "suite_p95_ms": 72.30437024999503,
+        "case_p50_ms": 2.8689752200000385,
+        "case_p95_ms": 2.8921748099998013,
+        "target_p50_ms": 1.4344876100000192,
+        "target_p95_ms": 1.4460874049999006,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 18.886393999991924,
+        "suite_p95_ms": 19.616324550010233,
+        "case_p50_ms": 0.755455759999677,
+        "case_p95_ms": 0.7846529820004093,
+        "target_p50_ms": 0.3777278799998385,
+        "target_p95_ms": 0.39232649100020467,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 73.66809741913119,
+        "case_p95_reduction_percent": 72.86979406336565,
+        "target_p50_reduction_percent": 73.66809741913119,
+        "target_p95_reduction_percent": 72.86979406336565
+      }
+    }
+  ]
+}

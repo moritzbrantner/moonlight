@@ -1,0 +1,627 @@
+{
+  "comparisons": {
+    "bats": {
+      "case_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "reason": "bats executable not found on PATH",
+      "status": "skipped",
+      "success_count": 0,
+      "target_invocation_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 0,
+      "total_invocations": 0,
+      "total_target_invocations": 0,
+      "validation_errors": [],
+      "version": null
+    },
+    "cram": {
+      "case_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "reason": "cram executable not found on PATH",
+      "status": "skipped",
+      "success_count": 0,
+      "target_invocation_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 0,
+      "total_invocations": 0,
+      "total_target_invocations": 0,
+      "validation_errors": [],
+      "version": null
+    },
+    "insta": {
+      "case_latency_ms": {
+        "max": 4.286656719999655,
+        "mean": 4.260158674000024,
+        "min": 4.225006960000428,
+        "p50": 4.257699739999907,
+        "p90": 4.275976375999107,
+        "p95": 4.278002675999403,
+        "p99": 4.284925911199605
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 107.16641799999138,
+        "mean": 106.5039668500006,
+        "min": 105.6251740000107,
+        "p50": 106.44249349999768,
+        "p90": 106.89940939997769,
+        "p95": 106.95006689998507,
+        "p99": 107.12314777999012
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 4.286656719999655,
+        "mean": 4.260158674000024,
+        "min": 4.225006960000428,
+        "p50": 4.257699739999907,
+        "p90": 4.275976375999107,
+        "p95": 4.278002675999403,
+        "p99": 4.284925911199605
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 500,
+      "validation_errors": [],
+      "version": "insta 1.48.0 via cargo 1.96.0 (30a34c682 2026-05-25)"
+    },
+    "moonlight": {
+      "case_latency_ms": {
+        "max": 2.9084199999999782,
+        "mean": 2.862044866000076,
+        "min": 2.8115700000000743,
+        "p50": 2.8689752200000385,
+        "p90": 2.8846424119999483,
+        "p95": 2.8921748099998013,
+        "p99": 2.905170961999943
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 72.71049999999946,
+        "mean": 71.5511216500019,
+        "min": 70.28925000000186,
+        "p50": 71.72438050000096,
+        "p90": 72.11606029999871,
+        "p95": 72.30437024999503,
+        "p99": 72.62927404999857
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 1.4542099999999891,
+        "mean": 1.431022433000038,
+        "min": 1.4057850000000371,
+        "p50": 1.4344876100000192,
+        "p90": 1.4423212059999742,
+        "p95": 1.4460874049999006,
+        "p99": 1.4525854809999714
+      },
+      "target_invocations_per_case": 2,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 1000,
+      "validation_errors": [],
+      "version": "target/release/moonlight-cli batch"
+    },
+    "moonlight-argv": {
+      "case_latency_ms": {
+        "max": 0.7912904800002707,
+        "mean": 0.75157836000011,
+        "min": 0.7096916000000419,
+        "p50": 0.755455759999677,
+        "p90": 0.7778642120000541,
+        "p95": 0.7846529820004093,
+        "p99": 0.7899629804002984
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 19.782262000006767,
+        "mean": 18.78945900000275,
+        "min": 17.74229000000105,
+        "p50": 18.886393999991924,
+        "p90": 19.44660530000135,
+        "p95": 19.616324550010233,
+        "p99": 19.74907451000746
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 0.39564524000013535,
+        "mean": 0.375789180000055,
+        "min": 0.35484580000002097,
+        "p50": 0.3777278799998385,
+        "p90": 0.38893210600002703,
+        "p95": 0.39232649100020467,
+        "p99": 0.3949814902001492
+      },
+      "target_invocations_per_case": 2,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 1000,
+      "validation_errors": [],
+      "version": "target/release/moonlight-cli batch argv"
+    },
+    "shellspec": {
+      "case_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "reason": "shellspec executable not found on PATH",
+      "status": "skipped",
+      "success_count": 0,
+      "target_invocation_latency_ms": {
+        "max": null,
+        "mean": null,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 0,
+      "total_invocations": 0,
+      "total_target_invocations": 0,
+      "validation_errors": [],
+      "version": null
+    },
+    "trycmd": {
+      "case_latency_ms": {
+        "max": 1.8170152000004691,
+        "mean": 1.7107239040001332,
+        "min": 1.672547719999784,
+        "p50": 1.7064481599999226,
+        "p90": 1.7358685000000378,
+        "p95": 1.7430491500000471,
+        "p99": 1.8022219900003846
+      },
+      "cases_per_invocation": 25,
+      "error_count": 0,
+      "latency_ms": {
+        "max": 45.42538000001173,
+        "mean": 42.76809760000333,
+        "min": 41.8136929999946,
+        "p50": 42.661203999998065,
+        "p90": 43.396712500000945,
+        "p95": 43.576228750001185,
+        "p99": 45.05554975000962
+      },
+      "reason": null,
+      "status": "ok",
+      "success_count": 20,
+      "target_invocation_latency_ms": {
+        "max": 1.8170152000004691,
+        "mean": 1.7107239040001332,
+        "min": 1.672547719999784,
+        "p50": 1.7064481599999226,
+        "p90": 1.7358685000000378,
+        "p95": 1.7430491500000471,
+        "p99": 1.8022219900003846
+      },
+      "target_invocations_per_case": 1,
+      "total_cases": 500,
+      "total_invocations": 20,
+      "total_target_invocations": 500,
+      "validation_errors": [],
+      "version": "trycmd 1.2.0 via cargo 1.96.0 (30a34c682 2026-05-25)"
+    }
+  },
+  "config": {
+    "baseline_bin": null,
+    "comparison_cases": 25,
+    "comparison_runs": 20,
+    "concurrency": 1,
+    "requests": 200,
+    "scenarios": [
+      "match",
+      "match-argv",
+      "candidate-diff",
+      "noise",
+      "noisy-regression",
+      "status-regression",
+      "stderr-diff",
+      "large-body",
+      "nested-json-diff",
+      "ignored-dynamic-json",
+      "large-json-match",
+      "large-json-diff",
+      "large-stderr-match",
+      "serial-targets",
+      "truncated-capture"
+    ],
+    "targets": [
+      "moonlight",
+      "moonlight-argv",
+      "trycmd",
+      "insta",
+      "cram",
+      "bats",
+      "shellspec"
+    ],
+    "warmup": 20
+  },
+  "environment": {
+    "binary": "target/release/moonlight-cli",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "git_sha": "ccff430a75e668ea7ce5c7a1ef9d57749a72430a",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  },
+  "generated_at": "2026-09-10T13:13:37.575435+00:00",
+  "scenarios": {
+    "candidate-diff": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 7.6902800000056,
+        "mean": 6.441502544999266,
+        "min": 6.215463999993176,
+        "p50": 6.418496999998524,
+        "p90": 6.588106999993215,
+        "p95": 6.6636549500024955,
+        "p99": 6.840526079999305
+      },
+      "records_written": 200,
+      "storage_bytes": 323194,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "ignored-dynamic-json": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 9.073545000006789,
+        "mean": 6.536537954999985,
+        "min": 6.235431999996877,
+        "p50": 6.475715500009471,
+        "p90": 6.656728800005851,
+        "p95": 6.908618650004427,
+        "p99": 7.59190668999252
+      },
+      "records_written": 200,
+      "storage_bytes": 280800,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "large-body": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 28.163165999998796,
+        "mean": 24.106217539999832,
+        "min": 22.931811999995944,
+        "p50": 23.950472999999306,
+        "p90": 24.868274900001097,
+        "p95": 25.288444600001014,
+        "p99": 27.587516799994628
+      },
+      "records_written": 200,
+      "storage_bytes": 3538800,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "large-json-diff": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 33.707918999994035,
+        "mean": 27.69641027999981,
+        "min": 26.484050999997066,
+        "p50": 27.613626000004388,
+        "p90": 28.33971010000198,
+        "p95": 28.527363799996408,
+        "p99": 28.839295860010296
+      },
+      "records_written": 200,
+      "storage_bytes": 51817200,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "large-json-match": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 27.360647999998378,
+        "mean": 25.25672742999909,
+        "min": 24.232827999995266,
+        "p50": 25.23766549999351,
+        "p90": 25.84919560000145,
+        "p95": 26.13154729999607,
+        "p99": 26.719915029995036
+      },
+      "records_written": 200,
+      "storage_bytes": 14550800,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "large-stderr-match": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 32.913777999993954,
+        "mean": 23.773330350000204,
+        "min": 22.8693480000004,
+        "p50": 23.698717499996746,
+        "p90": 24.230654999989554,
+        "p95": 24.508219900007333,
+        "p99": 25.238880440005573
+      },
+      "records_written": 200,
+      "storage_bytes": 3551600,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "match": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 9.3491539999917,
+        "mean": 7.632474449999834,
+        "min": 7.209346999999866,
+        "p50": 7.572052500002258,
+        "p90": 7.93177650000132,
+        "p95": 8.089255250008875,
+        "p99": 8.821768050005115
+      },
+      "records_written": 200,
+      "storage_bytes": 334200,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "match-argv": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 5.663464000008389,
+        "mean": 3.701875905000307,
+        "min": 3.518165000002682,
+        "p50": 3.667467999996177,
+        "p90": 3.816471800004706,
+        "p95": 3.856414400006258,
+        "p99": 4.069233420001261
+      },
+      "records_written": 200,
+      "storage_bytes": 333600,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "nested-json-diff": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 7.6479299999903105,
+        "mean": 6.524808514999876,
+        "min": 6.290456000002109,
+        "p50": 6.494078999992325,
+        "p90": 6.672708799995064,
+        "p95": 6.8066242499995155,
+        "p99": 7.171681499995797
+      },
+      "records_written": 200,
+      "storage_bytes": 395197,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "noise": {
+      "classifications": {
+        "reference_noise": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 9.337380999994593,
+        "mean": 7.692280329999689,
+        "min": 7.128051999998775,
+        "p50": 7.636257499996191,
+        "p90": 8.042609299997139,
+        "p95": 8.173353499995526,
+        "p99": 8.443399979998244
+      },
+      "records_written": 200,
+      "storage_bytes": 386000,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "noisy-regression": {
+      "classifications": {
+        "suspicious_with_noise": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 9.972750000002861,
+        "mean": 7.724490829999909,
+        "min": 7.190531000006217,
+        "p50": 7.632520999997894,
+        "p90": 8.059375200001284,
+        "p95": 8.641336899997754,
+        "p99": 9.123111240001691
+      },
+      "records_written": 200,
+      "storage_bytes": 446000,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "serial-targets": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 12.34391599999185,
+        "mean": 9.5546053599994,
+        "min": 9.3322610000115,
+        "p50": 9.513270999995882,
+        "p90": 9.65746930000364,
+        "p95": 9.747476050002746,
+        "p99": 10.469804720000008
+      },
+      "records_written": 200,
+      "storage_bytes": 262400,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "status-regression": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 7.479227999994009,
+        "mean": 6.492636674999943,
+        "min": 6.252400999997576,
+        "p50": 6.465214000002106,
+        "p90": 6.630280799997479,
+        "p95": 6.715721800008367,
+        "p99": 6.97816900001015
+      },
+      "records_written": 200,
+      "storage_bytes": 319200,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "stderr-diff": {
+      "classifications": {
+        "suspicious_difference": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 6.949316000003591,
+        "mean": 6.5093383100001025,
+        "min": 6.28468000000737,
+        "p50": 6.484827999997833,
+        "p90": 6.672425300003226,
+        "p95": 6.714061649996239,
+        "p99": 6.909652480005377
+      },
+      "records_written": 200,
+      "storage_bytes": 336800,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    },
+    "truncated-capture": {
+      "classifications": {
+        "match": 200
+      },
+      "error_count": 0,
+      "latency_ms": {
+        "max": 25.151041000015084,
+        "mean": 23.611003110000155,
+        "min": 22.69941800000197,
+        "p50": 23.57375250000615,
+        "p90": 24.300836100002243,
+        "p95": 24.46074765000148,
+        "p99": 24.738491600005545
+      },
+      "records_written": 200,
+      "storage_bytes": 276397,
+      "success_count": 200,
+      "total_invocations": 200,
+      "validation_errors": []
+    }
+  }
+}
