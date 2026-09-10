@@ -15,6 +15,8 @@ assert.equal(agentTool.schemaVersion, 1);
 assert.equal(agentTool.id, "moonlight");
 assert.equal(agentTool.kind, "evaluation-report-catalog");
 assert.ok(agentTool.operations.some((operation) => operation.id === "reports"));
+assert.ok(agentTool.operations.some((operation) => operation.id === "cli-benchmark-published-latest"));
+assert.ok(agentTool.operations.some((operation) => operation.id === "cli-benchmark-history"));
 assert.ok(Array.isArray(agentTool.authoritativeLocalOperations));
 assert.ok(agentTool.authoritativeLocalOperations.length > 0);
 
