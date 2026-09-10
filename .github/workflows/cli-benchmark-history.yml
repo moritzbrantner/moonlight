@@ -1,0 +1,132 @@
+name: Publish CLI benchmark history
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    name: Measure and publish CLI history
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Rust benchmark toolchain
+        run: |
+          rustup toolchain install 1.96.0 --profile minimal
+          rustup default 1.96.0
+
+      - name: Build release CLI
+        run: cargo build --locked --release -p moonlight-cli
+
+      - name: Run full CLI benchmark
+        run: |
+          python3 scripts/moonlight-cli-benchmark.py \
+            --bin target/release/moonlight-cli \
+            --output-dir target/cli-benchmark-history
+
+      - name: Summarize direct argv improvement
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("target/cli-benchmark-history/latest.json").read_text())
+          shell = report["comparisons"].get("moonlight", {})
+          argv = report["comparisons"].get("moonlight-argv", {})
+          shell_p95 = shell.get("case_latency_ms", {}).get("p95")
+          argv_p95 = argv.get("case_latency_ms", {}).get("p95")
+
+          print("## Moonlight CLI benchmark")
+          print(f"Commit: `{report['environment']['git_sha']}`")
+          if shell_p95 and argv_p95:
+              reduction = (shell_p95 - argv_p95) / shell_p95 * 100
+              print(f"Direct argv p95: **{argv_p95:.2f} ms/case** ({reduction:.1f}% lower than shell commands at {shell_p95:.2f} ms/case).")
+          else:
+              print("Direct argv/shell p95 comparison was unavailable in this run.")
+          PY
+
+      - name: Ensure benchmark history branch exists
+        run: |
+          if ! git ls-remote --exit-code --heads origin cli-benchmark-history >/dev/null 2>&1; then
+            git push origin "$GITHUB_SHA:refs/heads/cli-benchmark-history" || true
+          fi
+          git ls-remote --exit-code --heads origin cli-benchmark-history >/dev/null
+
+      - name: Check out benchmark history branch
+        uses: actions/checkout@v6
+        with:
+          ref: cli-benchmark-history
+          path: .cli-benchmark-history
+          fetch-depth: 1
+
+      - name: Append and publish benchmark snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          seed_report="data/moonlight/cli-benchmark-analysis/latest.json"
+          seed_commit="$(node -p "require('./${seed_report}').environment.git_sha")"
+          if git cat-file -e "${seed_commit}^{commit}" 2>/dev/null; then
+            seed_timestamp="$(git show -s --format=%cI "$seed_commit")"
+          else
+            seed_timestamp="$(node -p "require('./${seed_report}').generated_at")"
+          fi
+          commit_timestamp="$(git show -s --format=%cI "$GITHUB_SHA")"
+
+          git -C .cli-benchmark-history config user.name "github-actions[bot]"
+          git -C .cli-benchmark-history config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          write_snapshot() {
+            node scripts/append-cli-benchmark-history.mjs \
+              --history .cli-benchmark-history/history.json \
+              --report "$seed_report" \
+              --repository "$GITHUB_REPOSITORY" \
+              --commit "$seed_commit" \
+              --timestamp "$seed_timestamp"
+
+            node scripts/append-cli-benchmark-history.mjs \
+              --history .cli-benchmark-history/history.json \
+              --report target/cli-benchmark-history/latest.json \
+              --repository "$GITHUB_REPOSITORY" \
+              --commit "$GITHUB_SHA" \
+              --timestamp "$commit_timestamp"
+
+            newest_commit="$(node -e 'const fs=require("fs"); const h=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(h.entries[h.entries.length-1].commit);' .cli-benchmark-history/history.json)"
+            if [[ "$newest_commit" == "$GITHUB_SHA" ]]; then
+              cp target/cli-benchmark-history/latest.json .cli-benchmark-history/latest.json
+            fi
+          }
+
+          for attempt in 1 2 3 4 5; do
+            if [[ "$attempt" -gt 1 ]]; then
+              git -C .cli-benchmark-history fetch origin cli-benchmark-history
+              git -C .cli-benchmark-history reset --hard origin/cli-benchmark-history
+            fi
+
+            write_snapshot
+            git -C .cli-benchmark-history add history.json latest.json
+
+            if git -C .cli-benchmark-history diff --cached --quiet; then
+              exit 0
+            fi
+
+            git -C .cli-benchmark-history commit -m "cli-benchmark-history: ${GITHUB_SHA:0:12}"
+            if git -C .cli-benchmark-history push origin HEAD:cli-benchmark-history; then
+              exit 0
+            fi
+
+            sleep "$attempt"
+          done
+
+          echo "Failed to publish benchmark history after concurrent update retries." >&2
+          exit 1

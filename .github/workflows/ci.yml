@@ -36,7 +36,7 @@ jobs:
       lint_command: cargo clippy --workspace --all-targets -- -D warnings
       typecheck_command: bun run typegen:check && bun run typecheck
       build_command: cargo build --workspace && bun run build && bun run storybook:build
-      unit_test_command: cargo test --workspace && bun run test:run
+      unit_test_command: cargo test --workspace && bun run test:run && bun run test:benchmark-history
       cache_cargo: true
       bun_cache_dependency_path: bun.lock
       cargo_cache_dependency_path: Cargo.lock

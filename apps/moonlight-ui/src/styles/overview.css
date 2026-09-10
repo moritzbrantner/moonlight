@@ -187,6 +187,122 @@
   justify-self: end;
 }
 
+.fast-path-summary {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  padding: 0.9rem 1rem;
+}
+
+.fast-path-summary strong {
+  color: var(--ink);
+}
+
+.fast-path-summary span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.benchmark-history {
+  border-bottom: 1px solid var(--line);
+  margin: 0;
+  padding: 1rem;
+}
+
+.benchmark-history--pending {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.benchmark-history__heading {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.benchmark-history__heading strong,
+.benchmark-history__heading span {
+  display: block;
+}
+
+.benchmark-history__heading span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin-top: 0.2rem;
+}
+
+.benchmark-history__heading a {
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.benchmark-history__chart {
+  display: block;
+  height: auto;
+  margin-top: 0.75rem;
+  max-height: 260px;
+  width: 100%;
+}
+
+.benchmark-history__axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.benchmark-history__axis-label,
+.benchmark-history__commit-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.benchmark-history__line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.benchmark-history__line--argv {
+  stroke: var(--accent);
+}
+
+.benchmark-history__line--shell {
+  stroke: var(--muted);
+}
+
+.benchmark-history__legend {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  gap: 0.5rem 1rem;
+  margin-top: 0.4rem;
+}
+
+.benchmark-history__legend span {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.benchmark-history__key {
+  border-radius: 999px;
+  display: inline-block;
+  height: 3px;
+  width: 18px;
+}
+
+.benchmark-history__key--argv {
+  background: var(--accent);
+}
+
+.benchmark-history__key--shell {
+  background: var(--muted);
+}
+
 .table-scroll {
   overflow: auto;
 }

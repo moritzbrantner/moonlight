@@ -8,6 +8,10 @@ const repositoryRoot = resolve(appRoot, "../..");
 const publicRoot = join(appRoot, "public");
 const reportsRoot = join(publicRoot, "reports");
 const pagesBaseUrl = "https://moritzbrantner.github.io/moonlight/";
+const publishedCliLatestUrl =
+  "https://raw.githubusercontent.com/moritzbrantner/moonlight/cli-benchmark-history/latest.json";
+const publishedCliHistoryUrl =
+  "https://raw.githubusercontent.com/moritzbrantner/moonlight/cli-benchmark-history/history.json";
 
 const reportSources = [
   {
@@ -20,7 +24,7 @@ const reportSources = [
     id: "cli-benchmark-latest",
     source: join(repositoryRoot, "data/moonlight/cli-benchmark-analysis/latest.json"),
     destination: "cli-latest.json",
-    description: "Latest committed Moonlight CLI benchmark analysis.",
+    description: "Latest committed Moonlight CLI benchmark analysis fallback.",
   },
 ];
 
@@ -50,13 +54,13 @@ const agentTool = {
   kind: "evaluation-report-catalog",
   baseUrl: pagesBaseUrl,
   description:
-    "Inspect Moonlight's committed evaluation and benchmark evidence from GitHub Pages; execute comparisons locally with the Moonlight CLI.",
+    "Inspect Moonlight's published evaluation and benchmark evidence from GitHub Pages; execute comparisons locally with the Moonlight CLI.",
   operations: [
     {
       id: "reports",
       transport: "static-json",
       href: `${pagesBaseUrl}reports/index.json`,
-      description: "Discover the latest committed benchmark/evaluation reports exposed on Pages.",
+      description: "Discover the committed benchmark/evaluation fallbacks exposed on Pages.",
     },
     ...reports.map((report) => ({
       id: report.id,
@@ -65,10 +69,22 @@ const agentTool = {
       description: report.description,
     })),
     {
+      id: "cli-benchmark-published-latest",
+      transport: "static-json",
+      href: publishedCliLatestUrl,
+      description: "Latest exact-head main-branch CLI benchmark published by the benchmark history workflow.",
+    },
+    {
+      id: "cli-benchmark-history",
+      transport: "static-json",
+      href: publishedCliHistoryUrl,
+      description: "Commit-addressed CLI p50/p95 history for the shell and direct argv execution paths.",
+    },
+    {
       id: "reference-ui",
       transport: "html",
       href: `${pagesBaseUrl}?page=overview`,
-      description: "Human-readable Moonlight overview and benchmark report presentation.",
+      description: "Human-readable Moonlight overview with the latest published CLI benchmark and commit history.",
     },
   ],
   authoritativeLocalOperations: [
@@ -77,7 +93,7 @@ const agentTool = {
     "moonlight eval report --storage-path <path> --format json",
   ],
   limitations: [
-    "GitHub Pages exposes committed evidence and documentation only; it does not execute baseline/candidate workloads.",
+    "GitHub Pages and the benchmark-history branch expose captured evidence only; they do not execute baseline/candidate workloads.",
     "Moonlight CLI evaluation remains authoritative for new comparisons and project checks.",
   ],
 };
@@ -85,4 +101,4 @@ const agentTool = {
 await writeFile(join(reportsRoot, "index.json"), `${JSON.stringify(reportIndex, null, 2)}\n`);
 await writeFile(join(publicRoot, "agent-tool.json"), `${JSON.stringify(agentTool, null, 2)}\n`);
 
-console.log(`Published ${reports.length} Moonlight reports for coding agents.`);
+console.log(`Published ${reports.length} Moonlight fallback reports for coding agents.`);
