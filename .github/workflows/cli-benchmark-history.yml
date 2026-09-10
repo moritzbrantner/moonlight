@@ -20,10 +20,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install pinned Rust benchmark toolchain
+      - name: Resolve canonical Rust toolchain
         run: |
-          rustup toolchain install 1.96.0 --profile minimal
-          rustup default 1.96.0
+          rustc --version
+          cargo --version
 
       - name: Build release CLI
         run: cargo build --locked --release -p moonlight-cli
@@ -48,9 +48,10 @@ jobs:
 
           print("## Moonlight CLI benchmark")
           print(f"Commit: `{report['environment']['git_sha']}`")
+          print(f"Rust: `{report['environment']['rustc']}`")
           if shell_p95 and argv_p95:
               reduction = (shell_p95 - argv_p95) / shell_p95 * 100
-              print(f"Direct argv p95: **{argv_p95:.2f} ms/case** ({reduction:.1f}% lower than shell commands at {shell_p95:.2f} ms/case).")
+              print(f"Direct argv p95: **{argv_p95:.2f} ms/case** ({reduction:.1f}% lower than deprecated shell commands at {shell_p95:.2f} ms/case).")
           else:
               print("Direct argv/shell p95 comparison was unavailable in this run.")
           PY
