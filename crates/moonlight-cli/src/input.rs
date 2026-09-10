@@ -26,6 +26,7 @@ pub(crate) async fn read_batch_cases(
     };
 
     let mut cases = Vec::new();
+    let mut warned_about_shell = false;
     for (index, line) in lines.into_iter().enumerate() {
         let line_number = index + 1;
         if line.trim().is_empty() {
@@ -33,6 +34,14 @@ pub(crate) async fn read_batch_cases(
         }
         let case: BatchCase = serde_json::from_str(&line)
             .with_context(|| format!("invalid batch JSONL on line {line_number}"))?;
+        if !warned_about_shell
+            && (case.primary.is_some() || case.candidate.is_some() || case.secondary.is_some())
+        {
+            eprintln!(
+                "warning: shell command fields in batch JSONL are deprecated; prefer primary_argv, candidate_argv, and secondary_argv and keep shell execution only for cases that require shell syntax"
+            );
+            warned_about_shell = true;
+        }
         cases.push(case_from_batch(line_number, case, defaults)?);
     }
 
