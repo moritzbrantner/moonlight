@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-09-11T01:55:47.337Z",
+  "updated_at": "2026-09-11T02:19:09.763Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -173,6 +173,49 @@
         "case_p95_reduction_percent": 72.79189474227756,
         "target_p50_reduction_percent": 73.45631869111237,
         "target_p95_reduction_percent": 72.79189474227756
+      }
+    },
+    {
+      "commit": "d9f9c9911a53736d911c452af64134d628ac7d0d",
+      "timestamp": "2026-09-11T04:16:58+02:00",
+      "generated_at": "2026-09-11T02:18:06.482572+00:00",
+      "environment": {
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "benchmark_git_sha": "d9f9c9911a53736d911c452af64134d628ac7d0d"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 57.93985500000076,
+        "suite_p95_ms": 59.00359474999277,
+        "case_p50_ms": 2.3175942000000305,
+        "case_p95_ms": 2.360143789999711,
+        "target_p50_ms": 1.1587971000000152,
+        "target_p95_ms": 1.1800718949998554,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 14.296504499995422,
+        "suite_p95_ms": 15.381406800004527,
+        "case_p50_ms": 0.5718601799998169,
+        "case_p95_ms": 0.6152562720001811,
+        "target_p50_ms": 0.28593008999990843,
+        "target_p95_ms": 0.30762813600009054,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 75.32526703769756,
+        "case_p95_reduction_percent": 73.93140728937297,
+        "target_p50_reduction_percent": 75.32526703769756,
+        "target_p95_reduction_percent": 73.93140728937297
       }
     }
   ]
