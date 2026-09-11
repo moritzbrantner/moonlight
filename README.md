@@ -11,7 +11,7 @@ Moonlight is an evaluator, not an orchestrator or evidence collector:
 - **runtime-profiler** produces immutable runtime evidence. Direct profiler-bundle comparison is intentionally an edge adapter; producer-specific payloads do not become the shared interchange contract.
 - **coding-agent-conventions** owns policy about when evaluation is required, acceptable thresholds, and how agents should react to evidence.
 - **coding-agent-skills** owns reusable reasoning procedures and flows that may request evaluation through stable interfaces; it does not embed Moonlight semantics.
-- **agent-loop-orchestrator**, when orchestrated mode is selected, owns the coordinated candidate identity, durable run state, and the decision to request/store a Moonlight evaluation. Outside orchestrated mode, those responsibilities remain with the direct caller or other coordinating environment rather than moving into Moonlight.
+- **agent-loop-orchestrator**, when orchestrated mode is selected, categorically owns scheduling, the coordinated candidate identity, durable run state, and the decision to request/store a Moonlight evaluation. Outside orchestrated mode, those responsibilities remain with the direct caller or other coordinating environment rather than moving into Moonlight.
 - **agent-loop-setup** owns machine bootstrap and component registration, not reusable worker procedures.
 
 The core flow is deliberately independent:
