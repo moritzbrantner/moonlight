@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-09-10T14:09:58.135Z",
+  "updated_at": "2026-09-11T01:55:47.337Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -130,6 +130,49 @@
         "case_p95_reduction_percent": 73.47552371101823,
         "target_p50_reduction_percent": 74.16743424467064,
         "target_p95_reduction_percent": 73.47552371101823
+      }
+    },
+    {
+      "commit": "b9978da5308b1c30a23fa856f2bcb89bac404c09",
+      "timestamp": "2026-09-11T03:52:52+02:00",
+      "generated_at": "2026-09-11T01:54:36.007148+00:00",
+      "environment": {
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "benchmark_git_sha": "b9978da5308b1c30a23fa856f2bcb89bac404c09"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 71.09670200000551,
+        "suite_p95_ms": 72.08309735001421,
+        "case_p50_ms": 2.8438680800002203,
+        "case_p95_ms": 2.8833238940005685,
+        "target_p50_ms": 1.4219340400001101,
+        "target_p95_ms": 1.4416619470002843,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 18.871682000010992,
+        "suite_p95_ms": 19.612445000018397,
+        "case_p50_ms": 0.7548672800004397,
+        "case_p95_ms": 0.7844978000007359,
+        "target_p50_ms": 0.37743364000021984,
+        "target_p95_ms": 0.39224890000036794,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 73.45631869111237,
+        "case_p95_reduction_percent": 72.79189474227756,
+        "target_p50_reduction_percent": 73.45631869111237,
+        "target_p95_reduction_percent": 72.79189474227756
       }
     }
   ]
