@@ -20,7 +20,7 @@ checks are green, or stop only with a concrete blocker report.
 - Evidence producers such as `runtime-profiler` own capture and normalization. Consume them through adapters; do not move collection logic into Moonlight.
 - `coding-tooling` owns deterministic repository capability discovery and execution semantics.
 - `coding-agent-conventions` owns policy about when evaluation is required and what evidence is sufficient.
-- `agent-loop-orchestrator` owns candidate identity, scheduling, durable run state, and decisions.
+- When orchestrated mode is selected, `agent-loop-orchestrator` categorically owns scheduling, the coordinated candidate identity, durable run state, and evaluation request/storage decisions. Outside orchestrated mode, the direct caller or other coordinating environment owns those responsibilities; they do not move into Moonlight.
 - A producer-specific adapter must retain source evidence references in the neutral evaluation result rather than copying the producer's entire payload into orchestration state.
 
 ## Work Loop
