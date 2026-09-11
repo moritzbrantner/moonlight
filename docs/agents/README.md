@@ -127,3 +127,21 @@ Check that:
 - residual risk or blockers are stated clearly
 
 If the PR stops short, ask for the blocker report described in `AGENTS.md`.
+
+## Handling A Blocked Agent
+
+Use `blocked` only when the blocker report identifies a concrete dependency the
+agent cannot resolve inside the repository, such as an external decision,
+missing permission, unavailable service, or required input. A repository-owned
+test failure or implementation defect is work to fix, not a reason to mark the
+issue blocked.
+
+Keep the complete blocker report attached to the issue or PR where the work
+stopped so the commands, observed failure, remaining criteria, and requested
+input stay with the work. While the external blocker remains, apply `blocked`
+and remove `agent-ready`; the issue is no longer independently actionable.
+
+When the blocker is resolved, record the decision or supplied input on the same
+thread, remove `blocked`, and re-add `agent-ready` only after confirming the
+acceptance criteria and verification commands are still current. The required
+blocker-report fields are defined in `AGENTS.md` under **Blocker Report**.
