@@ -35,6 +35,7 @@ jobs:
       build_command: VITE_MOONLIGHT_DEMO=true VITE_MOONLIGHT_BASE_PATH=/moonlight/ bun run build
       artifact_paths: apps/moonlight-ui/dist
       reuse_across_runs: true
+      timeout_minutes: 10
       artifact_retention_days: 7
 
   deploy-pages:
