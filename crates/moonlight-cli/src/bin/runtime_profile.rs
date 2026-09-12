@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Output};
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{ensure, Context, Result};
 use chrono::{SecondsFormat, Utc};
 use clap::Parser;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -138,8 +138,10 @@ fn main() -> Result<ExitCode> {
     ensure!(args.minimum_samples > 0, "minimum samples must be positive");
     let started_at = timestamp();
 
-    let reference_validation = validate_bundle(&args.runtime_profiler, &args.reference, "reference")?;
-    let candidate_validation = validate_bundle(&args.runtime_profiler, &args.candidate, "candidate")?;
+    let reference_validation =
+        validate_bundle(&args.runtime_profiler, &args.reference, "reference")?;
+    let candidate_validation =
+        validate_bundle(&args.runtime_profiler, &args.candidate, "candidate")?;
 
     let reference_evidence = evidence_reference(
         &args.runtime_profiler,
@@ -218,18 +220,36 @@ fn main() -> Result<ExitCode> {
         serde_json::Value::from(args.minimum_samples),
     );
     if let Some(score) = &score {
-        metrics.insert("runtimeScore".to_owned(), serde_json::Value::from(score.score));
-        metrics.insert("runtimeRating".to_owned(), serde_json::Value::from(score.rating.clone()));
-        metrics.insert("scenarioId".to_owned(), serde_json::Value::from(score.scenario_id.clone()));
+        metrics.insert(
+            "runtimeScore".to_owned(),
+            serde_json::Value::from(score.score),
+        );
+        metrics.insert(
+            "runtimeRating".to_owned(),
+            serde_json::Value::from(score.rating.clone()),
+        );
+        metrics.insert(
+            "scenarioId".to_owned(),
+            serde_json::Value::from(score.scenario_id.clone()),
+        );
     }
     if let Some(value) = decision.minimum_reference_samples {
-        metrics.insert("referenceMinimumSampleCount".to_owned(), serde_json::Value::from(value));
+        metrics.insert(
+            "referenceMinimumSampleCount".to_owned(),
+            serde_json::Value::from(value),
+        );
     }
     if let Some(value) = decision.minimum_candidate_samples {
-        metrics.insert("candidateMinimumSampleCount".to_owned(), serde_json::Value::from(value));
+        metrics.insert(
+            "candidateMinimumSampleCount".to_owned(),
+            serde_json::Value::from(value),
+        );
     }
     if let Some(value) = decision.candidate_success_rate {
-        metrics.insert("candidateSuccessRate".to_owned(), serde_json::Value::from(value));
+        metrics.insert(
+            "candidateSuccessRate".to_owned(),
+            serde_json::Value::from(value),
+        );
     }
 
     let result = EvaluationResult {
@@ -306,9 +326,16 @@ fn evidence_reference(
         "failed to create {label} evidence reference: {}",
         bounded_stderr(&output)
     );
-    let evidence: EvidenceReference = parse_stdout(&output, &format!("{label} evidence reference"))?;
-    ensure!(evidence.schema_version == 1, "unsupported agent evidence schema version");
-    ensure!(evidence.kind == "runtime-profile-bundle", "unexpected runtime evidence kind");
+    let evidence: EvidenceReference =
+        parse_stdout(&output, &format!("{label} evidence reference"))?;
+    ensure!(
+        evidence.schema_version == 1,
+        "unsupported agent evidence schema version"
+    );
+    ensure!(
+        evidence.kind == "runtime-profile-bundle",
+        "unexpected runtime evidence kind"
+    );
     Ok(evidence)
 }
 
@@ -485,10 +512,16 @@ mod tests {
     #[test]
     fn passes_only_complete_adequately_sampled_candidate() {
         let reference = MetricsDocument {
-            metrics: vec![metric("process.wall_time", 5, 10.0), metric("process.success_rate", 5, 1.0)],
+            metrics: vec![
+                metric("process.wall_time", 5, 10.0),
+                metric("process.success_rate", 5, 1.0),
+            ],
         };
         let candidate = MetricsDocument {
-            metrics: vec![metric("process.wall_time", 5, 9.0), metric("process.success_rate", 5, 1.0)],
+            metrics: vec![
+                metric("process.wall_time", 5, 9.0),
+                metric("process.success_rate", 5, 1.0),
+            ],
         };
 
         let decision = evaluate_policy(&score(95), &reference, &candidate, 90, 5);
@@ -498,10 +531,16 @@ mod tests {
     #[test]
     fn inadequate_samples_are_inconclusive() {
         let reference = MetricsDocument {
-            metrics: vec![metric("process.wall_time", 4, 10.0), metric("process.success_rate", 4, 1.0)],
+            metrics: vec![
+                metric("process.wall_time", 4, 10.0),
+                metric("process.success_rate", 4, 1.0),
+            ],
         };
         let candidate = MetricsDocument {
-            metrics: vec![metric("process.wall_time", 4, 9.0), metric("process.success_rate", 4, 1.0)],
+            metrics: vec![
+                metric("process.wall_time", 4, 9.0),
+                metric("process.success_rate", 4, 1.0),
+            ],
         };
 
         let decision = evaluate_policy(&score(100), &reference, &candidate, 90, 5);
@@ -511,10 +550,16 @@ mod tests {
     #[test]
     fn candidate_failure_is_blocking_even_with_high_score() {
         let reference = MetricsDocument {
-            metrics: vec![metric("process.wall_time", 5, 10.0), metric("process.success_rate", 5, 1.0)],
+            metrics: vec![
+                metric("process.wall_time", 5, 10.0),
+                metric("process.success_rate", 5, 1.0),
+            ],
         };
         let candidate = MetricsDocument {
-            metrics: vec![metric("process.wall_time", 5, 8.0), metric("process.success_rate", 5, 0.8)],
+            metrics: vec![
+                metric("process.wall_time", 5, 8.0),
+                metric("process.success_rate", 5, 0.8),
+            ],
         };
 
         let decision = evaluate_policy(&score(99), &reference, &candidate, 90, 5);
