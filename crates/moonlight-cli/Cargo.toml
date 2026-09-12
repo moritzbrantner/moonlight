@@ -46,6 +46,10 @@ path = "src/main.rs"
 name = "moonlight"
 path = "src/bin/moonlight.rs"
 
+[[bin]]
+name = "moonlight-runtime-profile"
+path = "src/bin/runtime_profile.rs"
+
 [[bench]]
 name = "moonlight_cli"
 harness = false
