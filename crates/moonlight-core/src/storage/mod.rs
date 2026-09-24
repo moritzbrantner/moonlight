@@ -54,6 +54,23 @@ impl RetentionState {
     }
 }
 
+async fn load_retention_state(
+    write_path: &Path,
+    options: StorageOptions,
+) -> anyhow::Result<RetentionState> {
+    if !options.is_configured() {
+        return Ok(RetentionState::default());
+    }
+
+    let mut active_runs = Vec::new();
+    load_runs_from_file(write_path, &mut active_runs).await?;
+    let active_bytes = fs::metadata(write_path).await?.len();
+    Ok(RetentionState {
+        active_runs: active_runs.len(),
+        active_bytes,
+    })
+}
+
 impl Storage {
     pub async fn load(write_path: PathBuf) -> anyhow::Result<Self> {
         Self::load_with_options(write_path, StorageOptions::default()).await
@@ -73,17 +90,7 @@ impl Storage {
         let scan_signature = scan_jsonl_files(&scan_dir).await?;
         let runs = load_runs_from_signature(&scan_signature).await?;
         let writer = RunWriter::open(write_path.clone()).await?;
-        let retention_state = if options.is_configured() {
-            let mut active_runs = Vec::new();
-            load_runs_from_file(&write_path, &mut active_runs).await?;
-            let active_bytes = fs::metadata(&write_path).await?.len();
-            RetentionState {
-                active_runs: active_runs.len(),
-                active_bytes,
-            }
-        } else {
-            RetentionState::default()
-        };
+        let retention_state = load_retention_state(&write_path, options).await?;
 
         Ok(Self {
             write_path,
@@ -121,8 +128,10 @@ impl Storage {
         }
 
         let runs = load_runs_from_signature(&scan_signature).await?;
+        let retention_state = load_retention_state(&self.write_path, self.options).await?;
         *self.runs.write().await = runs;
         *self.scan_signature.lock().await = scan_signature;
+        *self.retention_state.lock().await = retention_state;
         Ok(true)
     }
 
