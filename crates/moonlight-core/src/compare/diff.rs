@@ -402,8 +402,10 @@ fn push_json_diff(
 ) {
     let semantic_primary = primary.map(json_preview);
     let semantic_other = other.map(json_preview);
-    let primary_value = primary.map(|value| evidence_json_preview(path, value, config, inherited_redaction));
-    let other_value = other.map(|value| evidence_json_preview(path, value, config, inherited_redaction));
+    let primary_value =
+        primary.map(|value| evidence_json_preview(path, value, config, inherited_redaction));
+    let other_value =
+        other.map(|value| evidence_json_preview(path, value, config, inherited_redaction));
     let (candidate, secondary) = role.values(other_value);
 
     push_pair_diff(
