@@ -73,8 +73,7 @@ pub fn compare_targets(
     secondary: Option<&CapturedTarget>,
     config: &CompareConfig,
 ) -> ComparisonSummary {
-    let candidate_pairs =
-        diff::diff_pair(primary, candidate, diff::TargetRole::Candidate, config);
+    let candidate_pairs = diff::diff_pair(primary, candidate, diff::TargetRole::Candidate, config);
     let reference_pairs = secondary
         .map(|secondary| diff::diff_pair(primary, secondary, diff::TargetRole::Secondary, config))
         .unwrap_or_default();
