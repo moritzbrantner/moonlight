@@ -204,6 +204,7 @@ mod tests {
     #[test]
     fn quoted_literal_wildcard_stays_literal() {
         assert!(matches_path(r#"$["*"]"#, r#"$["*"]"#));
-        assert!(!matches_path(r#"$["*"]"#, "$.*"));
+        assert!(!matches_path("$.value", r#"$["*"]"#));
+        assert!(matches_path(r#"$["*"]"#, "$.*"));
     }
 }
