@@ -296,10 +296,7 @@ fn comparison_target(body: &str) -> CapturedTarget {
 fn repeated_json(count: usize, value: u64) -> String {
     let mut object = serde_json::Map::with_capacity(count);
     for index in 0..count {
-        object.insert(
-            format!("field_{index:05}"),
-            serde_json::Value::from(value),
-        );
+        object.insert(format!("field_{index:05}"), serde_json::Value::from(value));
     }
     serde_json::Value::Object(object).to_string()
 }
@@ -312,12 +309,7 @@ fn bench_reference_noise_index(c: &mut Criterion) {
 
     c.bench_function("compare_reference_noise_10000_overlapping_diffs", |b| {
         b.iter(|| {
-            let comparison = compare_targets(
-                &primary,
-                &candidate,
-                Some(&secondary),
-                &config,
-            );
+            let comparison = compare_targets(&primary, &candidate, Some(&secondary), &config);
             assert_eq!(comparison.classification, Classification::ReferenceNoise);
         });
     });
