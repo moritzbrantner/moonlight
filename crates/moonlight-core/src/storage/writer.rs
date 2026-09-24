@@ -27,12 +27,13 @@ impl RunWriter {
         })
     }
 
-    pub async fn append(&self, run: &ComparisonRun) -> anyhow::Result<()> {
+    pub async fn append(&self, run: &ComparisonRun) -> anyhow::Result<u64> {
         let line = serde_json::to_string(run)?;
+        let bytes_written = line.len() as u64 + 1;
         let mut file = self.file.lock().await;
         file.write_all(line.as_bytes()).await?;
         file.write_all(b"\n").await?;
-        Ok(())
+        Ok(bytes_written)
     }
 
     pub async fn flush(&self) -> anyhow::Result<()> {

@@ -495,6 +495,41 @@ async fn refresh_loads_new_runs_when_write_file_changes() {
 }
 
 #[tokio::test]
+async fn refresh_resynchronizes_retention_after_external_write() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("http-runs.jsonl");
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(2),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    write_runs(
+        &path,
+        &[
+            run("external-1", 1, Classification::Match, false),
+            run("external-2", 2, Classification::Match, false),
+        ],
+    );
+    assert!(storage.refresh().await.unwrap());
+
+    storage
+        .insert(run("local-3", 3, Classification::Match, false))
+        .await
+        .unwrap();
+
+    let lines = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(lines.lines().count(), 2);
+    assert!(!lines.contains("external-1"));
+    assert!(lines.contains("external-2"));
+    assert!(lines.contains("local-3"));
+}
+
+#[tokio::test]
 async fn refresh_loads_new_runs_when_sibling_jsonl_file_changes() {
     let dir = tempdir().unwrap();
     let http_path = dir.path().join("http-runs.jsonl");

@@ -11,6 +11,19 @@ enum Segment {
     AnyIndex,
 }
 
+pub(super) fn child_key_path(parent: &str, key: &str) -> String {
+    if is_simple_key(key) {
+        format!("{parent}.{key}")
+    } else {
+        let quoted = serde_json::to_string(key).expect("JSON object keys always serialize");
+        format!("{parent}[{quoted}]")
+    }
+}
+
+pub(super) fn child_index_path(parent: &str, index: usize) -> String {
+    format!("{parent}[{index}]")
+}
+
 pub(super) fn matches_path(path: &str, pattern: &str) -> bool {
     let Some(path_segments) = parse(path, false) else {
         return false;
@@ -87,6 +100,14 @@ fn redact_matches(value: &mut Value, segments: &[Segment]) -> bool {
     }
 }
 
+fn is_simple_key(key: &str) -> bool {
+    !key.is_empty()
+        && key != "*"
+        && key
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
 fn parse(path: &str, allow_wildcards: bool) -> Option<Vec<Segment>> {
     let mut chars = path.chars().peekable();
     if chars.next()? != '$' {
@@ -117,21 +138,48 @@ fn parse(path: &str, allow_wildcards: bool) -> Option<Vec<Segment>> {
             }
             '[' => {
                 chars.next();
-                let mut index = String::new();
-                while let Some(ch) = chars.peek().copied() {
-                    if ch == ']' {
-                        break;
+                if chars.peek().copied() == Some('"') {
+                    let mut quoted = String::new();
+                    quoted.push(chars.next()?);
+                    let mut escaped = false;
+                    let mut closed = false;
+                    for ch in chars.by_ref() {
+                        quoted.push(ch);
+                        if escaped {
+                            escaped = false;
+                            continue;
+                        }
+                        match ch {
+                            '\\' => escaped = true,
+                            '"' => {
+                                closed = true;
+                                break;
+                            }
+                            _ => {}
+                        }
                     }
-                    index.push(ch);
-                    chars.next();
-                }
-                if chars.next() != Some(']') {
-                    return None;
-                }
-                if allow_wildcards && index == "*" {
-                    segments.push(Segment::AnyIndex);
+                    if !closed || chars.next() != Some(']') {
+                        return None;
+                    }
+                    let key = serde_json::from_str::<String>(&quoted).ok()?;
+                    segments.push(Segment::Key(key));
                 } else {
-                    segments.push(Segment::Index(index.parse().ok()?));
+                    let mut index = String::new();
+                    while let Some(ch) = chars.peek().copied() {
+                        if ch == ']' {
+                            break;
+                        }
+                        index.push(ch);
+                        chars.next();
+                    }
+                    if chars.next() != Some(']') {
+                        return None;
+                    }
+                    if allow_wildcards && index == "*" {
+                        segments.push(Segment::AnyIndex);
+                    } else {
+                        segments.push(Segment::Index(index.parse().ok()?));
+                    }
                 }
             }
             _ => return None,
@@ -139,4 +187,24 @@ fn parse(path: &str, allow_wildcards: bool) -> Option<Vec<Segment>> {
     }
 
     Some(segments)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quoted_keys_do_not_alias_nested_paths() {
+        assert!(matches_path(r#"$["a.b"]"#, r#"$["a.b"]"#));
+        assert!(!matches_path(r#"$["a.b"]"#, "$.a.b"));
+        assert_eq!(child_key_path("$", "a.b"), r#"$["a.b"]"#);
+        assert_eq!(child_key_path("$", "simple_key"), "$.simple_key");
+    }
+
+    #[test]
+    fn quoted_literal_wildcard_stays_literal() {
+        assert!(matches_path(r#"$["*"]"#, r#"$["*"]"#));
+        assert!(!matches_path("$.value", r#"$["*"]"#));
+        assert!(matches_path(r#"$["*"]"#, "$.*"));
+    }
 }
