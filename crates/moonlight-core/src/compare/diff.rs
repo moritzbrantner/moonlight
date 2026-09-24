@@ -122,7 +122,7 @@ fn diff_headers(
 ) {
     let keys: BTreeSet<String> = header_names(primary)
         .chain(header_names(other))
-        .filter(|name| !config.ignore_headers.contains(*name))
+        .filter(|name| !config.ignore_headers.contains(name))
         .collect();
 
     for key in keys {
@@ -155,7 +155,8 @@ fn header_names(target: &CapturedTarget) -> impl Iterator<Item = String> + '_ {
     let raw = target
         .transport_headers
         .keys()
-        .map(|name| name.as_str().to_ascii_lowercase());
+        .map(|name| name.as_str().to_ascii_lowercase())
+        .filter(|name| !super::capture::is_hop_by_hop_header(name));
     let evidence = target.observation.headers.keys().cloned();
     raw.chain(evidence)
 }
