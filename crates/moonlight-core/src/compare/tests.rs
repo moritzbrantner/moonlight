@@ -287,6 +287,21 @@ fn added_redacted_json_member_never_exposes_its_value() {
 }
 
 #[test]
+fn removed_redacted_json_member_never_exposes_its_value() {
+    let primary = target(200, &[], r#"{"token":"AUDIT_SENTINEL"}"#);
+    let candidate = target(200, &[], r#"{}"#);
+    let config = CompareConfig::new_with_redactions(&[], &["$.token".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+    let serialized = serde_json::to_string(&result).unwrap();
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert_eq!(result.noise_filtered_diffs[0].path, "$.token");
+    assert!(!serialized.contains("AUDIT_SENTINEL"));
+    assert!(serialized.contains("[redacted]"));
+}
+
+#[test]
 fn added_ignored_json_member_does_not_create_a_diff() {
     let primary = target(200, &[], r#"{}"#);
     let candidate = target(200, &[], r#"{"timestamp":"volatile"}"#);
