@@ -1,7 +1,11 @@
 use assert_cmd::cargo::cargo_bin;
+use bytes::Bytes;
 use chrono::Utc;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use moonlight_core::{
+    compare::{capture_body, compare_targets, CompareConfig},
+    storage::{Storage, StorageOptions},
+    target::CapturedTarget,
     Adapter, BodyCapture, Classification, ComparisonRun, ComparisonSummary, RunInput,
     TargetObservation,
 };
@@ -238,7 +242,7 @@ fn bench_run_commands(c: &mut Criterion) {
 
     c.bench_function("run_reference_noise_small_json", |b| {
         let primary = command_json(r#"{"region":"a","value":1}"#);
-        let candidate = command_json(r#"{"region":"a","value":1}"#);
+        let candidate = command_json(r#"{"region":"b","value":1}"#);
         let secondary = command_json(r#"{"region":"b","value":1}"#);
         b.iter_batched(
             fresh_storage,
@@ -270,6 +274,81 @@ fn bench_run_commands(c: &mut Criterion) {
             BatchSize::SmallInput,
         );
     });
+}
+
+fn comparison_target(body: &str) -> CapturedTarget {
+    let bytes = Bytes::copy_from_slice(body.as_bytes());
+    CapturedTarget {
+        observation: TargetObservation {
+            status: Some(0),
+            headers: BTreeMap::new(),
+            body: capture_body(&bytes, 1024),
+            stderr: None,
+            latency_ms: 0,
+            error: None,
+        },
+        transport_headers: Default::default(),
+        body_bytes: bytes,
+        stderr_bytes: Bytes::new(),
+    }
+}
+
+fn repeated_json(count: usize, value: u64) -> String {
+    let mut object = serde_json::Map::with_capacity(count);
+    for index in 0..count {
+        object.insert(
+            format!("field_{index:05}"),
+            serde_json::Value::from(value),
+        );
+    }
+    serde_json::Value::Object(object).to_string()
+}
+
+fn bench_reference_noise_index(c: &mut Criterion) {
+    let primary = comparison_target(&repeated_json(10_000, 0));
+    let candidate = comparison_target(&repeated_json(10_000, 1));
+    let secondary = comparison_target(&repeated_json(10_000, 1));
+    let config = CompareConfig::new(&[], &[], false);
+
+    c.bench_function("compare_reference_noise_10000_overlapping_diffs", |b| {
+        b.iter(|| {
+            let comparison = compare_targets(
+                &primary,
+                &candidate,
+                Some(&secondary),
+                &config,
+            );
+            assert_eq!(comparison.classification, Classification::ReferenceNoise);
+        });
+    });
+}
+
+fn bench_retention_append(c: &mut Criterion) {
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    let (dir, path, _) = write_fixture(10_000);
+    let storage = runtime
+        .block_on(Storage::load_with_options(
+            path,
+            StorageOptions {
+                retention_max_runs: Some(1_000_000),
+                retention_max_bytes: None,
+            },
+        ))
+        .expect("load storage");
+    let mut next_index = 10_000_usize;
+
+    c.bench_function("retention_append_below_limit_with_10000_runs", |b| {
+        b.iter(|| {
+            let run = fixture_run(next_index);
+            next_index += 1;
+            runtime
+                .block_on(storage.insert(run))
+                .expect("insert retained run");
+        });
+    });
+
+    drop(storage);
+    drop(dir);
 }
 
 fn bench_batch_commands(c: &mut Criterion) {
@@ -332,6 +411,8 @@ fn bench_read_commands(c: &mut Criterion) {
 criterion_group!(
     benches,
     bench_run_commands,
+    bench_reference_noise_index,
+    bench_retention_append,
     bench_batch_commands,
     bench_read_commands
 );
