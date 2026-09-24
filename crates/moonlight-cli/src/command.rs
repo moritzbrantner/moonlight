@@ -30,7 +30,9 @@ pub(crate) async fn run_command(
                     latency_ms: started.elapsed().as_millis(),
                     error: Some(format!("{label} command failed to start: {error}")),
                 },
-                body_bytes: Bytes::new(),
+                transport_headers: Default::default(),
+                transport_headers: Default::default(),
+        body_bytes: Bytes::new(),
                 stderr_bytes: Bytes::new(),
             };
         }
@@ -63,7 +65,9 @@ pub(crate) async fn run_command(
                         "{label} command timed out after {target_timeout_ms} ms"
                     )),
                 },
-                body_bytes: stdout.bytes,
+                transport_headers: Default::default(),
+                transport_headers: Default::default(),
+        body_bytes: stdout.bytes,
                 stderr_bytes: stderr.bytes,
             };
         }
@@ -118,7 +122,9 @@ pub(crate) async fn run_command(
                     latency_ms: started.elapsed().as_millis(),
                     error: Some(format!("{label} command wait failed: {error}")),
                 },
-                body_bytes: stdout.bytes,
+                transport_headers: Default::default(),
+                transport_headers: Default::default(),
+        body_bytes: stdout.bytes,
                 stderr_bytes: stderr.bytes,
             };
         }
@@ -138,6 +144,7 @@ pub(crate) async fn run_command(
             latency_ms: started.elapsed().as_millis(),
             error,
         },
+        transport_headers: Default::default(),
         body_bytes: stdout.bytes,
         stderr_bytes: stderr.bytes,
     }
@@ -196,6 +203,7 @@ fn command_read_error(
             latency_ms: started.elapsed().as_millis(),
             error: Some(format!("{label} command failed to read {stream}: {error}")),
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::new(),
         stderr_bytes: Bytes::new(),
     }
