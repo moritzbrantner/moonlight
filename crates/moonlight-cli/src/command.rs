@@ -3,13 +3,12 @@ use bytes::Bytes;
 use moonlight_core::{
     compare::{capture_body, capture_body_with_redaction_patterns},
     target::CapturedTarget,
-    BodyCapture, TargetObservation,
+    TargetObservation,
 };
 use std::{collections::BTreeMap, process::Stdio, time::Instant};
 use tokio::{
     io::{self, AsyncRead, AsyncReadExt},
     process::{Child, Command},
-    task::JoinHandle,
     time::{timeout_at, Duration, Instant as TokioInstant},
 };
 
@@ -59,7 +58,7 @@ pub(crate) async fn run_command_with_redactions(
     let status = match timeout_at(deadline, child.wait()).await {
         Ok(Ok(status)) => status,
         Ok(Err(error)) => {
-            terminate_process_tree(&mut child, process_group_id).await;
+            terminate_process_tree(&mut child, process_group_id);
             stdout.abort();
             stderr.abort();
             return error_target(
@@ -70,7 +69,7 @@ pub(crate) async fn run_command_with_redactions(
             );
         }
         Err(_) => {
-            terminate_process_tree(&mut child, process_group_id).await;
+            terminate_process_tree(&mut child, process_group_id);
             stdout.abort();
             stderr.abort();
             return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms);
@@ -89,7 +88,7 @@ pub(crate) async fn run_command_with_redactions(
             let stdout_bytes = match join_stream_result(stdout_result) {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    terminate_process_tree(&mut child, process_group_id).await;
+                    terminate_process_tree(&mut child, process_group_id);
                     stderr.abort();
                     return command_read_error(
                         label,
@@ -103,7 +102,7 @@ pub(crate) async fn run_command_with_redactions(
             let stderr_bytes = match join_stream_result(stderr_result) {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    terminate_process_tree(&mut child, process_group_id).await;
+                    terminate_process_tree(&mut child, process_group_id);
                     return command_read_error(
                         label,
                         "stderr",
@@ -118,7 +117,7 @@ pub(crate) async fn run_command_with_redactions(
         Err(_) => {
             // A descendant can outlive the direct child while retaining an inherited
             // stdout/stderr pipe. The lifecycle deadline covers that drain as well.
-            terminate_process_tree(&mut child, process_group_id).await;
+            terminate_process_tree(&mut child, process_group_id);
             stdout.abort();
             stderr.abort();
             return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms);
@@ -302,7 +301,7 @@ where
     Ok(Bytes::from(bytes))
 }
 
-async fn terminate_process_tree(child: &mut Child, process_group_id: Option<u32>) {
+fn terminate_process_tree(child: &mut Child, process_group_id: Option<u32>) {
     #[cfg(unix)]
     if let Some(process_group_id) = process_group_id {
         // Each target starts in a fresh process group. Killing the group also
