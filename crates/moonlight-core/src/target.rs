@@ -10,6 +10,11 @@ use bytes::Bytes;
 #[derive(Debug, Clone)]
 pub struct CapturedTarget {
     pub observation: TargetObservation,
+    /// Raw response headers retained only for adapter transport semantics.
+    ///
+    /// These headers never enter `ComparisonRun`; persisted evidence uses the
+    /// sanitized `TargetObservation::headers` projection instead.
+    pub transport_headers: http::HeaderMap,
     pub body_bytes: Bytes,
     pub stderr_bytes: Bytes,
 }
