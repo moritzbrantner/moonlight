@@ -44,6 +44,7 @@ fn target_with_stderr(
             latency_ms: 1,
             error: None,
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::copy_from_slice(body.as_bytes()),
         stderr_bytes: Bytes::copy_from_slice(stderr.as_bytes()),
     }
@@ -59,6 +60,7 @@ fn target_error(message: &str) -> CapturedTarget {
             latency_ms: 1,
             error: Some(message.to_string()),
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::new(),
         stderr_bytes: Bytes::new(),
     }
