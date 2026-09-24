@@ -1,14 +1,16 @@
 use crate::types::{CommandForm, TargetCommand};
 use bytes::Bytes;
 use moonlight_core::{
-    compare::capture_body, target::CapturedTarget, BodyCapture, TargetObservation,
+    compare::{capture_body, capture_body_with_redaction_patterns},
+    target::CapturedTarget,
+    BodyCapture, TargetObservation,
 };
-use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, process::Stdio, time::Instant};
 use tokio::{
     io::{self, AsyncRead, AsyncReadExt},
-    process::Command,
-    time::{timeout, Duration},
+    process::{Child, Command},
+    task::JoinHandle,
+    time::{timeout_at, Duration, Instant as TokioInstant},
 };
 
 pub(crate) async fn run_command(
@@ -17,116 +19,109 @@ pub(crate) async fn run_command(
     max_body_capture_bytes: usize,
     target_timeout_ms: u64,
 ) -> CapturedTarget {
+    run_command_with_redactions(
+        label,
+        command,
+        max_body_capture_bytes,
+        target_timeout_ms,
+        &[],
+        &[],
+    )
+    .await
+}
+
+pub(crate) async fn run_command_with_redactions(
+    label: &'static str,
+    command: &TargetCommand,
+    max_body_capture_bytes: usize,
+    target_timeout_ms: u64,
+    redact_json_paths: &[String],
+    redact_json_path_patterns: &[String],
+) -> CapturedTarget {
     let started = Instant::now();
+    let deadline = TokioInstant::now() + Duration::from_millis(target_timeout_ms);
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
-            return CapturedTarget {
-                observation: TargetObservation {
-                    status: None,
-                    headers: BTreeMap::new(),
-                    body: capture_body(&[], max_body_capture_bytes),
-                    stderr: Some(capture_body(&[], max_body_capture_bytes)),
-                    latency_ms: started.elapsed().as_millis(),
-                    error: Some(format!("{label} command failed to start: {error}")),
-                },
-                transport_headers: Default::default(),
-                transport_headers: Default::default(),
-        body_bytes: Bytes::new(),
-                stderr_bytes: Bytes::new(),
-            };
+            return error_target(
+                label,
+                format!("{label} command failed to start: {error}"),
+                started,
+                max_body_capture_bytes,
+            );
         }
     };
+    let process_group_id = child.id();
 
-    let stdout = tokio::spawn(read_optional_stream(
-        child.stdout.take(),
-        max_body_capture_bytes,
-    ));
-    let stderr = tokio::spawn(read_optional_stream(
-        child.stderr.take(),
-        max_body_capture_bytes,
-    ));
-    let wait = timeout(Duration::from_millis(target_timeout_ms), child.wait()).await;
+    let mut stdout = tokio::spawn(read_optional_stream(child.stdout.take()));
+    let mut stderr = tokio::spawn(read_optional_stream(child.stderr.take()));
 
-    let status = match wait {
-        Ok(status) => status,
+    let status = match timeout_at(deadline, child.wait()).await {
+        Ok(Ok(status)) => status,
+        Ok(Err(error)) => {
+            terminate_process_tree(&mut child, process_group_id).await;
+            stdout.abort();
+            stderr.abort();
+            return error_target(
+                label,
+                format!("{label} command wait failed: {error}"),
+                started,
+                max_body_capture_bytes,
+            );
+        }
         Err(_) => {
-            let _ = child.kill().await;
-            let stdout = join_stream(stdout, max_body_capture_bytes).await;
-            let stderr = join_stream(stderr, max_body_capture_bytes).await;
-            return CapturedTarget {
-                observation: TargetObservation {
-                    status: None,
-                    headers: BTreeMap::new(),
-                    body: stdout.capture,
-                    stderr: Some(stderr.capture),
-                    latency_ms: started.elapsed().as_millis(),
-                    error: Some(format!(
-                        "{label} command timed out after {target_timeout_ms} ms"
-                    )),
-                },
-                transport_headers: Default::default(),
-                transport_headers: Default::default(),
-        body_bytes: stdout.bytes,
-                stderr_bytes: stderr.bytes,
-            };
+            terminate_process_tree(&mut child, process_group_id).await;
+            stdout.abort();
+            stderr.abort();
+            return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms);
         }
     };
 
-    let stdout = match stdout.await {
-        Ok(stdout) => stdout,
-        Err(error) => {
-            return command_read_error(
-                label,
-                "stdout",
-                io::Error::other(error.to_string()),
-                started,
-                max_body_capture_bytes,
-            );
-        }
-    };
-    let stderr = match stderr.await {
-        Ok(stderr) => stderr,
-        Err(error) => {
-            return command_read_error(
-                label,
-                "stderr",
-                io::Error::other(error.to_string()),
-                started,
-                max_body_capture_bytes,
-            );
-        }
-    };
+    let streams = timeout_at(deadline, async {
+        let stdout_result = (&mut stdout).await;
+        let stderr_result = (&mut stderr).await;
+        (stdout_result, stderr_result)
+    })
+    .await;
 
-    let stdout = match stdout {
-        Ok(stdout) => stdout,
-        Err(error) => {
-            return command_read_error(label, "stdout", error, started, max_body_capture_bytes);
-        }
-    };
-    let stderr = match stderr {
-        Ok(stderr) => stderr,
-        Err(error) => {
-            return command_read_error(label, "stderr", error, started, max_body_capture_bytes);
-        }
-    };
-    let status = match status {
-        Ok(status) => status,
-        Err(error) => {
-            return CapturedTarget {
-                observation: TargetObservation {
-                    status: None,
-                    headers: BTreeMap::new(),
-                    body: stdout.capture,
-                    stderr: Some(stderr.capture),
-                    latency_ms: started.elapsed().as_millis(),
-                    error: Some(format!("{label} command wait failed: {error}")),
-                },
-                transport_headers: Default::default(),
-                transport_headers: Default::default(),
-        body_bytes: stdout.bytes,
-                stderr_bytes: stderr.bytes,
+    let (stdout_bytes, stderr_bytes) = match streams {
+        Ok((stdout_result, stderr_result)) => {
+            let stdout_bytes = match join_stream_result(stdout_result) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    terminate_process_tree(&mut child, process_group_id).await;
+                    stderr.abort();
+                    return command_read_error(
+                        label,
+                        "stdout",
+                        error,
+                        started,
+                        max_body_capture_bytes,
+                    );
+                }
             };
+            let stderr_bytes = match join_stream_result(stderr_result) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    terminate_process_tree(&mut child, process_group_id).await;
+                    return command_read_error(
+                        label,
+                        "stderr",
+                        error,
+                        started,
+                        max_body_capture_bytes,
+                    );
+                }
+            };
+            (stdout_bytes, stderr_bytes)
+        }
+        Err(_) => {
+            // A descendant can outlive the direct child while retaining an inherited
+            // stdout/stderr pipe. The lifecycle deadline covers that drain as well.
+            terminate_process_tree(&mut child, process_group_id).await;
+            stdout.abort();
+            stderr.abort();
+            return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms);
         }
     };
 
@@ -135,23 +130,20 @@ pub(crate) async fn run_command(
         .is_none()
         .then(|| format!("{label} command terminated by signal"));
 
-    CapturedTarget {
-        observation: TargetObservation {
-            status: status.code().and_then(|code| u16::try_from(code).ok()),
-            headers: BTreeMap::new(),
-            body: stdout.capture,
-            stderr: Some(stderr.capture),
-            latency_ms: started.elapsed().as_millis(),
-            error,
-        },
-        transport_headers: Default::default(),
-        body_bytes: stdout.bytes,
-        stderr_bytes: stderr.bytes,
-    }
+    captured_target(
+        status.code().and_then(|code| u16::try_from(code).ok()),
+        stdout_bytes,
+        stderr_bytes,
+        started,
+        error,
+        max_body_capture_bytes,
+        redact_json_paths,
+        redact_json_path_patterns,
+    )
 }
 
 impl TargetCommand {
-    pub(crate) fn spawn(&self) -> io::Result<tokio::process::Child> {
+    pub(crate) fn spawn(&self) -> io::Result<Child> {
         let mut command = match &self.form {
             CommandForm::Shell(command) => {
                 let mut process = Command::new("sh");
@@ -171,8 +163,15 @@ impl TargetCommand {
         command
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+            .stderr(Stdio::piped());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.as_std_mut().process_group(0);
+        }
+
+        command.spawn()
     }
 
     pub(crate) fn display(&self) -> String {
@@ -187,10 +186,76 @@ impl TargetCommand {
     }
 }
 
+fn captured_target(
+    status: Option<u16>,
+    body_bytes: Bytes,
+    stderr_bytes: Bytes,
+    started: Instant,
+    error: Option<String>,
+    max_body_capture_bytes: usize,
+    redact_json_paths: &[String],
+    redact_json_path_patterns: &[String],
+) -> CapturedTarget {
+    CapturedTarget {
+        observation: TargetObservation {
+            status,
+            headers: BTreeMap::new(),
+            body: capture_body_with_redaction_patterns(
+                &body_bytes,
+                max_body_capture_bytes,
+                redact_json_paths,
+                redact_json_path_patterns,
+            ),
+            stderr: Some(capture_body_with_redaction_patterns(
+                &stderr_bytes,
+                max_body_capture_bytes,
+                redact_json_paths,
+                redact_json_path_patterns,
+            )),
+            latency_ms: started.elapsed().as_millis(),
+            error,
+        },
+        transport_headers: Default::default(),
+        body_bytes,
+        stderr_bytes,
+    }
+}
+
 fn command_read_error(
     label: &'static str,
     stream: &'static str,
     error: io::Error,
+    started: Instant,
+    max_body_capture_bytes: usize,
+) -> CapturedTarget {
+    error_target(
+        label,
+        format!("{label} command failed to read {stream}: {error}"),
+        started,
+        max_body_capture_bytes,
+    )
+}
+
+fn timeout_target(
+    label: &'static str,
+    started: Instant,
+    max_body_capture_bytes: usize,
+    target_timeout_ms: u64,
+) -> CapturedTarget {
+    // Partial output is intentionally discarded on timeout. Retaining it would
+    // require waiting for untrusted descendants and would violate the lifecycle
+    // deadline that the timeout promises.
+    error_target(
+        label,
+        format!("{label} command timed out after {target_timeout_ms} ms"),
+        started,
+        max_body_capture_bytes,
+    )
+}
+
+fn error_target(
+    _label: &'static str,
+    error: String,
     started: Instant,
     max_body_capture_bytes: usize,
 ) -> CapturedTarget {
@@ -201,7 +266,7 @@ fn command_read_error(
             body: capture_body(&[], max_body_capture_bytes),
             stderr: Some(capture_body(&[], max_body_capture_bytes)),
             latency_ms: started.elapsed().as_millis(),
-            error: Some(format!("{label} command failed to read {stream}: {error}")),
+            error: Some(error),
         },
         transport_headers: Default::default(),
         body_bytes: Bytes::new(),
@@ -209,76 +274,46 @@ fn command_read_error(
     }
 }
 
-#[derive(Debug)]
-struct CapturedStream {
-    bytes: Bytes,
-    capture: BodyCapture,
-}
-
-async fn read_optional_stream<R>(
-    reader: Option<R>,
-    max_body_capture_bytes: usize,
-) -> io::Result<CapturedStream>
+async fn read_optional_stream<R>(reader: Option<R>) -> io::Result<Bytes>
 where
     R: AsyncRead + Unpin,
 {
     match reader {
-        Some(reader) => read_stream(reader, max_body_capture_bytes).await,
-        None => Ok(CapturedStream {
-            bytes: Bytes::new(),
-            capture: capture_body(&[], max_body_capture_bytes),
-        }),
+        Some(reader) => read_stream(reader).await,
+        None => Ok(Bytes::new()),
     }
 }
 
-async fn join_stream(
-    handle: tokio::task::JoinHandle<io::Result<CapturedStream>>,
-    max_body_capture_bytes: usize,
-) -> CapturedStream {
-    match handle.await {
-        Ok(Ok(stream)) => stream,
-        _ => CapturedStream {
-            bytes: Bytes::new(),
-            capture: capture_body(&[], max_body_capture_bytes),
-        },
+fn join_stream_result(
+    result: Result<io::Result<Bytes>, tokio::task::JoinError>,
+) -> io::Result<Bytes> {
+    match result {
+        Ok(result) => result,
+        Err(error) => Err(io::Error::other(error.to_string())),
     }
 }
 
-async fn read_stream<R>(mut reader: R, max_body_capture_bytes: usize) -> io::Result<CapturedStream>
+async fn read_stream<R>(mut reader: R) -> io::Result<Bytes>
 where
     R: AsyncRead + Unpin,
 {
-    let mut hasher = Sha256::new();
     let mut bytes = Vec::new();
-    let mut preview = Vec::with_capacity(max_body_capture_bytes.min(8192));
-    let mut buffer = [0_u8; 8192];
-    let mut size_bytes = 0;
+    reader.read_to_end(&mut bytes).await?;
+    Ok(Bytes::from(bytes))
+}
 
-    loop {
-        let read = reader.read(&mut buffer).await?;
-        if read == 0 {
-            break;
-        }
-        let chunk = &buffer[..read];
-        hasher.update(chunk);
-        bytes.extend_from_slice(chunk);
-        size_bytes += read;
-
-        if preview.len() < max_body_capture_bytes {
-            let remaining = max_body_capture_bytes - preview.len();
-            preview.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
-        }
+async fn terminate_process_tree(child: &mut Child, process_group_id: Option<u32>) {
+    #[cfg(unix)]
+    if let Some(process_group_id) = process_group_id {
+        // Each target starts in a fresh process group. Killing the group also
+        // terminates descendants that inherited the target's output pipes.
+        let group = format!("-{process_group_id}");
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", "--", &group])
+            .status();
     }
 
-    Ok(CapturedStream {
-        bytes: Bytes::from(bytes),
-        capture: BodyCapture {
-            size_bytes,
-            sha256: hex::encode(hasher.finalize()),
-            preview: String::from_utf8_lossy(&preview).to_string(),
-            truncated: size_bytes > max_body_capture_bytes,
-        },
-    })
+    let _ = child.start_kill();
 }
 
 fn shell_quote(value: &str) -> String {
