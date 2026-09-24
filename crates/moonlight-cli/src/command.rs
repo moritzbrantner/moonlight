@@ -3,7 +3,7 @@ use bytes::Bytes;
 use moonlight_core::{
     compare::{capture_body, capture_body_with_redaction_patterns},
     target::CapturedTarget,
-    TargetObservation,
+    BodyCapture, TargetObservation,
 };
 use std::{collections::BTreeMap, process::Stdio, time::Instant};
 use tokio::{
@@ -135,9 +135,11 @@ pub(crate) async fn run_command_with_redactions(
         stderr_bytes,
         started,
         error,
-        max_body_capture_bytes,
-        redact_json_paths,
-        redact_json_path_patterns,
+        CapturePolicy {
+            max_body_capture_bytes,
+            redact_json_paths,
+            redact_json_path_patterns,
+        },
     )
 }
 
@@ -185,32 +187,38 @@ impl TargetCommand {
     }
 }
 
+#[derive(Clone, Copy)]
+struct CapturePolicy<'a> {
+    max_body_capture_bytes: usize,
+    redact_json_paths: &'a [String],
+    redact_json_path_patterns: &'a [String],
+}
+
+impl CapturePolicy<'_> {
+    fn capture(self, bytes: &[u8]) -> BodyCapture {
+        capture_body_with_redaction_patterns(
+            bytes,
+            self.max_body_capture_bytes,
+            self.redact_json_paths,
+            self.redact_json_path_patterns,
+        )
+    }
+}
+
 fn captured_target(
     status: Option<u16>,
     body_bytes: Bytes,
     stderr_bytes: Bytes,
     started: Instant,
     error: Option<String>,
-    max_body_capture_bytes: usize,
-    redact_json_paths: &[String],
-    redact_json_path_patterns: &[String],
+    capture_policy: CapturePolicy<'_>,
 ) -> CapturedTarget {
     CapturedTarget {
         observation: TargetObservation {
             status,
             headers: BTreeMap::new(),
-            body: capture_body_with_redaction_patterns(
-                &body_bytes,
-                max_body_capture_bytes,
-                redact_json_paths,
-                redact_json_path_patterns,
-            ),
-            stderr: Some(capture_body_with_redaction_patterns(
-                &stderr_bytes,
-                max_body_capture_bytes,
-                redact_json_paths,
-                redact_json_path_patterns,
-            )),
+            body: capture_policy.capture(&body_bytes),
+            stderr: Some(capture_policy.capture(&stderr_bytes)),
             latency_ms: started.elapsed().as_millis(),
             error,
         },
