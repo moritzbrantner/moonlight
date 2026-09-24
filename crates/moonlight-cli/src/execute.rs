@@ -60,6 +60,8 @@ async fn run_targets(case: &Case, serial_targets: bool) -> CapturedTargets {
                     command,
                     case.max_body_capture_bytes,
                     case.target_timeout_ms,
+                    &case.redact_json_paths,
+                    &case.redact_json_path_patterns,
                 )
                 .await,
             ),
