@@ -89,7 +89,8 @@ mod tests {
                 latency_ms: 7,
                 error: None,
             },
-            body_bytes: bytes,
+            transport_headers: Default::default(),
+        body_bytes: bytes,
             stderr_bytes: Bytes::new(),
         }
     }
@@ -104,7 +105,8 @@ mod tests {
                 latency_ms: 0,
                 error: Some(message.to_string()),
             },
-            body_bytes: Bytes::new(),
+            transport_headers: Default::default(),
+        body_bytes: Bytes::new(),
             stderr_bytes: Bytes::new(),
         }
     }
