@@ -179,12 +179,7 @@ impl Storage {
     }
 
     async fn apply_retention(&self) -> anyhow::Result<()> {
-        if !self.options.is_configured()
-            || !self
-                .retention_state
-                .lock()
-                .await
-                .exceeds(self.options)
+        if !self.options.is_configured() || !self.retention_state.lock().await.exceeds(self.options)
         {
             return Ok(());
         }
