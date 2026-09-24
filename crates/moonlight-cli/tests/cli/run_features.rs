@@ -93,22 +93,10 @@ fn run_redacts_target_previews_and_complete_persisted_record() {
     let primary_path = dir.path().join("primary.json");
     let candidate_path = dir.path().join("candidate.json");
     fs::write(&primary_path, r#"{"visible":1}"#).unwrap();
-    fs::write(
-        &candidate_path,
-        r#"{"visible":1,"token":"AUDIT_SENTINEL"}"#,
-    )
-    .unwrap();
+    fs::write(&candidate_path, r#"{"visible":1,"token":"AUDIT_SENTINEL"}"#).unwrap();
 
-    let primary = serde_json::to_string(&[
-        "cat",
-        primary_path.to_str().unwrap(),
-    ])
-    .unwrap();
-    let candidate = serde_json::to_string(&[
-        "cat",
-        candidate_path.to_str().unwrap(),
-    ])
-    .unwrap();
+    let primary = serde_json::to_string(&["cat", primary_path.to_str().unwrap()]).unwrap();
+    let candidate = serde_json::to_string(&["cat", candidate_path.to_str().unwrap()]).unwrap();
 
     let record = run_record(
         &storage,
