@@ -320,6 +320,14 @@ fn terminate_process_tree(child: &mut Child, process_group_id: Option<u32>) {
             .status();
     }
 
+    #[cfg(windows)]
+    if let Some(process_group_id) = process_group_id {
+        let pid = process_group_id.to_string();
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid, "/T", "/F"])
+            .status();
+    }
+
     let _ = child.start_kill();
 }
 
