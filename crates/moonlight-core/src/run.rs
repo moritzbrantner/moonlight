@@ -90,7 +90,7 @@ mod tests {
                 error: None,
             },
             transport_headers: Default::default(),
-        body_bytes: bytes,
+            body_bytes: bytes,
             stderr_bytes: Bytes::new(),
         }
     }
@@ -106,7 +106,7 @@ mod tests {
                 error: Some(message.to_string()),
             },
             transport_headers: Default::default(),
-        body_bytes: Bytes::new(),
+            body_bytes: Bytes::new(),
             stderr_bytes: Bytes::new(),
         }
     }
