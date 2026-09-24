@@ -306,8 +306,7 @@ fn added_object_redacts_descendants_without_hiding_visible_diffs() {
         &[],
         r#"{"payload":{"token":"AUDIT_SENTINEL","visible":42}}"#,
     );
-    let config =
-        CompareConfig::new_with_redactions(&[], &["$.payload.token".into()], &[], false);
+    let config = CompareConfig::new_with_redactions(&[], &["$.payload.token".into()], &[], false);
 
     let result = compare_targets(&primary, &candidate, None, &config);
     let serialized = serde_json::to_string(&result).unwrap();
@@ -356,7 +355,12 @@ fn literal_dotted_key_does_not_alias_nested_key() {
     let candidate = target(200, &[], r#"{"a":{"b":1},"a.b":2}"#);
     let secondary = target(200, &[], r#"{"a":{"b":2},"a.b":10}"#);
 
-    let result = compare_targets(&primary, &candidate, Some(&secondary), &CompareConfig::new(&[], &[], false));
+    let result = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new(&[], &[], false),
+    );
 
     assert_eq!(result.classification, Classification::SuspiciousWithNoise);
     assert_eq!(result.noise_filtered_diffs.len(), 1);
