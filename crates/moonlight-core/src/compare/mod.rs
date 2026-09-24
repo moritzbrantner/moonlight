@@ -145,12 +145,13 @@ fn filter_candidate_diffs(
     candidate_diffs
         .iter()
         .filter(|candidate_diff| {
-            reference_index
-                .get(&(
-                    candidate_diff.entry.kind.clone(),
-                    candidate_diff.entry.path.clone(),
-                ))
-                .is_none_or(|secondary| secondary != &candidate_diff.semantic_other)
+            candidate_diff.semantic_other != candidate_diff.semantic_primary
+                && reference_index
+                    .get(&(
+                        candidate_diff.entry.kind.clone(),
+                        candidate_diff.entry.path.clone(),
+                    ))
+                    .is_none_or(|secondary| secondary != &candidate_diff.semantic_other)
         })
         .map(|diff| diff.entry.clone())
         .collect()
