@@ -4,6 +4,6 @@ kind = "infrastructure"
 status = "active"
 summary = "Independent baseline/candidate evaluator with neutral cross-repository result contracts."
 depends_on = ["moritzbrantner/agent-contracts"]
-consumed_by = ["moritzbrantner/agent-loop-orchestrator"]
+consumed_by = []
 supersedes = []
 replaced_by = []
