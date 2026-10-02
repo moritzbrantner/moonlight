@@ -39,9 +39,7 @@ bun run tdd:ui -- <test_name>
 bun run tdd:check
 ```
 
-Coding agents should follow `AGENTS.md`. Humans shaping agent work should use
-the guide in `docs/agents/README.md`. An `agent-ready` issue must include
-acceptance criteria and verification commands before an agent starts.
+Coding agents should follow `AGENTS.md`.
 
 Final agent handoff requires:
 

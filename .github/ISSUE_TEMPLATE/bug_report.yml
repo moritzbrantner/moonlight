@@ -3,7 +3,6 @@ description: Report broken Moonlight behavior with enough detail for triage.
 title: "[Bug]: "
 labels:
   - bug
-  - needs-triage
 body:
   - type: textarea
     id: observed_behavior
