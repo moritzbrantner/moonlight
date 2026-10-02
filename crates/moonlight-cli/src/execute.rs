@@ -1,5 +1,5 @@
 use crate::{
-    command::run_command,
+    command::run_command_with_redactions,
     types::{Case, PreparedCase, TargetCommand},
 };
 use chrono::Utc;
@@ -35,27 +35,33 @@ pub(crate) async fn execute_case(prepared: PreparedCase, serial_targets: bool) -
 
 async fn run_targets(case: &Case, serial_targets: bool) -> CapturedTargets {
     if serial_targets {
-        let primary = run_command(
+        let primary = run_command_with_redactions(
             "primary",
             &case.primary,
             case.max_body_capture_bytes,
             case.target_timeout_ms,
+            &case.redact_json_paths,
+            &case.redact_json_path_patterns,
         )
         .await;
-        let candidate = run_command(
+        let candidate = run_command_with_redactions(
             "candidate",
             &case.candidate,
             case.max_body_capture_bytes,
             case.target_timeout_ms,
+            &case.redact_json_paths,
+            &case.redact_json_path_patterns,
         )
         .await;
         let secondary = match &case.secondary {
             Some(command) => Some(
-                run_command(
+                run_command_with_redactions(
                     "secondary",
                     command,
                     case.max_body_capture_bytes,
                     case.target_timeout_ms,
+                    &case.redact_json_paths,
+                    &case.redact_json_path_patterns,
                 )
                 .await,
             ),
@@ -71,23 +77,29 @@ async fn run_targets(case: &Case, serial_targets: bool) -> CapturedTargets {
     match &case.secondary {
         Some(secondary_command) => {
             let (primary, candidate, secondary) = tokio::join!(
-                run_command(
+                run_command_with_redactions(
                     "primary",
                     &case.primary,
                     case.max_body_capture_bytes,
-                    case.target_timeout_ms
+                    case.target_timeout_ms,
+                    &case.redact_json_paths,
+                    &case.redact_json_path_patterns,
                 ),
-                run_command(
+                run_command_with_redactions(
                     "candidate",
                     &case.candidate,
                     case.max_body_capture_bytes,
-                    case.target_timeout_ms
+                    case.target_timeout_ms,
+                    &case.redact_json_paths,
+                    &case.redact_json_path_patterns,
                 ),
-                run_command(
+                run_command_with_redactions(
                     "secondary",
                     secondary_command,
                     case.max_body_capture_bytes,
-                    case.target_timeout_ms
+                    case.target_timeout_ms,
+                    &case.redact_json_paths,
+                    &case.redact_json_path_patterns,
                 ),
             );
             CapturedTargets {
@@ -98,17 +110,21 @@ async fn run_targets(case: &Case, serial_targets: bool) -> CapturedTargets {
         }
         None => {
             let (primary, candidate) = tokio::join!(
-                run_command(
+                run_command_with_redactions(
                     "primary",
                     &case.primary,
                     case.max_body_capture_bytes,
-                    case.target_timeout_ms
+                    case.target_timeout_ms,
+                    &case.redact_json_paths,
+                    &case.redact_json_path_patterns,
                 ),
-                run_command(
+                run_command_with_redactions(
                     "candidate",
                     &case.candidate,
                     case.max_body_capture_bytes,
-                    case.target_timeout_ms
+                    case.target_timeout_ms,
+                    &case.redact_json_paths,
+                    &case.redact_json_path_patterns,
                 ),
             );
             CapturedTargets {

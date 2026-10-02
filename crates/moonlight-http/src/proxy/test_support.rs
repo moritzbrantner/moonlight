@@ -1,7 +1,7 @@
 use crate::{build_router, build_state};
 use axum::{
     extract::{OriginalUri, State},
-    http::StatusCode,
+    http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode},
     response::IntoResponse,
     routing::any,
     Router,
@@ -15,6 +15,33 @@ use tokio::net::TcpListener;
 
 pub(super) async fn spawn_target(body: &'static str) -> SocketAddr {
     spawn_target_with_status_and_delay(StatusCode::OK, body, Duration::ZERO).await
+}
+
+pub(super) async fn spawn_target_with_session_headers(body: &'static str) -> SocketAddr {
+    async fn handler(State(body): State<&'static str>) -> impl IntoResponse {
+        let mut headers = HeaderMap::new();
+        headers.append(
+            header::SET_COOKIE,
+            HeaderValue::from_static("session=moonlight-session-secret; HttpOnly"),
+        );
+        headers.append(
+            header::SET_COOKIE,
+            HeaderValue::from_static("theme=moonlight-theme-secret"),
+        );
+        headers.insert(
+            HeaderName::from_static("x-csrf-token"),
+            HeaderValue::from_static("moonlight-csrf-secret"),
+        );
+        (StatusCode::OK, headers, body)
+    }
+
+    let app = Router::new().fallback(any(handler)).with_state(body);
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    addr
 }
 
 pub(super) async fn spawn_target_with_delay(body: &'static str, delay: Duration) -> SocketAddr {

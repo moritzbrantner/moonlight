@@ -1,5 +1,6 @@
 use crate::cli_support::{json_command, run_record, storage_path};
 use assert_fs::TempDir;
+use std::fs;
 
 #[test]
 fn run_filters_reference_noise() {
@@ -82,6 +83,100 @@ fn run_records_timeout_as_target_error() {
         .as_str()
         .unwrap()
         .contains("timed out"));
+    dir.close().unwrap();
+}
+
+#[test]
+fn run_redacts_target_previews_and_complete_persisted_record() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let primary_path = dir.path().join("primary.json");
+    let candidate_path = dir.path().join("candidate.json");
+    fs::write(&primary_path, r#"{"visible":1}"#).unwrap();
+    fs::write(&candidate_path, r#"{"visible":1,"token":"AUDIT_SENTINEL"}"#).unwrap();
+
+    let primary = serde_json::to_string(&["cat", primary_path.to_str().unwrap()]).unwrap();
+    let candidate = serde_json::to_string(&["cat", candidate_path.to_str().unwrap()]).unwrap();
+
+    let record = run_record(
+        &storage,
+        &[
+            "--primary-argv",
+            &primary,
+            "--candidate-argv",
+            &candidate,
+            "--redact-json-path",
+            "$.token",
+        ],
+    );
+    let stdout_record = serde_json::to_string(&record).unwrap();
+    let persisted = fs::read_to_string(&storage).unwrap();
+
+    assert_eq!(
+        record["comparison"]["classification"],
+        "suspicious_difference"
+    );
+    assert!(record["candidate"]["body"]["preview"]
+        .as_str()
+        .unwrap()
+        .contains("[redacted]"));
+    assert!(!stdout_record.contains("AUDIT_SENTINEL"));
+    assert!(!persisted.contains("AUDIT_SENTINEL"));
+    dir.close().unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn run_timeout_bounds_descendant_pipe_lifecycle_and_cleans_descendant() {
+    let dir = TempDir::new().unwrap();
+    let storage = storage_path(&dir);
+    let pid_path = dir.path().join("descendant.pid");
+    let path_literal = serde_json::to_string(pid_path.to_str().unwrap()).unwrap();
+    let code = format!(
+        "from pathlib import Path; import subprocess; p=subprocess.Popen(['sleep','3']); Path({path_literal}).write_text(str(p.pid))"
+    );
+    let primary = serde_json::to_string(&["printf", "%s", "ok"]).unwrap();
+    let candidate = serde_json::to_string(&["python3", "-c", &code]).unwrap();
+
+    let started = std::time::Instant::now();
+    let record = run_record(
+        &storage,
+        &[
+            "--primary-argv",
+            &primary,
+            "--candidate-argv",
+            &candidate,
+            "--target-timeout-ms",
+            "100",
+        ],
+    );
+
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(2),
+        "target lifecycle exceeded its deadline by seconds"
+    );
+    assert_eq!(record["comparison"]["classification"], "target_error");
+    assert!(record["candidate"]["error"]
+        .as_str()
+        .unwrap()
+        .contains("timed out"));
+
+    let pid = fs::read_to_string(&pid_path).unwrap();
+    let mut alive = true;
+    for _ in 0..20 {
+        alive = std::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success());
+        if !alive {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    assert!(!alive, "timed-out descendant should not survive Moonlight");
+
     dir.close().unwrap();
 }
 

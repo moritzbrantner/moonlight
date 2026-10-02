@@ -142,16 +142,17 @@ pub(super) fn response_from_target(target: &CapturedTarget) -> Response {
         .status
         .and_then(|status| StatusCode::from_u16(status).ok())
         .unwrap_or(StatusCode::BAD_GATEWAY);
-    let mut builder = Response::builder().status(status);
-    for (name, value) in &target.observation.headers {
-        if is_hop_by_hop_header(name) {
+    let mut response = Response::builder()
+        .status(status)
+        .body(Body::from(target.body_bytes.clone()))
+        .unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response());
+    for (name, value) in &target.transport_headers {
+        if is_hop_by_hop_header(name.as_str()) {
             continue;
         }
-        builder = builder.header(name, value);
+        response.headers_mut().append(name.clone(), value.clone());
     }
-    builder
-        .body(Body::from(target.body_bytes.clone()))
-        .unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response())
+    response
 }
 
 pub(super) fn task_error_target(label: &'static str, error: String) -> CapturedTarget {
@@ -164,6 +165,7 @@ pub(super) fn task_error_target(label: &'static str, error: String) -> CapturedT
             latency_ms: 0,
             error: Some(format!("{label} target task failed: {error}")),
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::new(),
         stderr_bytes: Bytes::new(),
     }
@@ -176,7 +178,8 @@ async fn capture_response(
     response: reqwest::Response,
 ) -> CapturedTarget {
     let status = response.status().as_u16();
-    let headers = capture_headers(response.headers(), &state.config.redact_headers);
+    let transport_headers = response.headers().clone();
+    let headers = capture_headers(&transport_headers, &state.config.redact_headers);
     match timeout(
         Duration::from_millis(state.config.target_timeout_ms),
         response.bytes(),
@@ -197,6 +200,7 @@ async fn capture_response(
                 latency_ms: started.elapsed().as_millis(),
                 error: None,
             },
+            transport_headers,
             body_bytes,
             stderr_bytes: Bytes::new(),
         },
@@ -233,6 +237,7 @@ fn error_target(
             latency_ms: started.elapsed().as_millis(),
             error: Some(error),
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::new(),
         stderr_bytes: Bytes::new(),
     }
