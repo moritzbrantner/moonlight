@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-10-02T10:50:12.301Z",
+  "updated_at": "2026-10-03T12:17:44.234Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -345,6 +345,49 @@
         "case_p95_reduction_percent": 72.76082644661088,
         "target_p50_reduction_percent": 74.22466215790077,
         "target_p95_reduction_percent": 72.76082644661088
+      }
+    },
+    {
+      "commit": "3029cbdc32c0ce6f950be442c880827ca9c68b40",
+      "timestamp": "2026-10-03T14:15:34+02:00",
+      "generated_at": "2026-10-03T12:16:42.162416+00:00",
+      "environment": {
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "benchmark_git_sha": "3029cbdc32c0ce6f950be442c880827ca9c68b40"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 55.65366199999744,
+        "suite_p95_ms": 56.950523649992135,
+        "case_p50_ms": 2.2261464799998976,
+        "case_p95_ms": 2.2780209459996854,
+        "target_p50_ms": 1.1130732399999488,
+        "target_p95_ms": 1.1390104729998427,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 13.73046450000004,
+        "suite_p95_ms": 15.228422500021567,
+        "case_p50_ms": 0.5492185800000016,
+        "case_p95_ms": 0.6091369000008626,
+        "target_p50_ms": 0.2746092900000008,
+        "target_p95_ms": 0.3045684500004313,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 75.32873128815734,
+        "case_p95_reduction_percent": 73.26025903885842,
+        "target_p50_reduction_percent": 75.32873128815734,
+        "target_p95_reduction_percent": 73.26025903885842
       }
     }
   ]
