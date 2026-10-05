@@ -81,4 +81,4 @@ scripts/release/sync-release-version.sh <version>
 
 The release workflow verifies that the workspace version, npm package versions,
 optional native dependency versions, and release tag or workflow input all
-match before publishing.
+match before the release publishes crates and the GitHub Release.

@@ -53,21 +53,9 @@ moonlight run \
   --candidate-argv '["printf","%s\n","{\"value\":43}"]'
 ```
 
-Run it through npm:
-
-```sh
-npx @moritzbrantner/moonlight run \
-  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
-  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
-```
-
-Run it through Bun:
-
-```sh
-bunx @moritzbrantner/moonlight run \
-  --primary-argv '["printf","%s\n","{\"value\":42}"]' \
-  --candidate-argv '["printf","%s\n","{\"value\":43}"]'
-```
+Or download a prebuilt binary for Linux, macOS, or Windows from
+[GitHub Releases](https://github.com/moritzbrantner/moonlight/releases).
+Moonlight is no longer published to npm.
 
 Evaluate a coding-agent patch against an existing project:
 
