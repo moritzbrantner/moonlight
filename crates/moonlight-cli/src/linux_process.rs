@@ -296,10 +296,7 @@ impl Drop for OwnedChildren {
 }
 
 fn kill_owned_children() -> io::Result<()> {
-    let children =
-        std::fs::read_to_string(format!("/proc/self/task/{}/children", std::process::id()))?;
-    for pid in children.split_whitespace() {
-        let pid: i32 = pid.parse().map_err(io::Error::other)?;
+    for pid in owned_child_pids()? {
         // SAFETY: these PIDs are unreaped direct children of this worker. Killing
         // their parents adopts further descendants here, including setsid children.
         if unsafe { libc::kill(pid, libc::SIGKILL) } == -1 {
@@ -310,6 +307,50 @@ fn kill_owned_children() -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn owned_child_pids() -> io::Result<Vec<i32>> {
+    let worker = std::process::id();
+    match std::fs::read_to_string(format!("/proc/self/task/{worker}/children")) {
+        Ok(children) => children
+            .split_whitespace()
+            .map(|pid| pid.parse().map_err(io::Error::other))
+            .collect(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            // The children entry requires optional kernel configuration. Standard
+            // procfs stat entries still identify this supervisor's direct children.
+            let mut children = Vec::new();
+            for entry in std::fs::read_dir("/proc")? {
+                let entry = entry?;
+                let Some(pid) = entry
+                    .file_name()
+                    .to_str()
+                    .and_then(|name| name.parse::<i32>().ok())
+                else {
+                    continue;
+                };
+                let Ok(stat) = std::fs::read(entry.path().join("stat")) else {
+                    continue;
+                };
+                // Process names may contain spaces, parentheses or non-UTF8 bytes;
+                // only the numeric fields after the final name delimiter are parsed.
+                let Some(end) = stat.iter().rposition(|byte| *byte == b')') else {
+                    continue;
+                };
+                let parent = stat[end + 1..]
+                    .split(|byte| byte.is_ascii_whitespace())
+                    .filter(|field| !field.is_empty())
+                    .nth(1)
+                    .and_then(|field| std::str::from_utf8(field).ok())
+                    .and_then(|parent| parent.parse::<u32>().ok());
+                if parent == Some(worker) {
+                    children.push(pid);
+                }
+            }
+            Ok(children)
+        }
+        Err(error) => Err(error),
+    }
 }
 
 fn write_reply(channel: &mut StdUnixStream, reply: &Reply) -> io::Result<()> {

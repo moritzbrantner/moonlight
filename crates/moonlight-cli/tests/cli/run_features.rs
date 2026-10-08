@@ -361,7 +361,7 @@ fn run_streamed_candidate_body_diff_still_records_diff() {
 #[cfg(unix)]
 #[test]
 fn interrupt_stops_isolated_target_processes() {
-    for (signal, exit_code) in [("-INT", 130), ("-TERM", 143), ("-HUP", 129)] {
+    for (signal, exit_code) in [("-INT", 130), ("-TERM", 143), ("-HUP", 129), ("-QUIT", 131)] {
         assert_signal_cleans_targets(signal, exit_code);
     }
 }
@@ -550,4 +550,102 @@ fn batch_reaps_timed_out_descendants_before_the_next_case_finishes() {
         !alive_during_second,
         "first descendant remained a zombie during the next case"
     );
+}
+
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+#[test]
+fn missing_optional_proc_children_preserves_success_and_descendant_cleanup() {
+    use std::process::{Command, Stdio};
+    let directory = TempDir::new().unwrap();
+    let source = directory.path().join("without-children.c");
+    let library = directory.path().join("without-children.so");
+    fs::write(
+        &source,
+        r#"
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <string.h>
+#include <sys/types.h>
+static int call_open(const char *symbol, const char *path, int flags, mode_t mode) {
+    const size_t size = strlen(path);
+    if (strstr(path, "/proc/self/task/") && size >= 9 && !strcmp(path + size - 9, "/children")) {
+        errno = ENOENT;
+        return -1;
+    }
+    int (*real_open)(const char *, int, ...) = dlsym(RTLD_NEXT, symbol);
+    return real_open(path, flags, mode);
+}
+int open(const char *path, int flags, ...) {
+    va_list args; va_start(args, flags);
+    mode_t mode = flags & O_CREAT ? va_arg(args, int) : 0;
+    va_end(args);
+    return call_open("open", path, flags, mode);
+}
+int open64(const char *path, int flags, ...) {
+    va_list args; va_start(args, flags);
+    mode_t mode = flags & O_CREAT ? va_arg(args, int) : 0;
+    va_end(args);
+    return call_open("open64", path, flags, mode);
+}
+"#,
+    )
+    .unwrap();
+    let compiler = Command::new("cc")
+        .args(["-shared", "-fPIC"])
+        .arg(&source)
+        .args(["-o"])
+        .arg(&library)
+        .arg("-ldl")
+        .output()
+        .unwrap();
+    assert!(
+        compiler.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiler.stderr)
+    );
+    let pid_path = directory.path().join("descendant.pid");
+    let primary = json_command(r#"{"value":1}"#);
+    let timeout_command = format!("sleep 30 & echo $! > '{}'; wait", pid_path.display());
+    for (candidate, classification) in [(&primary, "match"), (&timeout_command, "target_error")] {
+        let output = crate::cli_support::cli()
+            .env("LD_PRELOAD", &library)
+            .args([
+                "run",
+                "--storage-path",
+                &storage_path(&directory),
+                "--primary",
+                &primary,
+                "--candidate",
+                candidate,
+                "--target-timeout-ms",
+                "500",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let record: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            record["comparison"]["classification"], classification,
+            "{record}"
+        );
+    }
+    let pid = fs::read_to_string(pid_path).unwrap();
+    let alive = Command::new("kill")
+        .args(["-0", pid.trim()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap()
+        .success();
+    if alive {
+        let _ = Command::new("kill").args(["-KILL", pid.trim()]).status();
+    }
+    assert!(!alive, "descendant survived fallback cleanup");
 }

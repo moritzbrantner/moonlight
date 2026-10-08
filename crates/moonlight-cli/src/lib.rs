@@ -100,10 +100,12 @@ async fn shutdown_signal() -> std::io::Result<u8> {
         let mut interrupt = signal(SignalKind::interrupt())?;
         let mut terminate = signal(SignalKind::terminate())?;
         let mut hangup = signal(SignalKind::hangup())?;
+        let mut quit = signal(SignalKind::quit())?;
         tokio::select! {
             _ = interrupt.recv() => Ok(130),
             _ = terminate.recv() => Ok(143),
             _ = hangup.recv() => Ok(129),
+            _ = quit.recv() => Ok(131),
         }
     }
     #[cfg(not(unix))]
