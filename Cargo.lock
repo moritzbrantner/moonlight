@@ -1130,6 +1130,7 @@ dependencies = [
  "criterion",
  "futures",
  "hex",
+ "libc",
  "moonlight-core",
  "predicates",
  "regex",

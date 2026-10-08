@@ -340,6 +340,8 @@ impl ProcessGroupGuard {
     fn terminate(&mut self) {
         #[cfg(unix)]
         if let Some(process_group_id) = self.0.take() {
+            #[cfg(target_os = "linux")]
+            crate::linux_process::record_terminated_group(process_group_id);
             // This also runs when an interrupt cancels the target future.
             let group = format!("-{process_group_id}");
             let _ = std::process::Command::new("kill")

@@ -7,6 +7,8 @@ mod eval;
 mod eval_config;
 mod execute;
 mod input;
+#[cfg(target_os = "linux")]
+mod linux_process;
 mod run_once;
 mod types;
 #[cfg(windows)]
@@ -54,11 +56,16 @@ impl std::fmt::Display for ExitCodeError {
 impl std::error::Error for ExitCodeError {}
 
 pub async fn run_cli() -> anyhow::Result<ExitCode> {
-    tokio::select! {
+    #[cfg(target_os = "linux")]
+    linux_process::adopt_descendants()?;
+    let result = tokio::select! {
         biased;
         signal = shutdown_signal() => Ok(ExitCode::from(signal?)),
         result = run_cli_inner() => result,
-    }
+    };
+    #[cfg(target_os = "linux")]
+    linux_process::reap_terminated_groups().await?;
+    result
 }
 
 async fn shutdown_signal() -> std::io::Result<u8> {
@@ -67,9 +74,11 @@ async fn shutdown_signal() -> std::io::Result<u8> {
         use tokio::signal::unix::{signal, SignalKind};
         let mut interrupt = signal(SignalKind::interrupt())?;
         let mut terminate = signal(SignalKind::terminate())?;
+        let mut hangup = signal(SignalKind::hangup())?;
         tokio::select! {
             _ = interrupt.recv() => Ok(130),
             _ = terminate.recv() => Ok(143),
+            _ = hangup.recv() => Ok(129),
         }
     }
     #[cfg(not(unix))]

@@ -358,6 +358,13 @@ fn run_streamed_candidate_body_diff_still_records_diff() {
 #[cfg(unix)]
 #[test]
 fn interrupt_stops_isolated_target_processes() {
+    for (signal, exit_code) in [("-INT", 130), ("-TERM", 143), ("-HUP", 129)] {
+        assert_signal_cleans_targets(signal, exit_code);
+    }
+}
+
+#[cfg(unix)]
+fn assert_signal_cleans_targets(signal: &str, exit_code: i32) {
     use std::{
         process::{Command, Stdio},
         thread,
@@ -401,7 +408,7 @@ fn interrupt_stops_isolated_target_processes() {
         thread::sleep(Duration::from_millis(25));
     }
     Command::new("kill")
-        .args(["-INT", &child.id().to_string()])
+        .args([signal, &child.id().to_string()])
         .status()
         .unwrap();
     let status = child.wait().unwrap();
@@ -431,7 +438,7 @@ fn interrupt_stops_isolated_target_processes() {
     assert_eq!(pids.len(), 2, "target and descendant must have started");
     assert!(
         survivors.is_empty(),
-        "interrupt left target processes running: {survivors:?}"
+        "{signal} left target processes running: {survivors:?}"
     );
-    assert_eq!(status.code(), Some(130));
+    assert_eq!(status.code(), Some(exit_code));
 }
