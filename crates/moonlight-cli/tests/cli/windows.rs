@@ -4,39 +4,45 @@ use std::{fs, process::Command, thread, time::Duration};
 
 #[test]
 fn windows_timeout_terminates_descendants_even_after_parent_exits() {
+    let fixture_directory = TempDir::new().unwrap();
+    let source = fixture_directory.path().join("descendant.rs");
+    let executable = fixture_directory.path().join("descendant.exe");
+    fs::write(
+        &source,
+        r#"
+use std::{env, fs, process::Command, thread, time::Duration};
+fn main() {
+    let args: Vec<_> = env::args().collect();
+    if args[1] == "child" {
+        thread::sleep(Duration::from_secs(30));
+        return;
+    }
+    let child = Command::new(env::current_exe().unwrap()).arg("child").spawn().unwrap();
+    fs::write(&args[1], child.id().to_string()).unwrap();
+    if args[2] == "wait" { thread::sleep(Duration::from_secs(30)); }
+}
+"#,
+    )
+    .unwrap();
+    let compiled = Command::new("rustc")
+        .arg(&source)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "fixture compilation failed: {}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
     for parent_waits in [true, false] {
         let directory = TempDir::new().unwrap();
-        let script = directory.path().join("spawn.ps1");
         let pid_file = directory.path().join("descendant.pid");
-        fs::write(
-            &script,
-            format!(
-                r#"
-param([string] $PidFile)
-$start = New-Object System.Diagnostics.ProcessStartInfo
-$start.FileName = 'powershell.exe'
-$start.Arguments = '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 30'
-$start.UseShellExecute = $false
-$child = [System.Diagnostics.Process]::Start($start)
-Set-Content -Path $PidFile -Value $child.Id
-{}
-"#,
-                if parent_waits {
-                    "Start-Sleep -Seconds 30"
-                } else {
-                    "exit 0"
-                }
-            ),
-        )
-        .unwrap();
         let primary = serde_json::to_string(&["cmd.exe", "/c", "echo ok"]).unwrap();
         let candidate = serde_json::to_string(&[
-            "powershell.exe",
-            "-NoProfile",
-            "-NonInteractive",
-            "-File",
-            script.to_str().unwrap(),
+            executable.to_str().unwrap(),
             pid_file.to_str().unwrap(),
+            if parent_waits { "wait" } else { "exit" },
         ])
         .unwrap();
         let record = run_record(
