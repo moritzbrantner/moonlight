@@ -1,6 +1,7 @@
 use super::test_support::{
     fetch_runs, spawn_proxy, spawn_target, spawn_target_with_delay,
-    spawn_target_with_status_and_delay, spawn_uri_target, test_config, wait_for_run,
+    spawn_target_with_session_headers, spawn_target_with_status_and_delay, spawn_uri_target,
+    test_config, wait_for_run,
 };
 use axum::http::{header, HeaderValue, StatusCode};
 use moonlight_core::{
@@ -219,6 +220,101 @@ async fn return_selected_response_timing_returns_before_slow_candidate_and_recor
 
     let run = wait_for_run(&client, proxy_addr).await;
     assert_eq!(run.classification, Classification::SuspiciousDifference);
+}
+
+#[tokio::test]
+async fn proxy_forwards_raw_session_headers_but_persists_redacted_evidence() {
+    let primary = spawn_target_with_session_headers(r#"{"source":"primary"}"#).await;
+    let candidate = spawn_target(r#"{"source":"candidate"}"#).await;
+    let dir = tempdir().unwrap();
+    let config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!("http://{proxy_addr}/session"))
+        .send()
+        .await
+        .unwrap();
+    let cookies = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|value| value.to_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        cookies,
+        vec![
+            "session=moonlight-session-secret; HttpOnly",
+            "theme=moonlight-theme-secret"
+        ]
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("x-csrf-token")
+            .and_then(|value| value.to_str().ok()),
+        Some("moonlight-csrf-secret")
+    );
+
+    let summary = wait_for_run(&client, proxy_addr).await;
+    let run: ComparisonRun = client
+        .get(format!("http://{proxy_addr}/api/runs/{}", summary.id))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let serialized = serde_json::to_string(&run).unwrap();
+
+    assert_eq!(
+        run.primary.headers.get("set-cookie").map(String::as_str),
+        Some("[redacted]")
+    );
+    assert_eq!(
+        run.primary.headers.get("x-csrf-token").map(String::as_str),
+        Some("[redacted]")
+    );
+    assert!(!serialized.contains("moonlight-session-secret"));
+    assert!(!serialized.contains("moonlight-theme-secret"));
+    assert!(!serialized.contains("moonlight-csrf-secret"));
+}
+
+#[tokio::test]
+async fn candidate_selected_response_also_preserves_raw_multi_value_headers() {
+    let primary = spawn_target(r#"{"source":"primary"}"#).await;
+    let candidate = spawn_target_with_session_headers(r#"{"source":"candidate"}"#).await;
+    let dir = tempdir().unwrap();
+    let mut config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    config.return_target = ReturnTarget::Candidate;
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!("http://{proxy_addr}/session"))
+        .send()
+        .await
+        .unwrap();
+    let cookies = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|value| value.to_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+
+    assert_eq!(cookies.len(), 2);
+    assert!(cookies
+        .iter()
+        .any(|value| value.contains("moonlight-session-secret")));
+    assert_eq!(
+        response
+            .headers()
+            .get("x-csrf-token")
+            .and_then(|value| value.to_str().ok()),
+        Some("moonlight-csrf-secret")
+    );
 }
 
 #[tokio::test]

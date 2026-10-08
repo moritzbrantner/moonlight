@@ -44,6 +44,7 @@ fn target_with_stderr(
             latency_ms: 1,
             error: None,
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::copy_from_slice(body.as_bytes()),
         stderr_bytes: Bytes::copy_from_slice(stderr.as_bytes()),
     }
@@ -59,6 +60,7 @@ fn target_error(message: &str) -> CapturedTarget {
             latency_ms: 1,
             error: Some(message.to_string()),
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::new(),
         stderr_bytes: Bytes::new(),
     }
@@ -266,6 +268,151 @@ fn redact_json_path_patterns_hide_matching_values() {
     assert_eq!(
         result.noise_filtered_diffs[0].candidate.as_deref(),
         Some("\"[redacted]\"")
+    );
+}
+
+#[test]
+fn added_redacted_json_member_never_exposes_its_value() {
+    let primary = target(200, &[], r#"{}"#);
+    let candidate = target(200, &[], r#"{"token":"AUDIT_SENTINEL"}"#);
+    let config = CompareConfig::new_with_redactions(&[], &["$.token".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+    let serialized = serde_json::to_string(&result).unwrap();
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert_eq!(result.noise_filtered_diffs[0].path, "$.token");
+    assert!(!serialized.contains("AUDIT_SENTINEL"));
+    assert!(serialized.contains("[redacted]"));
+}
+
+#[test]
+fn removed_redacted_json_member_never_exposes_its_value() {
+    let primary = target(200, &[], r#"{"token":"AUDIT_SENTINEL"}"#);
+    let candidate = target(200, &[], r#"{}"#);
+    let config = CompareConfig::new_with_redactions(&[], &["$.token".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+    let serialized = serde_json::to_string(&result).unwrap();
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert_eq!(result.noise_filtered_diffs[0].path, "$.token");
+    assert!(!serialized.contains("AUDIT_SENTINEL"));
+    assert!(serialized.contains("[redacted]"));
+}
+
+#[test]
+fn added_ignored_json_member_does_not_create_a_diff() {
+    let primary = target(200, &[], r#"{}"#);
+    let candidate = target(200, &[], r#"{"timestamp":"volatile"}"#);
+    let config = CompareConfig::new(&["$.timestamp".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+
+    assert_eq!(result.classification, Classification::Match);
+    assert!(result.raw_candidate_diffs.is_empty());
+}
+
+#[test]
+fn added_object_redacts_descendants_without_hiding_visible_diffs() {
+    let primary = target(200, &[], r#"{}"#);
+    let candidate = target(
+        200,
+        &[],
+        r#"{"payload":{"token":"AUDIT_SENTINEL","visible":42}}"#,
+    );
+    let config = CompareConfig::new_with_redactions(&[], &["$.payload.token".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+    let serialized = serde_json::to_string(&result).unwrap();
+    let paths = result
+        .noise_filtered_diffs
+        .iter()
+        .map(|diff| diff.path.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert!(paths.contains(&"$.payload.token"));
+    assert!(paths.contains(&"$.payload.visible"));
+    assert!(!serialized.contains("AUDIT_SENTINEL"));
+}
+
+#[test]
+fn redaction_does_not_change_reference_noise_classification() {
+    let primary = target(200, &[], r#"{"secret":{"a":1,"b":1}}"#);
+    let candidate = target(200, &[], r#"{"secret":{"a":2,"b":1}}"#);
+    let secondary = target(200, &[], r#"{"secret":{"a":2,"b":2}}"#);
+
+    let plain = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new(&[], &[], false),
+    );
+    let redacted = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new_with_redactions(&[], &["$.secret".into()], &[], false),
+    );
+
+    assert_eq!(plain.classification, Classification::ReferenceNoise);
+    assert_eq!(redacted.classification, plain.classification);
+    assert!(redacted.noise_filtered_diffs.is_empty());
+    assert!(serde_json::to_string(&redacted)
+        .unwrap()
+        .contains("[redacted]"));
+}
+
+#[test]
+fn literal_dotted_key_does_not_alias_nested_key() {
+    let primary = target(200, &[], r#"{"a":{"b":1},"a.b":10}"#);
+    let candidate = target(200, &[], r#"{"a":{"b":1},"a.b":2}"#);
+    let secondary = target(200, &[], r#"{"a":{"b":2},"a.b":10}"#);
+
+    let result = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new(&[], &[], false),
+    );
+
+    assert_eq!(result.classification, Classification::SuspiciousWithNoise);
+    assert_eq!(result.noise_filtered_diffs.len(), 1);
+    assert_eq!(result.noise_filtered_diffs[0].path, r#"$["a.b"]"#);
+    assert_eq!(result.reference_noise[0].path, "$.a.b");
+}
+
+#[test]
+fn redacted_transport_header_still_uses_raw_values_for_classification() {
+    let mut primary = target(200, &[("x-csrf-token", "[redacted]")], "ok");
+    let mut candidate = target(200, &[("x-csrf-token", "[redacted]")], "ok");
+    let mut secondary = target(200, &[("x-csrf-token", "[redacted]")], "ok");
+    primary.transport_headers.insert(
+        "x-csrf-token",
+        http::HeaderValue::from_static("primary-secret"),
+    );
+    candidate.transport_headers.insert(
+        "x-csrf-token",
+        http::HeaderValue::from_static("candidate-secret"),
+    );
+    secondary.transport_headers.insert(
+        "x-csrf-token",
+        http::HeaderValue::from_static("secondary-secret"),
+    );
+
+    let result = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new(&[], &[], false),
+    );
+
+    assert_eq!(result.classification, Classification::SuspiciousWithNoise);
+    assert_eq!(result.noise_filtered_diffs.len(), 1);
+    assert_eq!(
+        result.noise_filtered_diffs[0].candidate.as_deref(),
+        Some("[redacted]")
     );
 }
 

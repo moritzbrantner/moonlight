@@ -2,8 +2,8 @@ mod capture;
 mod diff;
 mod json_path;
 
-use crate::{target::CapturedTarget, Classification, ComparisonSummary, DiffEntry};
-use std::collections::HashSet;
+use crate::{target::CapturedTarget, Classification, ComparisonSummary, DiffEntry, DiffKind};
+use std::collections::{HashMap, HashSet};
 
 pub use capture::{
     capture_body, capture_body_with_redaction_patterns, capture_body_with_redactions,
@@ -73,12 +73,11 @@ pub fn compare_targets(
     secondary: Option<&CapturedTarget>,
     config: &CompareConfig,
 ) -> ComparisonSummary {
-    let raw_candidate_diffs =
-        diff::diff_pair(primary, candidate, diff::TargetRole::Candidate, config);
-    let reference_noise = secondary
+    let candidate_pairs = diff::diff_pair(primary, candidate, diff::TargetRole::Candidate, config);
+    let reference_pairs = secondary
         .map(|secondary| diff::diff_pair(primary, secondary, diff::TargetRole::Secondary, config))
         .unwrap_or_default();
-    let noise_filtered_diffs = filter_candidate_diffs(&raw_candidate_diffs, &reference_noise);
+    let noise_filtered_diffs = filter_candidate_diffs(&candidate_pairs, &reference_pairs);
 
     let target_error = primary.observation.error.is_some()
         || candidate.observation.error.is_some()
@@ -88,15 +87,24 @@ pub fn compare_targets(
 
     let classification = if target_error {
         Classification::TargetError
-    } else if raw_candidate_diffs.is_empty() && reference_noise.is_empty() {
+    } else if candidate_pairs.is_empty() && reference_pairs.is_empty() {
         Classification::Match
     } else if noise_filtered_diffs.is_empty() {
         Classification::ReferenceNoise
-    } else if !reference_noise.is_empty() {
+    } else if !reference_pairs.is_empty() {
         Classification::SuspiciousWithNoise
     } else {
         Classification::SuspiciousDifference
     };
+
+    let raw_candidate_diffs = candidate_pairs
+        .iter()
+        .map(|diff| diff.entry.clone())
+        .collect::<Vec<_>>();
+    let reference_noise = reference_pairs
+        .iter()
+        .map(|diff| diff.entry.clone())
+        .collect::<Vec<_>>();
 
     ComparisonSummary {
         classification,
@@ -117,23 +125,34 @@ fn summarize(label: &str, diffs: &[DiffEntry]) -> String {
 }
 
 fn filter_candidate_diffs(
-    candidate_diffs: &[DiffEntry],
-    reference_noise: &[DiffEntry],
+    candidate_diffs: &[diff::PairDiff],
+    reference_noise: &[diff::PairDiff],
 ) -> Vec<DiffEntry> {
+    let reference_index: HashMap<(DiffKind, String), Option<String>> = reference_noise
+        .iter()
+        .map(|reference_diff| {
+            (
+                (
+                    reference_diff.entry.kind.clone(),
+                    reference_diff.entry.path.clone(),
+                ),
+                reference_diff.semantic_other.clone(),
+            )
+        })
+        .collect();
+
     candidate_diffs
         .iter()
         .filter(|candidate_diff| {
-            let Some(reference_diff) = reference_noise.iter().find(|reference_diff| {
-                reference_diff.kind == candidate_diff.kind
-                    && reference_diff.path == candidate_diff.path
-            }) else {
-                return true;
-            };
-
-            candidate_diff.candidate != candidate_diff.primary
-                && candidate_diff.candidate != reference_diff.secondary
+            candidate_diff.semantic_other != candidate_diff.semantic_primary
+                && reference_index
+                    .get(&(
+                        candidate_diff.entry.kind.clone(),
+                        candidate_diff.entry.path.clone(),
+                    ))
+                    .is_none_or(|secondary| secondary != &candidate_diff.semantic_other)
         })
-        .cloned()
+        .map(|diff| diff.entry.clone())
         .collect()
 }
 
