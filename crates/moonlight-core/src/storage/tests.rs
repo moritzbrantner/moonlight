@@ -666,3 +666,45 @@ async fn retention_skip_rewrite_when_active_runs_are_already_within_limits() {
     let after = std::fs::read_to_string(&path).unwrap();
     assert_eq!(after, before);
 }
+
+#[tokio::test]
+async fn concurrent_refresh_and_insert_preserve_retention_limits() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("concurrent-runs.jsonl");
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(2),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+    let inserts = async {
+        for index in 0..100 {
+            storage
+                .insert(run(
+                    format!("local-{index}"),
+                    index,
+                    Classification::Match,
+                    false,
+                ))
+                .await
+                .unwrap();
+            tokio::task::yield_now().await;
+        }
+    };
+    let refreshes = async {
+        for _ in 0..100 {
+            storage.refresh().await.unwrap();
+            tokio::task::yield_now().await;
+        }
+    };
+    tokio::join!(inserts, refreshes);
+    storage
+        .insert(run("last", 101, Classification::Match, false))
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(path).unwrap().lines().count(), 2);
+    assert_eq!(storage.list().await.len(), 2);
+}

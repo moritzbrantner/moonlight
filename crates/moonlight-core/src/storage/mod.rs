@@ -119,6 +119,7 @@ impl Storage {
     }
 
     pub async fn refresh(&self) -> anyhow::Result<bool> {
+        let _guard = self.insert_lock.lock().await;
         let scan_signature = scan_jsonl_files(&self.scan_dir).await?;
         {
             let current = self.scan_signature.lock().await;

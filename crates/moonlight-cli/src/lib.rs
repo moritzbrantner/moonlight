@@ -54,6 +54,32 @@ impl std::fmt::Display for ExitCodeError {
 impl std::error::Error for ExitCodeError {}
 
 pub async fn run_cli() -> anyhow::Result<ExitCode> {
+    tokio::select! {
+        biased;
+        signal = shutdown_signal() => Ok(ExitCode::from(signal?)),
+        result = run_cli_inner() => result,
+    }
+}
+
+async fn shutdown_signal() -> std::io::Result<u8> {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut interrupt = signal(SignalKind::interrupt())?;
+        let mut terminate = signal(SignalKind::terminate())?;
+        tokio::select! {
+            _ = interrupt.recv() => Ok(130),
+            _ = terminate.recv() => Ok(143),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await?;
+        Ok(130)
+    }
+}
+
+async fn run_cli_inner() -> anyhow::Result<ExitCode> {
     let cli = Cli::parse();
     let file_config = load_optional_config(cli.config.config.as_deref(), cli.config.no_config)?;
     let defaults = CliDefaults::from_config(&file_config);

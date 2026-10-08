@@ -53,7 +53,7 @@ pub(crate) async fn run_command_with_redactions(
     let mut child = spawned.child;
     #[cfg(windows)]
     let _job = spawned.job;
-    let process_group_id = child.id();
+    let mut process_group = ProcessGroupGuard(child.id());
 
     let mut stdout = tokio::spawn(read_optional_stream(child.stdout.take()));
     let mut stderr = tokio::spawn(read_optional_stream(child.stderr.take()));
@@ -61,7 +61,7 @@ pub(crate) async fn run_command_with_redactions(
     let status = match timeout_at(deadline, child.wait()).await {
         Ok(Ok(status)) => status,
         Ok(Err(error)) => {
-            terminate_process_tree(&mut child, process_group_id);
+            terminate_process_tree(&mut child, &mut process_group).await;
             stdout.abort();
             stderr.abort();
             return error_target(
@@ -72,7 +72,7 @@ pub(crate) async fn run_command_with_redactions(
             );
         }
         Err(_) => {
-            terminate_process_tree(&mut child, process_group_id);
+            terminate_process_tree(&mut child, &mut process_group).await;
             stdout.abort();
             stderr.abort();
             return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms);
@@ -91,7 +91,7 @@ pub(crate) async fn run_command_with_redactions(
             let stdout_bytes = match join_stream_result(stdout_result) {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    terminate_process_tree(&mut child, process_group_id);
+                    terminate_process_tree(&mut child, &mut process_group).await;
                     stderr.abort();
                     return command_read_error(
                         label,
@@ -105,7 +105,7 @@ pub(crate) async fn run_command_with_redactions(
             let stderr_bytes = match join_stream_result(stderr_result) {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    terminate_process_tree(&mut child, process_group_id);
+                    terminate_process_tree(&mut child, &mut process_group).await;
                     return command_read_error(
                         label,
                         "stderr",
@@ -120,13 +120,14 @@ pub(crate) async fn run_command_with_redactions(
         Err(_) => {
             // A descendant can outlive the direct child while retaining an inherited
             // stdout/stderr pipe. The lifecycle deadline covers that drain as well.
-            terminate_process_tree(&mut child, process_group_id);
+            terminate_process_tree(&mut child, &mut process_group).await;
             stdout.abort();
             stderr.abort();
             return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms);
         }
     };
 
+    process_group.0 = None;
     let error = status
         .code()
         .is_none()
@@ -333,23 +334,37 @@ where
     Ok(Bytes::from(bytes))
 }
 
-fn terminate_process_tree(child: &mut Child, process_group_id: Option<u32>) {
-    #[cfg(unix)]
-    if let Some(process_group_id) = process_group_id {
-        // Each target starts in a fresh process group. Killing the group also
-        // terminates descendants that inherited the target's output pipes.
-        let group = format!("-{process_group_id}");
-        let _ = std::process::Command::new("kill")
-            .args(["-KILL", "--", &group])
-            .status();
+struct ProcessGroupGuard(Option<u32>);
+
+impl ProcessGroupGuard {
+    fn terminate(&mut self) {
+        #[cfg(unix)]
+        if let Some(process_group_id) = self.0.take() {
+            // This also runs when an interrupt cancels the target future.
+            let group = format!("-{process_group_id}");
+            let _ = std::process::Command::new("kill")
+                .args(["-KILL", "--", &group])
+                .status();
+        }
+        #[cfg(not(unix))]
+        {
+            self.0 = None;
+        }
     }
+}
 
-    // On Windows the enclosing WindowsJob guard terminates all descendants on return,
-    // including when the direct process has already exited.
-    #[cfg(windows)]
-    let _ = process_group_id;
+impl Drop for ProcessGroupGuard {
+    fn drop(&mut self) {
+        self.terminate();
+    }
+}
 
+async fn terminate_process_tree(child: &mut Child, process_group: &mut ProcessGroupGuard) {
+    process_group.terminate();
+    // WindowsJob closes the process tree on return. Explicitly wait for the direct
+    // child after killing it so timeout cleanup does not leave a zombie behind.
     let _ = child.start_kill();
+    let _ = tokio::time::timeout(Duration::from_millis(100), child.wait()).await;
 }
 
 fn shell_quote(value: &str) -> String {

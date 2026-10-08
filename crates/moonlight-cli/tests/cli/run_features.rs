@@ -354,3 +354,84 @@ fn run_streamed_candidate_body_diff_still_records_diff() {
     );
     dir.close().unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn interrupt_stops_isolated_target_processes() {
+    use std::{
+        process::{Command, Stdio},
+        thread,
+        time::Duration,
+    };
+    let dir = TempDir::new().unwrap();
+    let pid_path = dir.path().join("interrupted-targets.pid");
+    let candidate = serde_json::to_string(&[
+        "sh",
+        "-c",
+        "echo $$ > \"$1\"; sleep 30 & echo $! >> \"$1\"; wait",
+        "fixture",
+        pid_path.to_str().unwrap(),
+    ])
+    .unwrap();
+    let primary = serde_json::to_string(&["printf", "%s", "ok"]).unwrap();
+    let mut child = crate::cli_support::cli()
+        .args([
+            "run",
+            "--storage-path",
+            &storage_path(&dir),
+            "--primary-argv",
+            &primary,
+            "--candidate-argv",
+            &candidate,
+            "--target-timeout-ms",
+            "30000",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut pids = Vec::<String>::new();
+    for _ in 0..100 {
+        if let Ok(text) = fs::read_to_string(&pid_path) {
+            pids = text.lines().map(str::to_owned).collect();
+        }
+        if pids.len() == 2 {
+            break;
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+    Command::new("kill")
+        .args(["-INT", &child.id().to_string()])
+        .status()
+        .unwrap();
+    let status = child.wait().unwrap();
+    let mut survivors = Vec::new();
+    for pid in &pids {
+        let mut alive = true;
+        for _ in 0..20 {
+            alive = Command::new("kill")
+                .args(["-0", pid])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap()
+                .success();
+            if !alive {
+                break;
+            }
+            thread::sleep(Duration::from_millis(25));
+        }
+        if alive {
+            survivors.push(pid.clone());
+        }
+    }
+    for pid in &survivors {
+        let _ = Command::new("kill").args(["-KILL", pid]).status();
+    }
+    assert_eq!(pids.len(), 2, "target and descendant must have started");
+    assert!(
+        survivors.is_empty(),
+        "interrupt left target processes running: {survivors:?}"
+    );
+    assert_eq!(status.code(), Some(130));
+}
