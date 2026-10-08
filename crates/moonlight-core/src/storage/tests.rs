@@ -708,3 +708,37 @@ async fn concurrent_refresh_and_insert_preserve_retention_limits() {
     assert_eq!(std::fs::read_to_string(path).unwrap().lines().count(), 2);
     assert_eq!(storage.list().await.len(), 2);
 }
+
+#[tokio::test]
+async fn insert_detects_external_appends_before_retention_fast_path() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("external-runs.jsonl");
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(2),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+    let external = RunWriter::open(path.clone()).await.unwrap();
+    for index in 0..2 {
+        external
+            .append(&run(
+                format!("external-{index}"),
+                index,
+                Classification::Match,
+                false,
+            ))
+            .await
+            .unwrap();
+    }
+    external.flush().await.unwrap();
+    storage
+        .insert(run("local", 3, Classification::Match, false))
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(&path).unwrap().lines().count(), 2);
+    assert_eq!(storage.list().await.len(), 2);
+}

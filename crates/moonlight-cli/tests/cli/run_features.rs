@@ -131,12 +131,15 @@ fn run_timeout_bounds_descendant_pipe_lifecycle_and_cleans_descendant() {
     let dir = TempDir::new().unwrap();
     let storage = storage_path(&dir);
     let pid_path = dir.path().join("descendant.pid");
-    let path_literal = serde_json::to_string(pid_path.to_str().unwrap()).unwrap();
-    let code = format!(
-        "from pathlib import Path; import subprocess; p=subprocess.Popen(['sleep','3']); Path({path_literal}).write_text(str(p.pid))"
-    );
     let primary = serde_json::to_string(&["printf", "%s", "ok"]).unwrap();
-    let candidate = serde_json::to_string(&["python3", "-c", &code]).unwrap();
+    let candidate = serde_json::to_string(&[
+        "sh",
+        "-c",
+        "sleep 30 & echo $! > \"$1\"",
+        "fixture",
+        pid_path.to_str().unwrap(),
+    ])
+    .unwrap();
 
     let started = std::time::Instant::now();
     let record = run_record(
@@ -147,7 +150,7 @@ fn run_timeout_bounds_descendant_pipe_lifecycle_and_cleans_descendant() {
             "--candidate-argv",
             &candidate,
             "--target-timeout-ms",
-            "100",
+            "500",
         ],
     );
 
@@ -365,6 +368,7 @@ fn interrupt_stops_isolated_target_processes() {
 
 #[cfg(unix)]
 fn assert_signal_cleans_targets(signal: &str, exit_code: i32) {
+    use std::os::unix::process::CommandExt;
     use std::{
         process::{Command, Stdio},
         thread,
@@ -393,6 +397,7 @@ fn assert_signal_cleans_targets(signal: &str, exit_code: i32) {
             "--target-timeout-ms",
             "30000",
         ])
+        .process_group(0)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -408,7 +413,7 @@ fn assert_signal_cleans_targets(signal: &str, exit_code: i32) {
         thread::sleep(Duration::from_millis(25));
     }
     Command::new("kill")
-        .args([signal, &child.id().to_string()])
+        .args([signal, "--", &format!("-{}", child.id())])
         .status()
         .unwrap();
     let status = child.wait().unwrap();
@@ -441,4 +446,108 @@ fn assert_signal_cleans_targets(signal: &str, exit_code: i32) {
         "{signal} left target processes running: {survivors:?}"
     );
     assert_eq!(status.code(), Some(exit_code));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn timeout_cleans_descendants_that_create_new_sessions() {
+    assert_linux_background_cleanup("setsid sleep 30 & echo $! > \"$1\"; wait", true);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn successful_commands_clean_redirected_background_children() {
+    assert_linux_background_cleanup(
+        "sleep 30 </dev/null >/dev/null 2>&1 & echo $! > \"$1\"",
+        false,
+    );
+}
+
+#[cfg(target_os = "linux")]
+fn assert_linux_background_cleanup(script: &str, times_out: bool) {
+    let dir = TempDir::new().unwrap();
+    let pid_path = dir.path().join("background.pid");
+    let primary = serde_json::to_string(&["true"]).unwrap();
+    let candidate =
+        serde_json::to_string(&["sh", "-c", script, "fixture", pid_path.to_str().unwrap()])
+            .unwrap();
+    let record = run_record(
+        &storage_path(&dir),
+        &[
+            "--primary-argv",
+            &primary,
+            "--candidate-argv",
+            &candidate,
+            "--target-timeout-ms",
+            "500",
+        ],
+    );
+    let pid = fs::read_to_string(&pid_path).unwrap();
+    let alive = process_exists(pid.trim());
+    if alive {
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", pid.trim()])
+            .status();
+    }
+    assert_eq!(
+        record["comparison"]["classification"],
+        if times_out { "target_error" } else { "match" }
+    );
+    assert!(!alive, "background child survived target completion");
+}
+
+#[cfg(target_os = "linux")]
+fn process_exists(pid: &str) -> bool {
+    std::process::Command::new("kill")
+        .args(["-0", pid])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap()
+        .success()
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn batch_reaps_timed_out_descendants_before_the_next_case_finishes() {
+    let dir = TempDir::new().unwrap();
+    let input = dir.path().join("cases.jsonl");
+    let pid_path = dir.path().join("first.pid");
+    let second_started = dir.path().join("second.started");
+    crate::cli_support::write_batch_cases(
+        &input,
+        &[
+            serde_json::json!({"primary_argv": ["true"], "candidate_argv": ["sh", "-c", "sleep 30 & echo $! > \"$1\"; wait", "fixture", pid_path], "target_timeout_ms": 500}),
+            serde_json::json!({"primary_argv": ["true"], "candidate_argv": ["sh", "-c", "touch \"$1\"; sleep 3", "fixture", second_started], "target_timeout_ms": 5000}),
+        ],
+    );
+    let mut child = crate::cli_support::cli()
+        .args([
+            "batch",
+            "--input",
+            input.to_str().unwrap(),
+            "--storage-path",
+            &storage_path(&dir),
+            "--jobs",
+            "1",
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    for _ in 0..150 {
+        if second_started.exists() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let pid = fs::read_to_string(&pid_path).unwrap();
+    let alive_during_second = process_exists(pid.trim());
+    let status = child.wait().unwrap();
+    assert!(second_started.exists());
+    assert!(status.success());
+    assert!(
+        !alive_during_second,
+        "first descendant remained a zombie during the next case"
+    );
 }

@@ -8,6 +8,7 @@ use crate::{run_matches_filter, ComparisonRun, ComparisonRunListItem, RunFilter,
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 use tokio::{
     fs,
@@ -38,6 +39,7 @@ pub struct Storage {
 struct RetentionState {
     active_runs: usize,
     active_bytes: u64,
+    active_modified: Option<SystemTime>,
 }
 
 impl RetentionState {
@@ -64,10 +66,12 @@ async fn load_retention_state(
 
     let mut active_runs = Vec::new();
     load_runs_from_file(write_path, &mut active_runs).await?;
-    let active_bytes = fs::metadata(write_path).await?.len();
+    let metadata = fs::metadata(write_path).await?;
+    let active_bytes = metadata.len();
     Ok(RetentionState {
         active_runs: active_runs.len(),
         active_bytes,
+        active_modified: metadata.modified().ok(),
     })
 }
 
@@ -106,13 +110,31 @@ impl Storage {
 
     pub async fn insert(&self, run: ComparisonRun) -> anyhow::Result<()> {
         let _guard = self.insert_lock.lock().await;
+        if self.options.is_configured() {
+            let metadata = fs::metadata(&self.write_path).await?;
+            let cached = *self.retention_state.lock().await;
+            if cached.active_bytes != metadata.len()
+                || cached.active_modified != metadata.modified().ok()
+            {
+                // Reopen as well: an external writer may have replaced the path atomically.
+                self.writer.reopen(&self.write_path).await?;
+                self.resynchronize_retention().await?;
+            }
+        }
         let appended_bytes = self.writer.append(&run).await?;
         self.writer.flush().await?;
         self.runs.write().await.push(run);
         if self.options.is_configured() {
+            let metadata = fs::metadata(&self.write_path).await?;
             let mut state = self.retention_state.lock().await;
-            state.active_runs += 1;
-            state.active_bytes += appended_bytes;
+            if metadata.len() == state.active_bytes + appended_bytes {
+                state.active_runs += 1;
+                state.active_bytes += appended_bytes;
+                state.active_modified = metadata.modified().ok();
+            } else {
+                drop(state);
+                self.resynchronize_retention().await?;
+            }
         }
         self.apply_retention().await?;
         Ok(())
@@ -203,12 +225,23 @@ impl Storage {
         let retained_state = RetentionState {
             active_runs: retained_runs.len(),
             active_bytes: retained_content.len() as u64,
+            active_modified: None,
         };
 
         atomic_write(&self.write_path, retained_content).await?;
         self.writer.reopen(&self.write_path).await?;
-        *self.retention_state.lock().await = retained_state;
+        *self.retention_state.lock().await = RetentionState {
+            active_modified: fs::metadata(&self.write_path).await?.modified().ok(),
+            ..retained_state
+        };
         self.force_refresh().await?;
+        Ok(())
+    }
+
+    async fn resynchronize_retention(&self) -> anyhow::Result<()> {
+        self.force_refresh().await?;
+        *self.retention_state.lock().await =
+            load_retention_state(&self.write_path, self.options).await?;
         Ok(())
     }
 

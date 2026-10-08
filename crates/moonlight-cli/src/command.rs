@@ -5,10 +5,14 @@ use moonlight_core::{
     target::CapturedTarget,
     BodyCapture, TargetObservation,
 };
-use std::{collections::BTreeMap, process::Stdio, time::Instant};
+#[cfg(not(target_os = "linux"))]
+use std::process::Stdio;
+use std::{collections::BTreeMap, time::Instant};
+#[cfg(not(target_os = "linux"))]
+use tokio::process::Command;
 use tokio::{
     io::{self, AsyncRead, AsyncReadExt},
-    process::{Child, Command},
+    process::Child,
     time::{timeout_at, Duration, Instant as TokioInstant},
 };
 
@@ -39,9 +43,9 @@ pub(crate) async fn run_command_with_redactions(
 ) -> CapturedTarget {
     let started = Instant::now();
     let deadline = TokioInstant::now() + Duration::from_millis(target_timeout_ms);
-    let spawned = match command.spawn() {
-        Ok(spawned) => spawned,
-        Err(error) => {
+    let spawned = match timeout_at(deadline, command.spawn()).await {
+        Ok(Ok(spawned)) => spawned,
+        Ok(Err(error)) => {
             return error_target(
                 label,
                 format!("{label} command failed to start: {error}"),
@@ -49,19 +53,23 @@ pub(crate) async fn run_command_with_redactions(
                 max_body_capture_bytes,
             );
         }
+        Err(_) => return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms),
     };
     let mut child = spawned.child;
     #[cfg(windows)]
     let _job = spawned.job;
+    #[cfg(target_os = "linux")]
+    let mut process_group = spawned.control;
+    #[cfg(not(target_os = "linux"))]
     let mut process_group = ProcessGroupGuard(child.id());
 
     let mut stdout = tokio::spawn(read_optional_stream(child.stdout.take()));
     let mut stderr = tokio::spawn(read_optional_stream(child.stderr.take()));
 
-    let status = match timeout_at(deadline, child.wait()).await {
+    let status = match timeout_at(deadline, wait_target(&mut child, &mut process_group)).await {
         Ok(Ok(status)) => status,
         Ok(Err(error)) => {
-            terminate_process_tree(&mut child, &mut process_group).await;
+            let _ = terminate_process_tree(&mut child, &mut process_group).await;
             stdout.abort();
             stderr.abort();
             return error_target(
@@ -72,7 +80,7 @@ pub(crate) async fn run_command_with_redactions(
             );
         }
         Err(_) => {
-            terminate_process_tree(&mut child, &mut process_group).await;
+            let _ = terminate_process_tree(&mut child, &mut process_group).await;
             stdout.abort();
             stderr.abort();
             return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms);
@@ -91,7 +99,7 @@ pub(crate) async fn run_command_with_redactions(
             let stdout_bytes = match join_stream_result(stdout_result) {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    terminate_process_tree(&mut child, &mut process_group).await;
+                    let _ = terminate_process_tree(&mut child, &mut process_group).await;
                     stderr.abort();
                     return command_read_error(
                         label,
@@ -105,7 +113,7 @@ pub(crate) async fn run_command_with_redactions(
             let stderr_bytes = match join_stream_result(stderr_result) {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    terminate_process_tree(&mut child, &mut process_group).await;
+                    let _ = terminate_process_tree(&mut child, &mut process_group).await;
                     return command_read_error(
                         label,
                         "stderr",
@@ -120,14 +128,21 @@ pub(crate) async fn run_command_with_redactions(
         Err(_) => {
             // A descendant can outlive the direct child while retaining an inherited
             // stdout/stderr pipe. The lifecycle deadline covers that drain as well.
-            terminate_process_tree(&mut child, &mut process_group).await;
+            let _ = terminate_process_tree(&mut child, &mut process_group).await;
             stdout.abort();
             stderr.abort();
             return timeout_target(label, started, max_body_capture_bytes, target_timeout_ms);
         }
     };
 
-    process_group.0 = None;
+    if let Err(error) = terminate_process_tree(&mut child, &mut process_group).await {
+        return error_target(
+            label,
+            format!("{label} command cleanup failed: {error}"),
+            started,
+            max_body_capture_bytes,
+        );
+    }
     let error = status
         .code()
         .is_none()
@@ -149,55 +164,65 @@ pub(crate) async fn run_command_with_redactions(
 
 pub(crate) struct SpawnedCommand {
     child: Child,
+    #[cfg(target_os = "linux")]
+    control: crate::linux_process::SupervisorControl,
     #[cfg(windows)]
     job: crate::windows_job::WindowsJob,
 }
 
 impl TargetCommand {
-    pub(crate) fn spawn(&self) -> io::Result<SpawnedCommand> {
-        let mut command = match &self.form {
-            CommandForm::Shell(command) => {
-                let mut process = Command::new("sh");
-                process.arg("-lc").arg(command);
-                process
-            }
-            CommandForm::Argv(argv) => {
-                let mut process = Command::new(&argv[0]);
-                process.args(&argv[1..]);
-                process
-            }
-        };
-        if let Some(cwd) = &self.cwd {
-            command.current_dir(cwd);
-        }
-        command.envs(&self.env);
-        command
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        #[cfg(unix)]
+    pub(crate) async fn spawn(&self) -> io::Result<SpawnedCommand> {
+        #[cfg(target_os = "linux")]
         {
-            use std::os::unix::process::CommandExt;
-            command.as_std_mut().process_group(0);
+            let (child, control) = crate::linux_process::spawn_target(self).await?;
+            Ok(SpawnedCommand { child, control })
         }
-
-        command.kill_on_drop(true);
-        #[cfg(windows)]
+        #[cfg(not(target_os = "linux"))]
         {
-            use std::os::windows::process::CommandExt;
+            let mut command = match &self.form {
+                CommandForm::Shell(command) => {
+                    let mut process = Command::new("sh");
+                    process.arg("-lc").arg(command);
+                    process
+                }
+                CommandForm::Argv(argv) => {
+                    let mut process = Command::new(&argv[0]);
+                    process.args(&argv[1..]);
+                    process
+                }
+            };
+            if let Some(cwd) = &self.cwd {
+                command.current_dir(cwd);
+            }
+            command.envs(&self.env);
             command
-                .as_std_mut()
-                .creation_flags(windows_sys::Win32::System::Threading::CREATE_SUSPENDED);
-        }
-        let child = command.spawn()?;
-        #[cfg(windows)]
-        let job = crate::windows_job::WindowsJob::attach_and_resume(&child)?;
-        Ok(SpawnedCommand {
-            child,
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::CommandExt;
+                command.as_std_mut().process_group(0);
+            }
+
+            command.kill_on_drop(true);
             #[cfg(windows)]
-            job,
-        })
+            {
+                use std::os::windows::process::CommandExt;
+                command
+                    .as_std_mut()
+                    .creation_flags(windows_sys::Win32::System::Threading::CREATE_SUSPENDED);
+            }
+            let child = command.spawn()?;
+            #[cfg(windows)]
+            let job = crate::windows_job::WindowsJob::attach_and_resume(&child)?;
+            Ok(SpawnedCommand {
+                child,
+                #[cfg(windows)]
+                job,
+            })
+        }
     }
 
     pub(crate) fn display(&self) -> String {
@@ -334,18 +359,21 @@ where
     Ok(Bytes::from(bytes))
 }
 
+#[cfg(target_os = "linux")]
+type ProcessGroupGuard = crate::linux_process::SupervisorControl;
+#[cfg(not(target_os = "linux"))]
 struct ProcessGroupGuard(Option<u32>);
 
+#[cfg(not(target_os = "linux"))]
 impl ProcessGroupGuard {
     fn terminate(&mut self) {
         #[cfg(unix)]
         if let Some(process_group_id) = self.0.take() {
-            #[cfg(target_os = "linux")]
-            crate::linux_process::record_terminated_group(process_group_id);
             // This also runs when an interrupt cancels the target future.
             let group = format!("-{process_group_id}");
             let _ = std::process::Command::new("kill")
                 .args(["-KILL", "--", &group])
+                .stderr(Stdio::null())
                 .status();
         }
         #[cfg(not(unix))]
@@ -355,18 +383,55 @@ impl ProcessGroupGuard {
     }
 }
 
+#[cfg(not(target_os = "linux"))]
 impl Drop for ProcessGroupGuard {
     fn drop(&mut self) {
         self.terminate();
     }
 }
 
-async fn terminate_process_tree(child: &mut Child, process_group: &mut ProcessGroupGuard) {
+async fn wait_target(
+    child: &mut Child,
+    process_group: &mut ProcessGroupGuard,
+) -> io::Result<std::process::ExitStatus> {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = child;
+        process_group.wait().await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = process_group;
+        child.wait().await
+    }
+}
+
+async fn terminate_process_tree(
+    child: &mut Child,
+    process_group: &mut ProcessGroupGuard,
+) -> io::Result<()> {
     process_group.terminate();
-    // WindowsJob closes the process tree on return. Explicitly wait for the direct
-    // child after killing it so timeout cleanup does not leave a zombie behind.
+    #[cfg(not(target_os = "linux"))]
     let _ = child.start_kill();
-    let _ = tokio::time::timeout(Duration::from_millis(100), child.wait()).await;
+    if let Ok(Ok(status)) = tokio::time::timeout(Duration::from_millis(500), child.wait()).await {
+        #[cfg(target_os = "linux")]
+        {
+            process_group.disarm();
+            if !status.success() {
+                return Err(io::Error::other("target supervisor cleanup failed"));
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = status;
+        Ok(())
+    } else {
+        let _ = child.start_kill();
+        let _ = tokio::time::timeout(Duration::from_millis(100), child.wait()).await;
+        Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "target cleanup exceeded its deadline",
+        ))
+    }
 }
 
 fn shell_quote(value: &str) -> String {
