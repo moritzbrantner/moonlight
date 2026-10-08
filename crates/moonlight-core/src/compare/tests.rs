@@ -598,3 +598,46 @@ fn json_stderr_formatting_differences_remain_visible_in_evidence() {
         assert_eq!(diff.candidate.as_deref(), Some(r#"{ "a": 1 }"#));
     }
 }
+
+#[test]
+fn redacted_subtrees_do_not_expose_descendant_keys_in_diff_evidence() {
+    for (primary_body, candidate_body) in [
+        (
+            r#"{"secret":{"PRIMARY-API-KEY":1}}"#,
+            r#"{"secret":{"CANDIDATE-API-KEY":2}}"#,
+        ),
+        (
+            r#"{"secret":[{"PRIMARY-API-KEY":1}]}"#,
+            r#"{"secret":[{"CANDIDATE-API-KEY":2}]}"#,
+        ),
+        (r#"{}"#, r#"{"secret":{"CANDIDATE-API-KEY":2}}"#),
+        (r#"{"secret":{"PRIMARY-API-KEY":1}}"#, r#"{}"#),
+    ] {
+        let primary = target(200, &[], primary_body);
+        let candidate = target(200, &[], candidate_body);
+        let config = CompareConfig::new_with_redactions(&[], &["$.secret".into()], &[], false);
+        let result = compare_targets(&primary, &candidate, None, &config);
+        assert_eq!(result.classification, Classification::SuspiciousDifference);
+        let evidence = serde_json::to_string(&result).unwrap();
+        assert!(!evidence.contains("PRIMARY-API-KEY"), "{evidence}");
+        assert!(!evidence.contains("CANDIDATE-API-KEY"), "{evidence}");
+        assert_eq!(result.raw_candidate_diffs.len(), 1);
+        assert_eq!(result.noise_filtered_diffs.len(), 1);
+        assert_eq!(
+            result.raw_candidate_diffs[0].primary.is_some(),
+            primary_body != "{}"
+        );
+        assert_eq!(
+            result.raw_candidate_diffs[0].candidate.is_some(),
+            candidate_body != "{}"
+        );
+        assert!(result
+            .raw_candidate_diffs
+            .iter()
+            .all(|diff| diff.path == "$.secret"));
+        assert!(result
+            .noise_filtered_diffs
+            .iter()
+            .all(|diff| diff.path == "$.secret"));
+    }
+}

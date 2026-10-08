@@ -7,6 +7,7 @@ use super::{json_path, CompareConfig};
 #[derive(Debug, Clone)]
 pub(super) struct PairDiff {
     pub(super) entry: DiffEntry,
+    pub(super) semantic_path: String,
     pub(super) semantic_primary: Option<String>,
     pub(super) semantic_other: Option<String>,
 }
@@ -55,6 +56,7 @@ fn push_pair_diff(
     diffs: &mut Vec<PairDiff>,
 ) {
     diffs.push(PairDiff {
+        semantic_path: entry.path.clone(),
         entry,
         semantic_primary,
         semantic_other,
@@ -305,6 +307,7 @@ fn diff_json(
     }
 
     let redacted = inherited_redaction || path_is_redacted(path, config);
+    let first_diff = diffs.len();
     match (primary, other) {
         (Some(Value::Object(primary_map)), Some(Value::Object(other_map))) => {
             let keys: BTreeSet<String> = primary_map
@@ -419,6 +422,18 @@ fn diff_json(
         (Some(primary_value), Some(other_value)) if primary_value == other_value => {}
         (None, None) => {}
         _ => push_json_diff(path, primary, other, role, config, redacted, diffs),
+    }
+    if redacted && !inherited_redaction {
+        // Keep leaf identities private for noise filtering; evidence must not
+        // reveal object keys or array structure below a redacted ancestor.
+        for diff in &mut diffs[first_diff..] {
+            diff.entry.path = path.to_string();
+            diff.entry.primary = primary.map(|_| "\"[redacted]\"".to_string());
+            let (candidate, secondary) = role.values(other.map(|_| "\"[redacted]\"".to_string()));
+            diff.entry.candidate = candidate;
+            diff.entry.secondary = secondary;
+            diff.entry.message = format!("primary body value {path} differs from {}", role.label());
+        }
     }
 }
 

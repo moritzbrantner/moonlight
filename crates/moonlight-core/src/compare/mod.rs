@@ -111,14 +111,8 @@ pub fn compare_targets(
         Classification::SuspiciousDifference
     };
 
-    let raw_candidate_diffs = candidate_pairs
-        .iter()
-        .map(|diff| diff.entry.clone())
-        .collect::<Vec<_>>();
-    let reference_noise = reference_pairs
-        .iter()
-        .map(|diff| diff.entry.clone())
-        .collect::<Vec<_>>();
+    let raw_candidate_diffs = evidence_entries(candidate_pairs.iter());
+    let reference_noise = evidence_entries(reference_pairs.iter());
 
     ComparisonSummary {
         classification,
@@ -148,24 +142,29 @@ fn filter_candidate_diffs(
             (
                 (
                     reference_diff.entry.kind.clone(),
-                    reference_diff.entry.path.clone(),
+                    reference_diff.semantic_path.clone(),
                 ),
                 reference_diff.semantic_other.clone(),
             )
         })
         .collect();
 
-    candidate_diffs
-        .iter()
-        .filter(|candidate_diff| {
-            candidate_diff.semantic_other != candidate_diff.semantic_primary
-                && reference_index
-                    .get(&(
-                        candidate_diff.entry.kind.clone(),
-                        candidate_diff.entry.path.clone(),
-                    ))
-                    .is_none_or(|secondary| secondary != &candidate_diff.semantic_other)
-        })
+    evidence_entries(candidate_diffs.iter().filter(|candidate_diff| {
+        candidate_diff.semantic_other != candidate_diff.semantic_primary
+            && reference_index
+                .get(&(
+                    candidate_diff.entry.kind.clone(),
+                    candidate_diff.semantic_path.clone(),
+                ))
+                .is_none_or(|secondary| secondary != &candidate_diff.semantic_other)
+    }))
+}
+
+fn evidence_entries<'a>(diffs: impl IntoIterator<Item = &'a diff::PairDiff>) -> Vec<DiffEntry> {
+    let mut seen = HashSet::new();
+    diffs
+        .into_iter()
+        .filter(|diff| seen.insert((diff.entry.kind.clone(), diff.entry.path.clone())))
         .map(|diff| diff.entry.clone())
         .collect()
 }
