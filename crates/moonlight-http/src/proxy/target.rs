@@ -2,7 +2,7 @@ use super::TargetRequest;
 use crate::AppState;
 use axum::{
     body::Body,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -71,11 +71,13 @@ pub(super) fn forward_target(
                 started,
                 None,
                 Default::default(),
+                Default::default(),
                 format!("{label} request failed: {error}"),
             ),
             Err(_) => error_target(
                 started,
                 None,
+                Default::default(),
                 Default::default(),
                 format!(
                     "{label} request timed out after {} ms",
@@ -208,12 +210,14 @@ async fn capture_response(
             started,
             Some(status),
             headers,
+            transport_headers,
             format!("{label} body read failed: {error}"),
         ),
         Err(_) => error_target(
             started,
             Some(status),
             headers,
+            transport_headers,
             format!(
                 "{label} body read timed out after {} ms",
                 state.config.target_timeout_ms
@@ -226,6 +230,7 @@ fn error_target(
     started: Instant,
     status: Option<u16>,
     headers: BTreeMap<String, String>,
+    transport_headers: HeaderMap,
     error: String,
 ) -> CapturedTarget {
     CapturedTarget {
@@ -237,7 +242,7 @@ fn error_target(
             latency_ms: started.elapsed().as_millis(),
             error: Some(error),
         },
-        transport_headers: Default::default(),
+        transport_headers,
         body_bytes: Bytes::new(),
         stderr_bytes: Bytes::new(),
     }

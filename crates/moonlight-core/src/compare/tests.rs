@@ -549,3 +549,52 @@ fn repeated_header_evidence_explains_difference_without_exposing_redacted_values
     assert_eq!(diff.candidate.as_deref(), Some("[redacted]"));
     assert_eq!(result.classification, hidden.classification);
 }
+
+#[test]
+fn exact_path_aliases_hide_diff_secrets_and_ignore_the_same_structure() {
+    for (path, key) in [(r#"$["token"]"#, "token"), ("$.*", "*")] {
+        let primary = target(200, &[], &format!(r#"{{"{key}":"primary-secret"}}"#));
+        let candidate = target(200, &[], &format!(r#"{{"{key}":"candidate-secret"}}"#));
+        let redacted = compare_targets(
+            &primary,
+            &candidate,
+            None,
+            &CompareConfig::new_with_redactions(&[], &[path.into()], &[], false),
+        );
+        assert_eq!(
+            redacted.classification,
+            Classification::SuspiciousDifference
+        );
+        let evidence = serde_json::to_string(&redacted).unwrap();
+        assert!(!evidence.contains("primary-secret"), "{path}: {evidence}");
+        assert!(!evidence.contains("candidate-secret"), "{path}: {evidence}");
+        let ignored = compare_targets(
+            &primary,
+            &candidate,
+            None,
+            &CompareConfig::new(&[path.into()], &[], false),
+        );
+        assert_eq!(ignored.classification, Classification::Match, "{path}");
+    }
+}
+
+#[test]
+fn json_stderr_formatting_differences_remain_visible_in_evidence() {
+    let primary = target_with_stderr(0, &[], "", r#"{"a":1}"#);
+    let candidate = target_with_stderr(0, &[], "", r#"{ "a": 1 }"#);
+    for paths in [vec![], vec!["$.absent".into()]] {
+        let comparison = compare_targets(
+            &primary,
+            &candidate,
+            None,
+            &CompareConfig::new_with_redactions(&[], &paths, &[], false),
+        );
+        let diff = comparison
+            .raw_candidate_diffs
+            .iter()
+            .find(|diff| diff.kind == DiffKind::Stderr)
+            .unwrap();
+        assert_eq!(diff.primary.as_deref(), Some(r#"{"a":1}"#));
+        assert_eq!(diff.candidate.as_deref(), Some(r#"{ "a": 1 }"#));
+    }
+}

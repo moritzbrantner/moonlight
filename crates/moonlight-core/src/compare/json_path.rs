@@ -49,6 +49,19 @@ pub(super) fn matches_any_path(path: &str, patterns: &[String]) -> bool {
     patterns.iter().any(|pattern| matches_path(path, pattern))
 }
 
+pub(super) fn canonical_exact_path(path: &str) -> Option<String> {
+    let segments = parse(path, false)?;
+    let mut canonical = "$".to_string();
+    for segment in &segments[1..] {
+        canonical = match segment {
+            Segment::Key(key) => child_key_path(&canonical, key),
+            Segment::Index(index) => child_index_path(&canonical, *index),
+            _ => return None,
+        };
+    }
+    Some(canonical)
+}
+
 pub(super) fn redact_value_at_path(value: &mut Value, path: &str) -> bool {
     let Some(segments) = parse(path, false) else {
         return false;

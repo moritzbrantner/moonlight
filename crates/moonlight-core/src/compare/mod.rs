@@ -73,6 +73,20 @@ pub fn compare_targets(
     secondary: Option<&CapturedTarget>,
     config: &CompareConfig,
 ) -> ComparisonSummary {
+    // Normalize once at the public boundary, including directly modified public
+    // config fields. Evidence lookup stays constant-time for every visited node.
+    let mut normalized = config.clone();
+    normalized.ignore_json_paths = config
+        .ignore_json_paths
+        .iter()
+        .filter_map(|path| json_path::canonical_exact_path(path))
+        .collect();
+    normalized.redact_json_paths = config
+        .redact_json_paths
+        .iter()
+        .filter_map(|path| json_path::canonical_exact_path(path))
+        .collect();
+    let config = &normalized;
     let candidate_pairs = diff::diff_pair(primary, candidate, diff::TargetRole::Candidate, config);
     let reference_pairs = secondary
         .map(|secondary| diff::diff_pair(primary, secondary, diff::TargetRole::Secondary, config))

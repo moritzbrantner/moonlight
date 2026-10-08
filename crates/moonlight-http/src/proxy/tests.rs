@@ -586,3 +586,60 @@ async fn json_path_pattern_redaction_applies_to_stored_previews() {
         .contains(r#""secret":"[redacted]""#));
     assert!(run.primary.body.preview.contains(r#""visible":true"#));
 }
+
+#[tokio::test]
+async fn body_failures_preserve_repeated_header_comparison_evidence() {
+    async fn server(failure: Option<bool>) -> std::net::SocketAddr {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nx-tag: a\r\nx-tag: b\r\nConnection: close\r\n\r\n").await.unwrap();
+            match failure {
+                None => stream.write_all(b"ok").await.unwrap(),
+                Some(false) => stream.write_all(b"o").await.unwrap(),
+                Some(true) => tokio::time::sleep(Duration::from_millis(400)).await,
+            }
+        });
+        address
+    }
+    for timeout_body in [false, true] {
+        let primary = server(None).await;
+        let candidate = server(Some(timeout_body)).await;
+        let directory = tempdir().unwrap();
+        let mut config = test_config(primary, candidate, &directory, ResponseTiming::WaitAll);
+        config.target_timeout_ms = 100;
+        let proxy = spawn_proxy(config).await;
+        let client = reqwest::Client::new();
+        client
+            .get(format!("http://{proxy}/body-error"))
+            .send()
+            .await
+            .unwrap();
+        let run = wait_for_run(&client, proxy).await;
+        let detail: ComparisonRun = client
+            .get(format!("http://{proxy}/api/runs/{}", run.id))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            detail.comparison.classification,
+            Classification::TargetError
+        );
+        assert!(
+            !detail
+                .comparison
+                .raw_candidate_diffs
+                .iter()
+                .any(|diff| diff.kind == moonlight_core::DiffKind::Header),
+            "identical headers became a diff on body failure: {:?}",
+            detail.comparison.raw_candidate_diffs
+        );
+    }
+}

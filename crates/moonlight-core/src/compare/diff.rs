@@ -276,8 +276,13 @@ fn diff_stderr(
 }
 
 fn stderr_evidence(target: &CapturedTarget, config: &CompareConfig) -> Option<String> {
-    if let Ok(value) = serde_json::from_slice::<Value>(&target.stderr_bytes) {
-        return Some(evidence_json_preview("$", &value, config, false));
+    let exact_paths: Vec<_> = config.redact_json_paths.iter().cloned().collect();
+    if let Some(redacted) = super::capture::redact_json_body(
+        &target.stderr_bytes,
+        &exact_paths,
+        &config.redact_json_path_patterns,
+    ) {
+        return Some(normalize_text(&redacted));
     }
     target
         .observation
