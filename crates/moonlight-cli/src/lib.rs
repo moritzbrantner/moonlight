@@ -9,6 +9,8 @@ mod execute;
 mod input;
 mod run_once;
 mod types;
+#[cfg(windows)]
+mod windows_job;
 mod worktree;
 
 use anyhow::Context;

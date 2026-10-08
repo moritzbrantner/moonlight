@@ -475,3 +475,77 @@ fn non_json_body_redaction_is_unchanged() {
 
     assert_eq!(capture.preview, "token=secret");
 }
+
+#[test]
+fn stderr_json_diffs_redact_evidence_without_changing_classification() {
+    let primary = target_with_stderr(0, &[], "", r#"{"token":"primary-secret"}"#);
+    let candidate = target_with_stderr(0, &[], "", r#"{"token":"candidate-secret"}"#);
+    let plain = compare_targets(
+        &primary,
+        &candidate,
+        None,
+        &CompareConfig::new(&[], &[], false),
+    );
+    let redacted = compare_targets(
+        &primary,
+        &candidate,
+        None,
+        &CompareConfig::new_with_redactions(&[], &["$.token".into()], &[], false),
+    );
+    assert_eq!(plain.classification, redacted.classification);
+    let evidence = serde_json::to_string(&redacted).unwrap();
+    assert!(!evidence.contains("primary-secret"));
+    assert!(!evidence.contains("candidate-secret"));
+    assert!(evidence.contains("[redacted]"));
+}
+
+#[test]
+fn repeated_header_evidence_explains_difference_without_exposing_redacted_values() {
+    let mut primary = target(200, &[("x-tag", "common")], "ok");
+    let mut candidate = target(200, &[("x-tag", "common")], "ok");
+    for value in ["a", "common"] {
+        primary
+            .transport_headers
+            .append("x-tag", value.parse().unwrap());
+    }
+    for value in ["b", "common"] {
+        candidate
+            .transport_headers
+            .append("x-tag", value.parse().unwrap());
+    }
+    let result = compare_targets(
+        &primary,
+        &candidate,
+        None,
+        &CompareConfig::new(&[], &[], false),
+    );
+    let diff = result
+        .raw_candidate_diffs
+        .iter()
+        .find(|diff| diff.kind == DiffKind::Header)
+        .unwrap();
+    assert_eq!(diff.primary.as_deref(), Some(r#"["a","common"]"#));
+    assert_eq!(diff.candidate.as_deref(), Some(r#"["b","common"]"#));
+    primary
+        .observation
+        .headers
+        .insert("x-tag".into(), "[redacted]".into());
+    candidate
+        .observation
+        .headers
+        .insert("x-tag".into(), "[redacted]".into());
+    let hidden = compare_targets(
+        &primary,
+        &candidate,
+        None,
+        &CompareConfig::new(&[], &[], false),
+    );
+    let diff = hidden
+        .raw_candidate_diffs
+        .iter()
+        .find(|diff| diff.kind == DiffKind::Header)
+        .unwrap();
+    assert_eq!(diff.primary.as_deref(), Some("[redacted]"));
+    assert_eq!(diff.candidate.as_deref(), Some("[redacted]"));
+    assert_eq!(result.classification, hidden.classification);
+}

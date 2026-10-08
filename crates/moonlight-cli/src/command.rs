@@ -39,8 +39,8 @@ pub(crate) async fn run_command_with_redactions(
 ) -> CapturedTarget {
     let started = Instant::now();
     let deadline = TokioInstant::now() + Duration::from_millis(target_timeout_ms);
-    let mut child = match command.spawn() {
-        Ok(child) => child,
+    let spawned = match command.spawn() {
+        Ok(spawned) => spawned,
         Err(error) => {
             return error_target(
                 label,
@@ -50,6 +50,9 @@ pub(crate) async fn run_command_with_redactions(
             );
         }
     };
+    let mut child = spawned.child;
+    #[cfg(windows)]
+    let _job = spawned.job;
     let process_group_id = child.id();
 
     let mut stdout = tokio::spawn(read_optional_stream(child.stdout.take()));
@@ -143,8 +146,14 @@ pub(crate) async fn run_command_with_redactions(
     )
 }
 
+pub(crate) struct SpawnedCommand {
+    child: Child,
+    #[cfg(windows)]
+    job: crate::windows_job::WindowsJob,
+}
+
 impl TargetCommand {
-    pub(crate) fn spawn(&self) -> io::Result<Child> {
+    pub(crate) fn spawn(&self) -> io::Result<SpawnedCommand> {
         let mut command = match &self.form {
             CommandForm::Shell(command) => {
                 let mut process = Command::new("sh");
@@ -172,7 +181,22 @@ impl TargetCommand {
             command.as_std_mut().process_group(0);
         }
 
-        command.spawn()
+        command.kill_on_drop(true);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command
+                .as_std_mut()
+                .creation_flags(windows_sys::Win32::System::Threading::CREATE_SUSPENDED);
+        }
+        let child = command.spawn()?;
+        #[cfg(windows)]
+        let job = crate::windows_job::WindowsJob::attach_and_resume(&child)?;
+        Ok(SpawnedCommand {
+            child,
+            #[cfg(windows)]
+            job,
+        })
     }
 
     pub(crate) fn display(&self) -> String {
@@ -320,13 +344,10 @@ fn terminate_process_tree(child: &mut Child, process_group_id: Option<u32>) {
             .status();
     }
 
+    // On Windows the enclosing WindowsJob guard terminates all descendants on return,
+    // including when the direct process has already exited.
     #[cfg(windows)]
-    if let Some(process_group_id) = process_group_id {
-        let pid = process_group_id.to_string();
-        let _ = std::process::Command::new("taskkill")
-            .args(["/PID", &pid, "/T", "/F"])
-            .status();
-    }
+    let _ = process_group_id;
 
     let _ = child.start_kill();
 }

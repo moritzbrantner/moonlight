@@ -132,8 +132,8 @@ fn diff_headers(
             continue;
         }
 
-        let primary_value = primary.observation.headers.get(&key).cloned();
-        let other_value = other.observation.headers.get(&key).cloned();
+        let primary_value = header_evidence(primary, &key);
+        let other_value = header_evidence(other, &key);
         let (candidate, secondary) = role.values(other_value);
         push_pair_diff(
             DiffEntry {
@@ -149,6 +149,21 @@ fn diff_headers(
             diffs,
         );
     }
+}
+
+fn header_evidence(target: &CapturedTarget, key: &str) -> Option<String> {
+    let captured = target.observation.headers.get(key)?;
+    if captured == "[redacted]" {
+        return Some(captured.clone());
+    }
+    let values: Vec<_> = target.transport_headers.get_all(key).iter().collect();
+    // Expand only an unchanged transport projection; preserve custom sanitization.
+    if values.len() > 1
+        && values.last().and_then(|value| value.to_str().ok()) == Some(captured.as_str())
+    {
+        return semantic_header_value(target, key);
+    }
+    Some(captured.clone())
 }
 
 fn header_names(target: &CapturedTarget) -> impl Iterator<Item = String> + '_ {
@@ -243,12 +258,12 @@ fn diff_stderr(
     if primary_text != other_text {
         let semantic_primary = Some(primary_text);
         let semantic_other = Some(other_text);
-        let (candidate, secondary) = role.values(semantic_other.clone());
+        let (candidate, secondary) = role.values(stderr_evidence(other, config));
         push_pair_diff(
             DiffEntry {
                 kind: DiffKind::Stderr,
                 path: "$stderr".to_string(),
-                primary: semantic_primary.clone(),
+                primary: stderr_evidence(primary, config),
                 candidate,
                 secondary,
                 message: format!("primary stderr differs from {}", role.label()),
@@ -258,6 +273,17 @@ fn diff_stderr(
             diffs,
         );
     }
+}
+
+fn stderr_evidence(target: &CapturedTarget, config: &CompareConfig) -> Option<String> {
+    if let Ok(value) = serde_json::from_slice::<Value>(&target.stderr_bytes) {
+        return Some(evidence_json_preview("$", &value, config, false));
+    }
+    target
+        .observation
+        .stderr
+        .as_ref()
+        .map(|capture| normalize_text(capture.preview.as_bytes()))
 }
 
 fn diff_json(

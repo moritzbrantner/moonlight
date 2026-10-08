@@ -18,3 +18,7 @@ mod cli_run_features;
 mod cli_search_tools;
 #[path = "cli/support.rs"]
 mod cli_support;
+
+#[cfg(windows)]
+#[path = "cli/windows.rs"]
+mod cli_windows;
