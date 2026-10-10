@@ -1,5 +1,7 @@
 bunx lint-staged
-unset GIT_INDEX_FILE
+# Tests and eval fixtures create their own repositories. Git's hook environment
+# must not override their explicit repository paths.
+unset $(git rev-parse --local-env-vars)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 bun run typegen:check

@@ -2,8 +2,8 @@ mod capture;
 mod diff;
 mod json_path;
 
-use crate::{target::CapturedTarget, Classification, ComparisonSummary, DiffEntry};
-use std::collections::HashSet;
+use crate::{target::CapturedTarget, Classification, ComparisonSummary, DiffEntry, DiffKind};
+use std::collections::{HashMap, HashSet};
 
 pub use capture::{
     capture_body, capture_body_with_redaction_patterns, capture_body_with_redactions,
@@ -73,12 +73,25 @@ pub fn compare_targets(
     secondary: Option<&CapturedTarget>,
     config: &CompareConfig,
 ) -> ComparisonSummary {
-    let raw_candidate_diffs =
-        diff::diff_pair(primary, candidate, diff::TargetRole::Candidate, config);
-    let reference_noise = secondary
+    // Normalize once at the public boundary, including directly modified public
+    // config fields. Evidence lookup stays constant-time for every visited node.
+    let mut normalized = config.clone();
+    normalized.ignore_json_paths = config
+        .ignore_json_paths
+        .iter()
+        .filter_map(|path| json_path::canonical_exact_path(path))
+        .collect();
+    normalized.redact_json_paths = config
+        .redact_json_paths
+        .iter()
+        .filter_map(|path| json_path::canonical_exact_path(path))
+        .collect();
+    let config = &normalized;
+    let candidate_pairs = diff::diff_pair(primary, candidate, diff::TargetRole::Candidate, config);
+    let reference_pairs = secondary
         .map(|secondary| diff::diff_pair(primary, secondary, diff::TargetRole::Secondary, config))
         .unwrap_or_default();
-    let noise_filtered_diffs = filter_candidate_diffs(&raw_candidate_diffs, &reference_noise);
+    let noise_filtered_diffs = filter_candidate_diffs(&candidate_pairs, &reference_pairs);
 
     let target_error = primary.observation.error.is_some()
         || candidate.observation.error.is_some()
@@ -88,15 +101,18 @@ pub fn compare_targets(
 
     let classification = if target_error {
         Classification::TargetError
-    } else if raw_candidate_diffs.is_empty() && reference_noise.is_empty() {
+    } else if candidate_pairs.is_empty() && reference_pairs.is_empty() {
         Classification::Match
     } else if noise_filtered_diffs.is_empty() {
         Classification::ReferenceNoise
-    } else if !reference_noise.is_empty() {
+    } else if !reference_pairs.is_empty() {
         Classification::SuspiciousWithNoise
     } else {
         Classification::SuspiciousDifference
     };
+
+    let raw_candidate_diffs = evidence_entries(candidate_pairs.iter());
+    let reference_noise = evidence_entries(reference_pairs.iter());
 
     ComparisonSummary {
         classification,
@@ -117,23 +133,39 @@ fn summarize(label: &str, diffs: &[DiffEntry]) -> String {
 }
 
 fn filter_candidate_diffs(
-    candidate_diffs: &[DiffEntry],
-    reference_noise: &[DiffEntry],
+    candidate_diffs: &[diff::PairDiff],
+    reference_noise: &[diff::PairDiff],
 ) -> Vec<DiffEntry> {
-    candidate_diffs
+    let reference_index: HashMap<(DiffKind, String), Option<String>> = reference_noise
         .iter()
-        .filter(|candidate_diff| {
-            let Some(reference_diff) = reference_noise.iter().find(|reference_diff| {
-                reference_diff.kind == candidate_diff.kind
-                    && reference_diff.path == candidate_diff.path
-            }) else {
-                return true;
-            };
-
-            candidate_diff.candidate != candidate_diff.primary
-                && candidate_diff.candidate != reference_diff.secondary
+        .map(|reference_diff| {
+            (
+                (
+                    reference_diff.entry.kind.clone(),
+                    reference_diff.semantic_path.clone(),
+                ),
+                reference_diff.semantic_other.clone(),
+            )
         })
-        .cloned()
+        .collect();
+
+    evidence_entries(candidate_diffs.iter().filter(|candidate_diff| {
+        candidate_diff.semantic_other != candidate_diff.semantic_primary
+            && reference_index
+                .get(&(
+                    candidate_diff.entry.kind.clone(),
+                    candidate_diff.semantic_path.clone(),
+                ))
+                .is_none_or(|secondary| secondary != &candidate_diff.semantic_other)
+    }))
+}
+
+fn evidence_entries<'a>(diffs: impl IntoIterator<Item = &'a diff::PairDiff>) -> Vec<DiffEntry> {
+    let mut seen = HashSet::new();
+    diffs
+        .into_iter()
+        .filter(|diff| seen.insert((diff.entry.kind.clone(), diff.entry.path.clone())))
+        .map(|diff| diff.entry.clone())
         .collect()
 }
 

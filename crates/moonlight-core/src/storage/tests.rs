@@ -495,6 +495,41 @@ async fn refresh_loads_new_runs_when_write_file_changes() {
 }
 
 #[tokio::test]
+async fn refresh_resynchronizes_retention_after_external_write() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("http-runs.jsonl");
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(2),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    write_runs(
+        &path,
+        &[
+            run("external-1", 1, Classification::Match, false),
+            run("external-2", 2, Classification::Match, false),
+        ],
+    );
+    assert!(storage.refresh().await.unwrap());
+
+    storage
+        .insert(run("local-3", 3, Classification::Match, false))
+        .await
+        .unwrap();
+
+    let lines = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(lines.lines().count(), 2);
+    assert!(!lines.contains("external-1"));
+    assert!(lines.contains("external-2"));
+    assert!(lines.contains("local-3"));
+}
+
+#[tokio::test]
 async fn refresh_loads_new_runs_when_sibling_jsonl_file_changes() {
     let dir = tempdir().unwrap();
     let http_path = dir.path().join("http-runs.jsonl");
@@ -630,4 +665,80 @@ async fn retention_skip_rewrite_when_active_runs_are_already_within_limits() {
 
     let after = std::fs::read_to_string(&path).unwrap();
     assert_eq!(after, before);
+}
+
+#[tokio::test]
+async fn concurrent_refresh_and_insert_preserve_retention_limits() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("concurrent-runs.jsonl");
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(2),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+    let inserts = async {
+        for index in 0..100 {
+            storage
+                .insert(run(
+                    format!("local-{index}"),
+                    index,
+                    Classification::Match,
+                    false,
+                ))
+                .await
+                .unwrap();
+            tokio::task::yield_now().await;
+        }
+    };
+    let refreshes = async {
+        for _ in 0..100 {
+            storage.refresh().await.unwrap();
+            tokio::task::yield_now().await;
+        }
+    };
+    tokio::join!(inserts, refreshes);
+    storage
+        .insert(run("last", 101, Classification::Match, false))
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(path).unwrap().lines().count(), 2);
+    assert_eq!(storage.list().await.len(), 2);
+}
+
+#[tokio::test]
+async fn insert_detects_external_appends_before_retention_fast_path() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("external-runs.jsonl");
+    let storage = Storage::load_with_options(
+        path.clone(),
+        StorageOptions {
+            retention_max_runs: Some(2),
+            retention_max_bytes: None,
+        },
+    )
+    .await
+    .unwrap();
+    let external = RunWriter::open(path.clone()).await.unwrap();
+    for index in 0..2 {
+        external
+            .append(&run(
+                format!("external-{index}"),
+                index,
+                Classification::Match,
+                false,
+            ))
+            .await
+            .unwrap();
+    }
+    external.flush().await.unwrap();
+    storage
+        .insert(run("local", 3, Classification::Match, false))
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(&path).unwrap().lines().count(), 2);
+    assert_eq!(storage.list().await.len(), 2);
 }

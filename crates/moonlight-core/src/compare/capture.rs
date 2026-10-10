@@ -74,7 +74,7 @@ pub fn is_hop_by_hop_header(name: &str) -> bool {
     )
 }
 
-fn redact_json_body(
+pub(super) fn redact_json_body(
     body: &[u8],
     redact_json_paths: &[String],
     redact_json_path_patterns: &[String],

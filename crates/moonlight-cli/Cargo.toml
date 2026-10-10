@@ -30,6 +30,12 @@ tokio.workspace = true
 toml.workspace = true
 uuid.workspace = true
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
+
 [dev-dependencies]
 assert_cmd = "2.2.2"
 assert_fs = "1.1.4"

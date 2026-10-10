@@ -44,6 +44,7 @@ fn target_with_stderr(
             latency_ms: 1,
             error: None,
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::copy_from_slice(body.as_bytes()),
         stderr_bytes: Bytes::copy_from_slice(stderr.as_bytes()),
     }
@@ -59,6 +60,7 @@ fn target_error(message: &str) -> CapturedTarget {
             latency_ms: 1,
             error: Some(message.to_string()),
         },
+        transport_headers: Default::default(),
         body_bytes: Bytes::new(),
         stderr_bytes: Bytes::new(),
     }
@@ -270,6 +272,151 @@ fn redact_json_path_patterns_hide_matching_values() {
 }
 
 #[test]
+fn added_redacted_json_member_never_exposes_its_value() {
+    let primary = target(200, &[], r#"{}"#);
+    let candidate = target(200, &[], r#"{"token":"AUDIT_SENTINEL"}"#);
+    let config = CompareConfig::new_with_redactions(&[], &["$.token".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+    let serialized = serde_json::to_string(&result).unwrap();
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert_eq!(result.noise_filtered_diffs[0].path, "$.token");
+    assert!(!serialized.contains("AUDIT_SENTINEL"));
+    assert!(serialized.contains("[redacted]"));
+}
+
+#[test]
+fn removed_redacted_json_member_never_exposes_its_value() {
+    let primary = target(200, &[], r#"{"token":"AUDIT_SENTINEL"}"#);
+    let candidate = target(200, &[], r#"{}"#);
+    let config = CompareConfig::new_with_redactions(&[], &["$.token".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+    let serialized = serde_json::to_string(&result).unwrap();
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert_eq!(result.noise_filtered_diffs[0].path, "$.token");
+    assert!(!serialized.contains("AUDIT_SENTINEL"));
+    assert!(serialized.contains("[redacted]"));
+}
+
+#[test]
+fn added_ignored_json_member_does_not_create_a_diff() {
+    let primary = target(200, &[], r#"{}"#);
+    let candidate = target(200, &[], r#"{"timestamp":"volatile"}"#);
+    let config = CompareConfig::new(&["$.timestamp".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+
+    assert_eq!(result.classification, Classification::Match);
+    assert!(result.raw_candidate_diffs.is_empty());
+}
+
+#[test]
+fn added_object_redacts_descendants_without_hiding_visible_diffs() {
+    let primary = target(200, &[], r#"{}"#);
+    let candidate = target(
+        200,
+        &[],
+        r#"{"payload":{"token":"AUDIT_SENTINEL","visible":42}}"#,
+    );
+    let config = CompareConfig::new_with_redactions(&[], &["$.payload.token".into()], &[], false);
+
+    let result = compare_targets(&primary, &candidate, None, &config);
+    let serialized = serde_json::to_string(&result).unwrap();
+    let paths = result
+        .noise_filtered_diffs
+        .iter()
+        .map(|diff| diff.path.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(result.classification, Classification::SuspiciousDifference);
+    assert!(paths.contains(&"$.payload.token"));
+    assert!(paths.contains(&"$.payload.visible"));
+    assert!(!serialized.contains("AUDIT_SENTINEL"));
+}
+
+#[test]
+fn redaction_does_not_change_reference_noise_classification() {
+    let primary = target(200, &[], r#"{"secret":{"a":1,"b":1}}"#);
+    let candidate = target(200, &[], r#"{"secret":{"a":2,"b":1}}"#);
+    let secondary = target(200, &[], r#"{"secret":{"a":2,"b":2}}"#);
+
+    let plain = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new(&[], &[], false),
+    );
+    let redacted = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new_with_redactions(&[], &["$.secret".into()], &[], false),
+    );
+
+    assert_eq!(plain.classification, Classification::ReferenceNoise);
+    assert_eq!(redacted.classification, plain.classification);
+    assert!(redacted.noise_filtered_diffs.is_empty());
+    assert!(serde_json::to_string(&redacted)
+        .unwrap()
+        .contains("[redacted]"));
+}
+
+#[test]
+fn literal_dotted_key_does_not_alias_nested_key() {
+    let primary = target(200, &[], r#"{"a":{"b":1},"a.b":10}"#);
+    let candidate = target(200, &[], r#"{"a":{"b":1},"a.b":2}"#);
+    let secondary = target(200, &[], r#"{"a":{"b":2},"a.b":10}"#);
+
+    let result = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new(&[], &[], false),
+    );
+
+    assert_eq!(result.classification, Classification::SuspiciousWithNoise);
+    assert_eq!(result.noise_filtered_diffs.len(), 1);
+    assert_eq!(result.noise_filtered_diffs[0].path, r#"$["a.b"]"#);
+    assert_eq!(result.reference_noise[0].path, "$.a.b");
+}
+
+#[test]
+fn redacted_transport_header_still_uses_raw_values_for_classification() {
+    let mut primary = target(200, &[("x-csrf-token", "[redacted]")], "ok");
+    let mut candidate = target(200, &[("x-csrf-token", "[redacted]")], "ok");
+    let mut secondary = target(200, &[("x-csrf-token", "[redacted]")], "ok");
+    primary.transport_headers.insert(
+        "x-csrf-token",
+        http::HeaderValue::from_static("primary-secret"),
+    );
+    candidate.transport_headers.insert(
+        "x-csrf-token",
+        http::HeaderValue::from_static("candidate-secret"),
+    );
+    secondary.transport_headers.insert(
+        "x-csrf-token",
+        http::HeaderValue::from_static("secondary-secret"),
+    );
+
+    let result = compare_targets(
+        &primary,
+        &candidate,
+        Some(&secondary),
+        &CompareConfig::new(&[], &[], false),
+    );
+
+    assert_eq!(result.classification, Classification::SuspiciousWithNoise);
+    assert_eq!(result.noise_filtered_diffs.len(), 1);
+    assert_eq!(
+        result.noise_filtered_diffs[0].candidate.as_deref(),
+        Some("[redacted]")
+    );
+}
+
+#[test]
 fn capture_body_redacts_json_preview_but_keeps_original_hash_and_size() {
     let body = br#"{"token":"secret","value":1}"#;
     let capture = capture_body_with_redactions(body, 1024, &["$.token".into()]);
@@ -327,4 +474,170 @@ fn non_json_body_redaction_is_unchanged() {
     let capture = capture_body_with_redactions(body, 1024, &["$.token".into()]);
 
     assert_eq!(capture.preview, "token=secret");
+}
+
+#[test]
+fn stderr_json_diffs_redact_evidence_without_changing_classification() {
+    let primary = target_with_stderr(0, &[], "", r#"{"token":"primary-secret"}"#);
+    let candidate = target_with_stderr(0, &[], "", r#"{"token":"candidate-secret"}"#);
+    let plain = compare_targets(
+        &primary,
+        &candidate,
+        None,
+        &CompareConfig::new(&[], &[], false),
+    );
+    let redacted = compare_targets(
+        &primary,
+        &candidate,
+        None,
+        &CompareConfig::new_with_redactions(&[], &["$.token".into()], &[], false),
+    );
+    assert_eq!(plain.classification, redacted.classification);
+    let evidence = serde_json::to_string(&redacted).unwrap();
+    assert!(!evidence.contains("primary-secret"));
+    assert!(!evidence.contains("candidate-secret"));
+    assert!(evidence.contains("[redacted]"));
+}
+
+#[test]
+fn repeated_header_evidence_explains_difference_without_exposing_redacted_values() {
+    let mut primary = target(200, &[("x-tag", "common")], "ok");
+    let mut candidate = target(200, &[("x-tag", "common")], "ok");
+    for value in ["a", "common"] {
+        primary
+            .transport_headers
+            .append("x-tag", value.parse().unwrap());
+    }
+    for value in ["b", "common"] {
+        candidate
+            .transport_headers
+            .append("x-tag", value.parse().unwrap());
+    }
+    let result = compare_targets(
+        &primary,
+        &candidate,
+        None,
+        &CompareConfig::new(&[], &[], false),
+    );
+    let diff = result
+        .raw_candidate_diffs
+        .iter()
+        .find(|diff| diff.kind == DiffKind::Header)
+        .unwrap();
+    assert_eq!(diff.primary.as_deref(), Some(r#"["a","common"]"#));
+    assert_eq!(diff.candidate.as_deref(), Some(r#"["b","common"]"#));
+    primary
+        .observation
+        .headers
+        .insert("x-tag".into(), "[redacted]".into());
+    candidate
+        .observation
+        .headers
+        .insert("x-tag".into(), "[redacted]".into());
+    let hidden = compare_targets(
+        &primary,
+        &candidate,
+        None,
+        &CompareConfig::new(&[], &[], false),
+    );
+    let diff = hidden
+        .raw_candidate_diffs
+        .iter()
+        .find(|diff| diff.kind == DiffKind::Header)
+        .unwrap();
+    assert_eq!(diff.primary.as_deref(), Some("[redacted]"));
+    assert_eq!(diff.candidate.as_deref(), Some("[redacted]"));
+    assert_eq!(result.classification, hidden.classification);
+}
+
+#[test]
+fn exact_path_aliases_hide_diff_secrets_and_ignore_the_same_structure() {
+    for (path, key) in [(r#"$["token"]"#, "token"), ("$.*", "*")] {
+        let primary = target(200, &[], &format!(r#"{{"{key}":"primary-secret"}}"#));
+        let candidate = target(200, &[], &format!(r#"{{"{key}":"candidate-secret"}}"#));
+        let redacted = compare_targets(
+            &primary,
+            &candidate,
+            None,
+            &CompareConfig::new_with_redactions(&[], &[path.into()], &[], false),
+        );
+        assert_eq!(
+            redacted.classification,
+            Classification::SuspiciousDifference
+        );
+        let evidence = serde_json::to_string(&redacted).unwrap();
+        assert!(!evidence.contains("primary-secret"), "{path}: {evidence}");
+        assert!(!evidence.contains("candidate-secret"), "{path}: {evidence}");
+        let ignored = compare_targets(
+            &primary,
+            &candidate,
+            None,
+            &CompareConfig::new(&[path.into()], &[], false),
+        );
+        assert_eq!(ignored.classification, Classification::Match, "{path}");
+    }
+}
+
+#[test]
+fn json_stderr_formatting_differences_remain_visible_in_evidence() {
+    let primary = target_with_stderr(0, &[], "", r#"{"a":1}"#);
+    let candidate = target_with_stderr(0, &[], "", r#"{ "a": 1 }"#);
+    for paths in [vec![], vec!["$.absent".into()]] {
+        let comparison = compare_targets(
+            &primary,
+            &candidate,
+            None,
+            &CompareConfig::new_with_redactions(&[], &paths, &[], false),
+        );
+        let diff = comparison
+            .raw_candidate_diffs
+            .iter()
+            .find(|diff| diff.kind == DiffKind::Stderr)
+            .unwrap();
+        assert_eq!(diff.primary.as_deref(), Some(r#"{"a":1}"#));
+        assert_eq!(diff.candidate.as_deref(), Some(r#"{ "a": 1 }"#));
+    }
+}
+
+#[test]
+fn redacted_subtrees_do_not_expose_descendant_keys_in_diff_evidence() {
+    for (primary_body, candidate_body) in [
+        (
+            r#"{"secret":{"PRIMARY-API-KEY":1}}"#,
+            r#"{"secret":{"CANDIDATE-API-KEY":2}}"#,
+        ),
+        (
+            r#"{"secret":[{"PRIMARY-API-KEY":1}]}"#,
+            r#"{"secret":[{"CANDIDATE-API-KEY":2}]}"#,
+        ),
+        (r#"{}"#, r#"{"secret":{"CANDIDATE-API-KEY":2}}"#),
+        (r#"{"secret":{"PRIMARY-API-KEY":1}}"#, r#"{}"#),
+    ] {
+        let primary = target(200, &[], primary_body);
+        let candidate = target(200, &[], candidate_body);
+        let config = CompareConfig::new_with_redactions(&[], &["$.secret".into()], &[], false);
+        let result = compare_targets(&primary, &candidate, None, &config);
+        assert_eq!(result.classification, Classification::SuspiciousDifference);
+        let evidence = serde_json::to_string(&result).unwrap();
+        assert!(!evidence.contains("PRIMARY-API-KEY"), "{evidence}");
+        assert!(!evidence.contains("CANDIDATE-API-KEY"), "{evidence}");
+        assert_eq!(result.raw_candidate_diffs.len(), 1);
+        assert_eq!(result.noise_filtered_diffs.len(), 1);
+        assert_eq!(
+            result.raw_candidate_diffs[0].primary.is_some(),
+            primary_body != "{}"
+        );
+        assert_eq!(
+            result.raw_candidate_diffs[0].candidate.is_some(),
+            candidate_body != "{}"
+        );
+        assert!(result
+            .raw_candidate_diffs
+            .iter()
+            .all(|diff| diff.path == "$.secret"));
+        assert!(result
+            .noise_filtered_diffs
+            .iter()
+            .all(|diff| diff.path == "$.secret"));
+    }
 }

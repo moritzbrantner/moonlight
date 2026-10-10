@@ -1,6 +1,7 @@
 use super::test_support::{
     fetch_runs, spawn_proxy, spawn_target, spawn_target_with_delay,
-    spawn_target_with_status_and_delay, spawn_uri_target, test_config, wait_for_run,
+    spawn_target_with_session_headers, spawn_target_with_status_and_delay, spawn_uri_target,
+    test_config, wait_for_run,
 };
 use axum::http::{header, HeaderValue, StatusCode};
 use moonlight_core::{
@@ -219,6 +220,101 @@ async fn return_selected_response_timing_returns_before_slow_candidate_and_recor
 
     let run = wait_for_run(&client, proxy_addr).await;
     assert_eq!(run.classification, Classification::SuspiciousDifference);
+}
+
+#[tokio::test]
+async fn proxy_forwards_raw_session_headers_but_persists_redacted_evidence() {
+    let primary = spawn_target_with_session_headers(r#"{"source":"primary"}"#).await;
+    let candidate = spawn_target(r#"{"source":"candidate"}"#).await;
+    let dir = tempdir().unwrap();
+    let config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!("http://{proxy_addr}/session"))
+        .send()
+        .await
+        .unwrap();
+    let cookies = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|value| value.to_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        cookies,
+        vec![
+            "session=moonlight-session-secret; HttpOnly",
+            "theme=moonlight-theme-secret"
+        ]
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("x-csrf-token")
+            .and_then(|value| value.to_str().ok()),
+        Some("moonlight-csrf-secret")
+    );
+
+    let summary = wait_for_run(&client, proxy_addr).await;
+    let run: ComparisonRun = client
+        .get(format!("http://{proxy_addr}/api/runs/{}", summary.id))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let serialized = serde_json::to_string(&run).unwrap();
+
+    assert_eq!(
+        run.primary.headers.get("set-cookie").map(String::as_str),
+        Some("[redacted]")
+    );
+    assert_eq!(
+        run.primary.headers.get("x-csrf-token").map(String::as_str),
+        Some("[redacted]")
+    );
+    assert!(!serialized.contains("moonlight-session-secret"));
+    assert!(!serialized.contains("moonlight-theme-secret"));
+    assert!(!serialized.contains("moonlight-csrf-secret"));
+}
+
+#[tokio::test]
+async fn candidate_selected_response_also_preserves_raw_multi_value_headers() {
+    let primary = spawn_target(r#"{"source":"primary"}"#).await;
+    let candidate = spawn_target_with_session_headers(r#"{"source":"candidate"}"#).await;
+    let dir = tempdir().unwrap();
+    let mut config = test_config(primary, candidate, &dir, ResponseTiming::WaitAll);
+    config.return_target = ReturnTarget::Candidate;
+    let proxy_addr = spawn_proxy(config).await;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!("http://{proxy_addr}/session"))
+        .send()
+        .await
+        .unwrap();
+    let cookies = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|value| value.to_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+
+    assert_eq!(cookies.len(), 2);
+    assert!(cookies
+        .iter()
+        .any(|value| value.contains("moonlight-session-secret")));
+    assert_eq!(
+        response
+            .headers()
+            .get("x-csrf-token")
+            .and_then(|value| value.to_str().ok()),
+        Some("moonlight-csrf-secret")
+    );
 }
 
 #[tokio::test]
@@ -489,4 +585,61 @@ async fn json_path_pattern_redaction_applies_to_stored_previews() {
         .preview
         .contains(r#""secret":"[redacted]""#));
     assert!(run.primary.body.preview.contains(r#""visible":true"#));
+}
+
+#[tokio::test]
+async fn body_failures_preserve_repeated_header_comparison_evidence() {
+    async fn server(failure: Option<bool>) -> std::net::SocketAddr {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nx-tag: a\r\nx-tag: b\r\nConnection: close\r\n\r\n").await.unwrap();
+            match failure {
+                None => stream.write_all(b"ok").await.unwrap(),
+                Some(false) => stream.write_all(b"o").await.unwrap(),
+                Some(true) => tokio::time::sleep(Duration::from_millis(400)).await,
+            }
+        });
+        address
+    }
+    for timeout_body in [false, true] {
+        let primary = server(None).await;
+        let candidate = server(Some(timeout_body)).await;
+        let directory = tempdir().unwrap();
+        let mut config = test_config(primary, candidate, &directory, ResponseTiming::WaitAll);
+        config.target_timeout_ms = 100;
+        let proxy = spawn_proxy(config).await;
+        let client = reqwest::Client::new();
+        client
+            .get(format!("http://{proxy}/body-error"))
+            .send()
+            .await
+            .unwrap();
+        let run = wait_for_run(&client, proxy).await;
+        let detail: ComparisonRun = client
+            .get(format!("http://{proxy}/api/runs/{}", run.id))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            detail.comparison.classification,
+            Classification::TargetError
+        );
+        assert!(
+            !detail
+                .comparison
+                .raw_candidate_diffs
+                .iter()
+                .any(|diff| diff.kind == moonlight_core::DiffKind::Header),
+            "identical headers became a diff on body failure: {:?}",
+            detail.comparison.raw_candidate_diffs
+        );
+    }
 }

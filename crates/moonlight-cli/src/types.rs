@@ -32,7 +32,7 @@ impl Case {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct TargetCommand {
     pub(crate) form: CommandForm,
     pub(crate) cwd: Option<PathBuf>,
@@ -57,7 +57,7 @@ impl TargetCommand {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum CommandForm {
     Shell(String),
     Argv(Vec<String>),

@@ -8,6 +8,7 @@ use crate::{run_matches_filter, ComparisonRun, ComparisonRunListItem, RunFilter,
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 use tokio::{
     fs,
@@ -31,6 +32,47 @@ pub struct Storage {
     insert_lock: Arc<Mutex<()>>,
     runs: Arc<RwLock<Vec<ComparisonRun>>>,
     scan_signature: Arc<Mutex<Vec<JsonlFileSignature>>>,
+    retention_state: Arc<Mutex<RetentionState>>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct RetentionState {
+    active_runs: usize,
+    active_bytes: u64,
+    active_modified: Option<SystemTime>,
+}
+
+impl RetentionState {
+    fn exceeds(self, options: StorageOptions) -> bool {
+        let exceeds_runs = options
+            .retention_max_runs
+            .is_some_and(|max_runs| self.active_runs > max_runs);
+        let exceeds_bytes = options.retention_max_bytes.is_some_and(|max_bytes| {
+            // Byte retention deliberately keeps one run even if that single JSON
+            // record is larger than the configured byte budget.
+            self.active_runs > 1 && self.active_bytes > max_bytes
+        });
+        exceeds_runs || exceeds_bytes
+    }
+}
+
+async fn load_retention_state(
+    write_path: &Path,
+    options: StorageOptions,
+) -> anyhow::Result<RetentionState> {
+    if !options.is_configured() {
+        return Ok(RetentionState::default());
+    }
+
+    let mut active_runs = Vec::new();
+    load_runs_from_file(write_path, &mut active_runs).await?;
+    let metadata = fs::metadata(write_path).await?;
+    let active_bytes = metadata.len();
+    Ok(RetentionState {
+        active_runs: active_runs.len(),
+        active_bytes,
+        active_modified: metadata.modified().ok(),
+    })
 }
 
 impl Storage {
@@ -52,6 +94,7 @@ impl Storage {
         let scan_signature = scan_jsonl_files(&scan_dir).await?;
         let runs = load_runs_from_signature(&scan_signature).await?;
         let writer = RunWriter::open(write_path.clone()).await?;
+        let retention_state = load_retention_state(&write_path, options).await?;
 
         Ok(Self {
             write_path,
@@ -61,19 +104,44 @@ impl Storage {
             insert_lock: Arc::new(Mutex::new(())),
             runs: Arc::new(RwLock::new(runs)),
             scan_signature: Arc::new(Mutex::new(scan_signature)),
+            retention_state: Arc::new(Mutex::new(retention_state)),
         })
     }
 
     pub async fn insert(&self, run: ComparisonRun) -> anyhow::Result<()> {
         let _guard = self.insert_lock.lock().await;
-        self.writer.append(&run).await?;
+        if self.options.is_configured() {
+            let metadata = fs::metadata(&self.write_path).await?;
+            let cached = *self.retention_state.lock().await;
+            if cached.active_bytes != metadata.len()
+                || cached.active_modified != metadata.modified().ok()
+            {
+                // Reopen as well: an external writer may have replaced the path atomically.
+                self.writer.reopen(&self.write_path).await?;
+                self.resynchronize_retention().await?;
+            }
+        }
+        let appended_bytes = self.writer.append(&run).await?;
         self.writer.flush().await?;
         self.runs.write().await.push(run);
+        if self.options.is_configured() {
+            let metadata = fs::metadata(&self.write_path).await?;
+            let mut state = self.retention_state.lock().await;
+            if metadata.len() == state.active_bytes + appended_bytes {
+                state.active_runs += 1;
+                state.active_bytes += appended_bytes;
+                state.active_modified = metadata.modified().ok();
+            } else {
+                drop(state);
+                self.resynchronize_retention().await?;
+            }
+        }
         self.apply_retention().await?;
         Ok(())
     }
 
     pub async fn refresh(&self) -> anyhow::Result<bool> {
+        let _guard = self.insert_lock.lock().await;
         let scan_signature = scan_jsonl_files(&self.scan_dir).await?;
         {
             let current = self.scan_signature.lock().await;
@@ -83,8 +151,10 @@ impl Storage {
         }
 
         let runs = load_runs_from_signature(&scan_signature).await?;
+        let retention_state = load_retention_state(&self.write_path, self.options).await?;
         *self.runs.write().await = runs;
         *self.scan_signature.lock().await = scan_signature;
+        *self.retention_state.lock().await = retention_state;
         Ok(true)
     }
 
@@ -141,7 +211,8 @@ impl Storage {
     }
 
     async fn apply_retention(&self) -> anyhow::Result<()> {
-        if !self.options.is_configured() {
+        if !self.options.is_configured() || !self.retention_state.lock().await.exceeds(self.options)
+        {
             return Ok(());
         }
 
@@ -149,16 +220,28 @@ impl Storage {
         load_runs_from_file(&self.write_path, &mut active_runs).await?;
         active_runs.sort_by_key(|run| run.timestamp);
 
-        let retained_runs = retain_runs(active_runs.clone(), self.options)?;
-        let active_content = serialize_runs_jsonl(&active_runs)?;
+        let retained_runs = retain_runs(active_runs, self.options)?;
         let retained_content = serialize_runs_jsonl(&retained_runs)?;
-        if active_content == retained_content {
-            return Ok(());
-        }
+        let retained_state = RetentionState {
+            active_runs: retained_runs.len(),
+            active_bytes: retained_content.len() as u64,
+            active_modified: None,
+        };
 
         atomic_write(&self.write_path, retained_content).await?;
         self.writer.reopen(&self.write_path).await?;
+        *self.retention_state.lock().await = RetentionState {
+            active_modified: fs::metadata(&self.write_path).await?.modified().ok(),
+            ..retained_state
+        };
         self.force_refresh().await?;
+        Ok(())
+    }
+
+    async fn resynchronize_retention(&self) -> anyhow::Result<()> {
+        self.force_refresh().await?;
+        *self.retention_state.lock().await =
+            load_retention_state(&self.write_path, self.options).await?;
         Ok(())
     }
 

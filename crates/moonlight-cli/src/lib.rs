@@ -7,8 +7,12 @@ mod eval;
 mod eval_config;
 mod execute;
 mod input;
+#[cfg(target_os = "linux")]
+mod linux_process;
 mod run_once;
 mod types;
+#[cfg(windows)]
+mod windows_job;
 mod worktree;
 
 use anyhow::Context;
@@ -51,7 +55,67 @@ impl std::fmt::Display for ExitCodeError {
 
 impl std::error::Error for ExitCodeError {}
 
+#[doc(hidden)]
+pub fn main_entry() -> ExitCode {
+    #[cfg(target_os = "linux")]
+    if linux_process::is_supervisor_request() {
+        return if linux_process::run_supervisor().is_ok() {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::from(1)
+        };
+    }
+    let result = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(anyhow::Error::from)
+        .and_then(|runtime| runtime.block_on(run_cli()));
+    match result {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("Error: {error:#}");
+            error
+                .downcast_ref::<ExitCodeError>()
+                .map(|error| ExitCode::from(error.code()))
+                .unwrap_or(ExitCode::from(1))
+        }
+    }
+}
+
 pub async fn run_cli() -> anyhow::Result<ExitCode> {
+    let result = tokio::select! {
+        biased;
+        signal = shutdown_signal() => Ok(ExitCode::from(signal?)),
+        result = run_cli_inner() => result,
+    };
+    #[cfg(target_os = "linux")]
+    linux_process::reap_dropped_supervisors().await?;
+    result
+}
+
+async fn shutdown_signal() -> std::io::Result<u8> {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut interrupt = signal(SignalKind::interrupt())?;
+        let mut terminate = signal(SignalKind::terminate())?;
+        let mut hangup = signal(SignalKind::hangup())?;
+        let mut quit = signal(SignalKind::quit())?;
+        tokio::select! {
+            _ = interrupt.recv() => Ok(130),
+            _ = terminate.recv() => Ok(143),
+            _ = hangup.recv() => Ok(129),
+            _ = quit.recv() => Ok(131),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await?;
+        Ok(130)
+    }
+}
+
+async fn run_cli_inner() -> anyhow::Result<ExitCode> {
     let cli = Cli::parse();
     let file_config = load_optional_config(cli.config.config.as_deref(), cli.config.no_config)?;
     let defaults = CliDefaults::from_config(&file_config);
