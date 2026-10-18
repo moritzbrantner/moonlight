@@ -110,3 +110,14 @@ jobs:
         run: cargo clippy -p moonlight-cli --all-targets -- -D warnings
       - name: Verify timed-out descendant cleanup
         run: cargo test -p moonlight-cli --test cli cli_windows
+
+  merge-ready:
+    name: merge-ready
+    if: ${{ always() }}
+    needs: ["fast-validation", "performance-validation", "security-validation", "windows-process-lifecycle"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: moritzbrantner/reusable-workflows/.github/actions/merge-ready@b0f25f241d76af2584dfc9e375084ff5c5cb97da
+        with:
+          needs: ${{ toJSON(needs) }}
+          required: '["fast-validation", "performance-validation", "security-validation", "windows-process-lifecycle"]'
