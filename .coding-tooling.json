@@ -2,15 +2,23 @@
   "schemaVersion": 1,
   "profile": "repository-foundation-v1",
   "tiers": {
-    "fast": ["lint", "typecheck", "build", "test:unit"]
+    "fast": [
+      "lint",
+      "typecheck",
+      "build",
+      "test:unit"
+    ]
   },
-  "requiredCapabilities": ["lint", "typecheck", "build", "test:unit"],
+  "requiredCapabilities": [
+    "lint",
+    "typecheck",
+    "build",
+    "test:unit"
+  ],
   "merge": {
     "authority": "hosted",
     "requiredChecks": [
-      "Lint, build, and test / Fast Validation",
-      "Benchmark / Performance Validation",
-      "Dependency security policy"
+      "merge-ready"
     ]
   }
 }
