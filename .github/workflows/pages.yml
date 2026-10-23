@@ -28,7 +28,7 @@ jobs:
       source_sha: ${{ github.sha }}
       artifact_key: moonlight-pages-v1
       node_version: ""
-      bun_version: "1.3.14"
+      bun_version: latest
       cache_bun: true
       bun_cache_dependency_path: bun.lock
       setup_command: bun install --frozen-lockfile
