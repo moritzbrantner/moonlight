@@ -22,7 +22,7 @@ jobs:
     uses: moritzbrantner/reusable-workflows/.github/workflows/fast-validation.yml@workflow-standard-v1.2
     with:
       node_version: ""
-      bun_version: "1.3.14"
+      bun_version: latest
       install_command: bun install --frozen-lockfile
       pre_command: |
         rustc --version
@@ -44,7 +44,7 @@ jobs:
     uses: moritzbrantner/reusable-workflows/.github/workflows/performance-validation.yml@workflow-standard-v1.2
     with:
       node_version: ""
-      bun_version: "1.3.14"
+      bun_version: latest
       install_command: bun install --frozen-lockfile
       pre_command: |
         rustc --version

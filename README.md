@@ -34,7 +34,7 @@ Moonlight must keep producer-specific adapters at its edge. Adding support for a
 
 ## Rust toolchain
 
-`rust-toolchain.toml` is the canonical development, CI, release, and benchmark toolchain and currently pins Rust **1.98.1**. The workspace `rust-version = "1.87"` remains the MSRV compatibility floor; it is not the repository's development toolchain.
+`rust-toolchain.toml` is the canonical development, CI, release, and benchmark toolchain and tracks the Rust **stable** channel. The workspace `rust-version = "1.87"` remains the MSRV compatibility floor; it is not the repository's development toolchain.
 
 ## Command execution
 
