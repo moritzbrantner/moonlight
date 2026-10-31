@@ -13,6 +13,9 @@ pub(super) struct EvalSummary {
     pub(super) total_checks: usize,
     pub(super) classifications: BTreeMap<String, usize>,
     pub(super) failed_checks: Vec<EvalFailedCheck>,
+    /// Checks that fail on the baseline and pass on the candidate. They are
+    /// improvements, not regressions, so they do not fail the eval.
+    pub(super) fixed_checks: Vec<EvalFixedCheck>,
     pub(super) runs: Vec<EvalRunItem>,
 }
 
@@ -35,6 +38,14 @@ pub(super) struct EvalFailedCheck {
     pub(super) diff_summary: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub(super) struct EvalFixedCheck {
+    pub(super) check_id: String,
+    pub(super) check_name: Option<String>,
+    pub(super) run_id: Uuid,
+    pub(super) primary_status: Option<u16>,
+}
+
 impl EvalSummary {
     pub(super) fn new(
         eval_id: Uuid,
@@ -52,6 +63,7 @@ impl EvalSummary {
             total_checks: 0,
             classifications: BTreeMap::new(),
             failed_checks: Vec::new(),
+            fixed_checks: Vec::new(),
             runs: Vec::new(),
         }
     }
@@ -103,17 +115,27 @@ impl EvalSummary {
             classification: run.comparison.classification.clone(),
         });
 
-        if !is_success_classification(&run.comparison.classification) {
-            self.failed_checks.push(EvalFailedCheck {
+        if is_success_classification(&run.comparison.classification) {
+            return;
+        }
+        if is_fix(run.primary.status, run.candidate.status) {
+            self.fixed_checks.push(EvalFixedCheck {
                 check_id,
                 check_name,
                 run_id: run.id,
-                classification: run.comparison.classification.clone(),
                 primary_status: run.primary.status,
-                candidate_status: run.candidate.status,
-                diff_summary: run.comparison.raw_diff_summary.clone(),
             });
+            return;
         }
+        self.failed_checks.push(EvalFailedCheck {
+            check_id,
+            check_name,
+            run_id: run.id,
+            classification: run.comparison.classification.clone(),
+            primary_status: run.primary.status,
+            candidate_status: run.candidate.status,
+            diff_summary: run.comparison.raw_diff_summary.clone(),
+        });
     }
 }
 
@@ -122,6 +144,11 @@ pub(super) fn classification_key(classification: &Classification) -> String {
         .ok()
         .and_then(|value| value.as_str().map(ToOwned::to_owned))
         .unwrap_or_else(|| format!("{classification:?}").to_ascii_lowercase())
+}
+
+/// The baseline exits with a failure and the candidate exits cleanly.
+fn is_fix(primary_status: Option<u16>, candidate_status: Option<u16>) -> bool {
+    matches!(primary_status, Some(status) if status != 0) && candidate_status == Some(0)
 }
 
 fn is_success_classification(classification: &Classification) -> bool {
