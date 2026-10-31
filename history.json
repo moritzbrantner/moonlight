@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-10-10T08:34:06.321Z",
+  "updated_at": "2026-10-31T09:27:24.293Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -474,6 +474,49 @@
         "case_p95_reduction_percent": 47.38341878879792,
         "target_p50_reduction_percent": 47.31355252456921,
         "target_p95_reduction_percent": 47.38341878879792
+      }
+    },
+    {
+      "commit": "b93bd42a39c35da5e2d2faf1a85df5411e56d3cb",
+      "timestamp": "2026-10-31T10:24:33+01:00",
+      "generated_at": "2026-10-31T09:25:39.281176+00:00",
+      "environment": {
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "benchmark_git_sha": "b93bd42a39c35da5e2d2faf1a85df5411e56d3cb"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 146.85413099999778,
+        "suite_p95_ms": 150.5768777500208,
+        "case_p50_ms": 5.874165239999911,
+        "case_p95_ms": 6.023075110000832,
+        "target_p50_ms": 2.9370826199999556,
+        "target_p95_ms": 3.011537555000416,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 60.30421750000414,
+        "suite_p95_ms": 61.568562699987694,
+        "case_p50_ms": 2.4121687000001657,
+        "case_p95_ms": 2.462742507999508,
+        "target_p50_ms": 1.2060843500000828,
+        "target_p95_ms": 1.231371253999754,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 58.93597470539997,
+        "case_p95_reduction_percent": 59.11154247586383,
+        "target_p50_reduction_percent": 58.93597470539997,
+        "target_p95_reduction_percent": 59.11154247586383
       }
     }
   ]
