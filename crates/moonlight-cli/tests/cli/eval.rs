@@ -231,6 +231,143 @@ fn eval_keep_worktrees_failed_keeps_failed_worktrees() {
     dir.close().unwrap();
 }
 
+const FORMATTED_LIB: &str = "pub fn answer() -> u32 {\n    42\n}\n";
+const DRIFTED_LIB: &str = "pub fn answer()->u32{42}\n";
+
+#[test]
+fn eval_rust_format_candidate_fixing_base_drift_passes_as_fixed() {
+    let dir = TempDir::new().unwrap();
+    let repo = init_crate_repo(dir.path(), DRIFTED_LIB);
+    commit_file(&repo, "candidate", "src/lib.rs", FORMATTED_LIB);
+    let storage = storage_path(&dir);
+    let config = write_rust_format_config(&repo);
+
+    let output = run_eval_json(&config, "candidate", &storage)
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let summary: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(summary["failed_checks"].as_array().unwrap().len(), 0);
+    assert_eq!(summary["fixed_checks"][0]["check_id"], "rust-format");
+    assert_eq!(summary["fixed_checks"][0]["primary_status"], 1);
+
+    cli()
+        .args([
+            "eval",
+            "report",
+            summary["eval_id"].as_str().unwrap(),
+            "--storage-path",
+            &storage,
+            "--format",
+            "text",
+        ])
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("FIXED rust-format")
+                .and(predicate::str::contains("fixes formatting")),
+        );
+    dir.close().unwrap();
+}
+
+#[test]
+fn eval_rust_format_candidate_introducing_drift_fails() {
+    let dir = TempDir::new().unwrap();
+    let repo = init_crate_repo(dir.path(), FORMATTED_LIB);
+    commit_file(&repo, "candidate", "src/lib.rs", DRIFTED_LIB);
+    let storage = storage_path(&dir);
+    let config = write_rust_format_config(&repo);
+
+    let output = run_eval_json(&config, "candidate", &storage)
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let summary: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(summary["failed_checks"][0]["check_id"], "rust-format");
+    assert_eq!(
+        summary["failed_checks"][0]["classification"],
+        "suspicious_difference"
+    );
+    assert_eq!(summary["fixed_checks"].as_array().unwrap().len(), 0);
+    dir.close().unwrap();
+}
+
+fn run_eval_json(config: &Path, candidate_ref: &str, storage: &str) -> assert_cmd::assert::Assert {
+    cli()
+        .args([
+            "eval",
+            "run",
+            "--project",
+            config.to_str().unwrap(),
+            "--candidate-ref",
+            candidate_ref,
+            "--storage-path",
+            storage,
+            "--format",
+            "json",
+        ])
+        .assert()
+}
+
+fn init_crate_repo(root: &Path, lib: &str) -> PathBuf {
+    let repo = init_repo(root, "ok\n");
+    fs::write(
+        repo.join("Cargo.toml"),
+        "[package]\nname = \"fmt-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+    )
+    .unwrap();
+    fs::create_dir(repo.join("src")).unwrap();
+    fs::write(repo.join("src/lib.rs"), lib).unwrap();
+    git(&repo, ["add", "Cargo.toml", "src/lib.rs"]);
+    git(&repo, ["commit", "-m", "crate"]);
+    repo
+}
+
+fn commit_file(repo: &Path, branch: &str, path: &str, contents: &str) {
+    git(repo, ["checkout", "-b", branch]);
+    fs::write(repo.join(path), contents).unwrap();
+    git(repo, ["add", path]);
+    git(repo, ["commit", "-m", "candidate"]);
+    git(repo, ["checkout", "main"]);
+}
+
+fn write_rust_format_config(repo: &Path) -> PathBuf {
+    let config = repo.join("moonlight.eval.toml");
+    fs::write(
+        &config,
+        format!(
+            r#"
+[project]
+name = "fmt-demo"
+repo = "{}"
+baseline_ref = "main"
+
+[eval]
+work_dir = ".moonlight/evals"
+keep_worktrees = "never"
+jobs = 1
+target_timeout_ms = 120000
+max_body_capture_bytes = 20000
+
+[[checks]]
+id = "rust-format"
+name = "Formatting"
+argv = ["cargo", "fmt", "--all", "--", "--check"]
+cwd = "."
+ignore_stdout = true
+ignore_stderr = true
+"#,
+            repo.display(),
+        ),
+    )
+    .unwrap();
+    config
+}
+
 fn init_repo(root: &Path, value: &str) -> PathBuf {
     let repo = root.join("repo");
     fs::create_dir(&repo).unwrap();

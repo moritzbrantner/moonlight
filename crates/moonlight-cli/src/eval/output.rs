@@ -1,4 +1,4 @@
-use super::summary::{classification_key, EvalSummary};
+use super::summary::{classification_key, EvalFixedCheck, EvalSummary};
 use anyhow::bail;
 use std::collections::BTreeMap;
 
@@ -42,6 +42,16 @@ fn print_text_summary(summary: &EvalSummary) {
         summary.total_checks,
         format_classification_counts(&summary.classifications)
     );
+    for fixed in &summary.fixed_checks {
+        println!();
+        println!("FIXED {}", fixed.check_id);
+        println!(
+            "  fixes {}: primary {}, candidate 0",
+            fixed_label(fixed),
+            display_status(fixed.primary_status)
+        );
+        println!("  run: {}", fixed.run_id);
+    }
     for failure in &summary.failed_checks {
         println!();
         println!("FAIL {}", failure.check_id);
@@ -70,6 +80,20 @@ fn print_markdown_summary(summary: &EvalSummary) {
         "- Classifications: `{}`",
         format_classification_counts(&summary.classifications)
     );
+    if !summary.fixed_checks.is_empty() {
+        println!();
+        println!("## Fixed Checks");
+        println!();
+        for fixed in &summary.fixed_checks {
+            println!(
+                "- `{}` fixes {}: primary `{}`, candidate `0` (run `{}`)",
+                fixed.check_id,
+                fixed_label(fixed),
+                display_status(fixed.primary_status),
+                fixed.run_id
+            );
+        }
+    }
     if summary.failed_checks.is_empty() {
         println!();
         println!("No failed checks.");
@@ -104,6 +128,14 @@ fn format_classification_counts(counts: &BTreeMap<String, usize>) -> String {
         .map(|(classification, count)| format!("{count} {classification}"))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+fn fixed_label(fixed: &EvalFixedCheck) -> String {
+    fixed
+        .check_name
+        .as_deref()
+        .unwrap_or(&fixed.check_id)
+        .to_lowercase()
 }
 
 fn display_status(status: Option<u16>) -> String {
