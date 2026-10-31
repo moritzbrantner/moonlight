@@ -1,6 +1,6 @@
 services:
   primary:
-    image: rust:1.87-bookworm
+    image: rust:1.87-bookworm@sha256:251cec8da4689d180f124ef00024c2f83f79d9bf984e43c180a598119e326b84
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -11,7 +11,7 @@ services:
       - "3001:3001"
 
   candidate:
-    image: rust:1.87-bookworm
+    image: rust:1.87-bookworm@sha256:251cec8da4689d180f124ef00024c2f83f79d9bf984e43c180a598119e326b84
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -22,7 +22,7 @@ services:
       - "3002:3002"
 
   secondary:
-    image: rust:1.87-bookworm
+    image: rust:1.87-bookworm@sha256:251cec8da4689d180f124ef00024c2f83f79d9bf984e43c180a598119e326b84
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -33,7 +33,7 @@ services:
       - "3003:3003"
 
   moonlight-http:
-    image: rust:1.87-bookworm
+    image: rust:1.87-bookworm@sha256:251cec8da4689d180f124ef00024c2f83f79d9bf984e43c180a598119e326b84
     working_dir: /workspace
     depends_on:
       - primary
@@ -54,7 +54,7 @@ services:
       - "8080:8080"
 
   moonlight-ui:
-    image: oven/bun:1.1
+    image: oven/bun:1.1@sha256:d6ad4d3280d3e7e92b793a924105d68766d60b1f36709f4cee11bc8737782621
     working_dir: /workspace
     depends_on:
       - moonlight-http
@@ -68,7 +68,7 @@ services:
       - "5173:5173"
 
   diffy-a:
-    image: ${DIFFY_IMAGE:-diffy/diffy:latest}
+    image: ${DIFFY_IMAGE:-diffy/diffy:latest@sha256:f34a00730994af029734af88e14861b79b7232ed61428fa3231408a6ef298955}
     profiles:
       - reference
     depends_on:
@@ -91,7 +91,7 @@ services:
       - "8888:8888"
 
   diffy-b:
-    image: ${DIFFY_IMAGE:-diffy/diffy:latest}
+    image: ${DIFFY_IMAGE:-diffy/diffy:latest@sha256:f34a00730994af029734af88e14861b79b7232ed61428fa3231408a6ef298955}
     profiles:
       - reference
     depends_on:
@@ -114,7 +114,7 @@ services:
       - "8898:8888"
 
   diffy-c:
-    image: ${DIFFY_IMAGE:-diffy/diffy:latest}
+    image: ${DIFFY_IMAGE:-diffy/diffy:latest@sha256:f34a00730994af029734af88e14861b79b7232ed61428fa3231408a6ef298955}
     profiles:
       - reference
     depends_on:
