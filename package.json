@@ -57,7 +57,7 @@
     "jsdom": "29.1.1",
     "lint-staged": "17.6.0",
     "storybook": "10.6.5",
-    "unlighthouse": "0.17.10",
+    "unlighthouse": "0.19.1",
     "vite": "8.3.5",
     "vitest": "4.1.12"
   }
