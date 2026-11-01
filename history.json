@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-01T04:54:08.435Z",
+  "updated_at": "2026-11-01T14:11:49.584Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -646,6 +646,49 @@
         "case_p95_reduction_percent": 56.94701686178797,
         "target_p50_reduction_percent": 58.22030489556398,
         "target_p95_reduction_percent": 56.94701686178797
+      }
+    },
+    {
+      "commit": "7890505c6d528ce1619c259d21104a1433a0102d",
+      "timestamp": "2026-11-01T14:09:29Z",
+      "generated_at": "2026-11-01T14:10:21.621132+00:00",
+      "environment": {
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "benchmark_git_sha": "7890505c6d528ce1619c259d21104a1433a0102d"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 117.03198650000957,
+        "suite_p95_ms": 119.69790675001519,
+        "case_p50_ms": 4.681279460000383,
+        "case_p95_ms": 4.787916270000608,
+        "target_p50_ms": 2.3406397300001913,
+        "target_p95_ms": 2.393958135000304,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 50.266330500008394,
+        "suite_p95_ms": 51.73344715000496,
+        "case_p50_ms": 2.0106532200003358,
+        "case_p95_ms": 2.0693378860001985,
+        "target_p50_ms": 1.0053266100001679,
+        "target_p95_ms": 1.0346689430000993,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 57.04906666691137,
+        "case_p95_reduction_percent": 56.77999009786493,
+        "target_p50_reduction_percent": 57.04906666691137,
+        "target_p95_reduction_percent": 56.77999009786493
       }
     }
   ]
