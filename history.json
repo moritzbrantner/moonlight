@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-01T03:04:22.282Z",
+  "updated_at": "2026-11-01T04:54:08.435Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -603,6 +603,49 @@
         "case_p95_reduction_percent": 56.93407820961976,
         "target_p50_reduction_percent": 57.19292800992929,
         "target_p95_reduction_percent": 56.93407820961976
+      }
+    },
+    {
+      "commit": "3dcefd9f0c6c6ea1e8956da17b2219940e03cb43",
+      "timestamp": "2026-11-01T04:51:21Z",
+      "generated_at": "2026-11-01T04:52:25.540499+00:00",
+      "environment": {
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "benchmark_git_sha": "3dcefd9f0c6c6ea1e8956da17b2219940e03cb43"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 145.149902,
+        "suite_p95_ms": 147.45107150001502,
+        "case_p50_ms": 5.80599608,
+        "case_p95_ms": 5.898042860000601,
+        "target_p50_ms": 2.90299804,
+        "target_p95_ms": 2.9490214300003004,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 60.64318649998768,
+        "suite_p95_ms": 63.48208495001444,
+        "case_p50_ms": 2.425727459999507,
+        "case_p95_ms": 2.5392833980005776,
+        "target_p50_ms": 1.2128637299997536,
+        "target_p95_ms": 1.2696416990002888,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 58.22030489556398,
+        "case_p95_reduction_percent": 56.94701686178797,
+        "target_p50_reduction_percent": 58.22030489556398,
+        "target_p95_reduction_percent": 56.94701686178797
       }
     }
   ]
