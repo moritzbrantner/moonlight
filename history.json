@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-01T17:12:32.560Z",
+  "updated_at": "2026-11-02T04:57:46.938Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -732,6 +732,49 @@
         "case_p95_reduction_percent": 55.013025983631,
         "target_p50_reduction_percent": 55.443130937893756,
         "target_p95_reduction_percent": 55.013025983631
+      }
+    },
+    {
+      "commit": "a95ad9272d42291286456940871c9d1ffa289559",
+      "timestamp": "2026-11-02T04:54:46Z",
+      "generated_at": "2026-11-02T04:55:52.239351+00:00",
+      "environment": {
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "benchmark_git_sha": "a95ad9272d42291286456940871c9d1ffa289559"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 157.80241349999358,
+        "suite_p95_ms": 160.9310875000162,
+        "case_p50_ms": 6.312096539999743,
+        "case_p95_ms": 6.437243500000648,
+        "target_p50_ms": 3.1560482699998715,
+        "target_p95_ms": 3.218621750000324,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 67.99387799999579,
+        "suite_p95_ms": 71.61129944997668,
+        "case_p50_ms": 2.7197551199998315,
+        "case_p95_ms": 2.8644519779990674,
+        "target_p50_ms": 1.3598775599999158,
+        "target_p95_ms": 1.4322259889995337,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 56.912016431232495,
+        "case_p95_reduction_percent": 55.50188558194545,
+        "target_p50_reduction_percent": 56.912016431232495,
+        "target_p95_reduction_percent": 55.50188558194545
       }
     }
   ]
