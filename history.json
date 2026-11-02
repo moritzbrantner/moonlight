@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-02T04:57:46.938Z",
+  "updated_at": "2026-11-02T08:25:36.233Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -775,6 +775,49 @@
         "case_p95_reduction_percent": 55.50188558194545,
         "target_p50_reduction_percent": 56.912016431232495,
         "target_p95_reduction_percent": 55.50188558194545
+      }
+    },
+    {
+      "commit": "8c1776c5700a7e750e2c09f85696e2a325fa4f07",
+      "timestamp": "2026-11-02T08:22:52Z",
+      "generated_at": "2026-11-02T08:23:59.687499+00:00",
+      "environment": {
+        "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+        "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+        "benchmark_git_sha": "8c1776c5700a7e750e2c09f85696e2a325fa4f07"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 125.93088799999919,
+        "suite_p95_ms": 129.73189650000307,
+        "case_p50_ms": 5.037235519999967,
+        "case_p95_ms": 5.189275860000123,
+        "target_p50_ms": 2.5186177599999837,
+        "target_p95_ms": 2.5946379300000615,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 55.680281999997305,
+        "suite_p95_ms": 57.67738769999795,
+        "case_p50_ms": 2.227211279999892,
+        "case_p95_ms": 2.307095507999918,
+        "target_p50_ms": 1.113605639999946,
+        "target_p95_ms": 1.153547753999959,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 55.785047747779196,
+        "case_p95_reduction_percent": 55.54108954231114,
+        "target_p50_reduction_percent": 55.785047747779196,
+        "target_p95_reduction_percent": 55.54108954231114
       }
     }
   ]
