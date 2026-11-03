@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-02T08:25:36.233Z",
+  "updated_at": "2026-11-03T20:44:45.034Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -818,6 +818,49 @@
         "case_p95_reduction_percent": 55.54108954231114,
         "target_p50_reduction_percent": 55.785047747779196,
         "target_p95_reduction_percent": 55.54108954231114
+      }
+    },
+    {
+      "commit": "7a65083cc6274e5b9a8012848c39a93cbe393b84",
+      "timestamp": "2026-11-03T21:42:12+01:00",
+      "generated_at": "2026-11-03T20:43:04.822952+00:00",
+      "environment": {
+        "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+        "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+        "benchmark_git_sha": "7a65083cc6274e5b9a8012848c39a93cbe393b84"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 110.413653999899,
+        "suite_p95_ms": 113.81363915008933,
+        "case_p50_ms": 4.41654615999596,
+        "case_p95_ms": 4.552545566003573,
+        "target_p50_ms": 2.20827307999798,
+        "target_p95_ms": 2.2762727830017866,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 47.39158550000866,
+        "suite_p95_ms": 48.4634874500216,
+        "case_p50_ms": 1.8956634200003464,
+        "case_p95_ms": 1.9385394980008641,
+        "target_p50_ms": 0.9478317100001732,
+        "target_p95_ms": 0.9692697490004321,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 57.078147689911596,
+        "case_p95_reduction_percent": 57.41855913585945,
+        "target_p50_reduction_percent": 57.078147689911596,
+        "target_p95_reduction_percent": 57.41855913585945
       }
     }
   ]
