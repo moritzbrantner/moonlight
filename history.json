@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-05T05:37:21.476Z",
+  "updated_at": "2026-11-06T06:10:23.363Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -947,6 +947,49 @@
         "case_p95_reduction_percent": 54.490280142845926,
         "target_p50_reduction_percent": 54.94248536035694,
         "target_p95_reduction_percent": 54.490280142845926
+      }
+    },
+    {
+      "commit": "d64fb095fca73e6ab25229acbee392c0d4f2ce33",
+      "timestamp": "2026-11-06T06:07:32Z",
+      "generated_at": "2026-11-06T06:08:35.893909+00:00",
+      "environment": {
+        "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+        "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+        "benchmark_git_sha": "d64fb095fca73e6ab25229acbee392c0d4f2ce33"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 150.02909300000056,
+        "suite_p95_ms": 152.75292695000076,
+        "case_p50_ms": 6.001163720000022,
+        "case_p95_ms": 6.11011707800003,
+        "target_p50_ms": 3.000581860000011,
+        "target_p95_ms": 3.055058539000015,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 61.62677000000372,
+        "suite_p95_ms": 63.28639364999162,
+        "case_p50_ms": 2.4650708000001487,
+        "case_p95_ms": 2.531455745999665,
+        "target_p50_ms": 1.2325354000000743,
+        "target_p95_ms": 1.2657278729998325,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 58.92345359976049,
+        "case_p95_reduction_percent": 58.56943960837714,
+        "target_p50_reduction_percent": 58.92345359976049,
+        "target_p95_reduction_percent": 58.56943960837714
       }
     }
   ]
