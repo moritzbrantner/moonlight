@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-07T01:24:58.862Z",
+  "updated_at": "2026-11-07T05:55:23.912Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -1033,6 +1033,49 @@
         "case_p95_reduction_percent": 57.70003734292351,
         "target_p50_reduction_percent": 58.650708889829986,
         "target_p95_reduction_percent": 57.70003734292351
+      }
+    },
+    {
+      "commit": "7c6f717c6e840923bbb4a7086cca092c8737b355",
+      "timestamp": "2026-11-07T05:53:19Z",
+      "generated_at": "2026-11-07T05:54:04.986933+00:00",
+      "environment": {
+        "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+        "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+        "benchmark_git_sha": "7c6f717c6e840923bbb4a7086cca092c8737b355"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 107.90563649999285,
+        "suite_p95_ms": 114.27834064997455,
+        "case_p50_ms": 4.316225459999714,
+        "case_p95_ms": 4.571133625998982,
+        "target_p50_ms": 2.158112729999857,
+        "target_p95_ms": 2.285566812999491,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 46.83454700000311,
+        "suite_p95_ms": 48.55844984998896,
+        "case_p50_ms": 1.8733818800001245,
+        "case_p95_ms": 1.9423379939995584,
+        "target_p50_ms": 0.9366909400000623,
+        "target_p95_ms": 0.9711689969997792,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 56.596755721832736,
+        "case_p95_reduction_percent": 57.508614866294195,
+        "target_p50_reduction_percent": 56.596755721832736,
+        "target_p95_reduction_percent": 57.508614866294195
       }
     }
   ]
