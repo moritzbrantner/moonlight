@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-09T05:54:24.501Z",
+  "updated_at": "2026-11-09T22:17:28.765Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -1119,6 +1119,49 @@
         "case_p95_reduction_percent": 55.89335010142557,
         "target_p50_reduction_percent": 56.57698518989604,
         "target_p95_reduction_percent": 55.89335010142557
+      }
+    },
+    {
+      "commit": "6b51e03f6da1c0d52f347216cca71f5e1ca637ff",
+      "timestamp": "2026-11-09T22:15:01Z",
+      "generated_at": "2026-11-09T22:16:08.846089+00:00",
+      "environment": {
+        "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+        "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+        "benchmark_git_sha": "6b51e03f6da1c0d52f347216cca71f5e1ca637ff"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 108.15968400000031,
+        "suite_p95_ms": 111.60860939999397,
+        "case_p50_ms": 4.3263873600000124,
+        "case_p95_ms": 4.464344375999758,
+        "target_p50_ms": 2.1631936800000062,
+        "target_p95_ms": 2.232172187999879,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 48.25579050000783,
+        "suite_p95_ms": 49.639513600014595,
+        "case_p50_ms": 1.9302316200003133,
+        "case_p95_ms": 1.985580544000584,
+        "target_p50_ms": 0.9651158100001567,
+        "target_p95_ms": 0.992790272000292,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 55.38467873111787,
+        "case_p95_reduction_percent": 55.52358024450281,
+        "target_p50_reduction_percent": 55.38467873111787,
+        "target_p95_reduction_percent": 55.52358024450281
       }
     }
   ]
