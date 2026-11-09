@@ -46,8 +46,8 @@
     "*.rs": "sh -c 'cargo fmt --all'"
   },
   "devDependencies": {
-    "@storybook/addon-a11y": "10.6.5",
-    "@storybook/react-vite": "10.6.5",
+    "@storybook/addon-a11y": "10.6.6",
+    "@storybook/react-vite": "10.6.6",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",
@@ -56,9 +56,9 @@
     "husky": "9.1.7",
     "jsdom": "29.1.1",
     "lint-staged": "17.6.0",
-    "storybook": "10.6.5",
+    "storybook": "10.6.6",
     "unlighthouse": "0.19.1",
-    "vite": "8.3.5",
+    "vite": "8.3.6",
     "vitest": "4.1.12"
   }
 }
