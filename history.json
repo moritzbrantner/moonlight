@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-09T22:17:28.765Z",
+  "updated_at": "2026-11-13T08:29:14.144Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -1162,6 +1162,49 @@
         "case_p95_reduction_percent": 55.52358024450281,
         "target_p50_reduction_percent": 55.38467873111787,
         "target_p95_reduction_percent": 55.52358024450281
+      }
+    },
+    {
+      "commit": "9c340d38911dd76de7c6af1cef0e8893d236e5f1",
+      "timestamp": "2026-11-13T08:27:04Z",
+      "generated_at": "2026-11-13T08:27:50.641733+00:00",
+      "environment": {
+        "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+        "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+        "benchmark_git_sha": "9c340d38911dd76de7c6af1cef0e8893d236e5f1"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 111.97851000000725,
+        "suite_p95_ms": 116.4276246500016,
+        "case_p50_ms": 4.47914040000029,
+        "case_p95_ms": 4.657104986000064,
+        "target_p50_ms": 2.239570200000145,
+        "target_p95_ms": 2.328552493000032,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 47.77875699999612,
+        "suite_p95_ms": 49.37224665000244,
+        "case_p50_ms": 1.9111502799998448,
+        "case_p95_ms": 1.9748898660000975,
+        "target_p50_ms": 0.9555751399999224,
+        "target_p95_ms": 0.9874449330000488,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 57.332208653255854,
+        "case_p95_reduction_percent": 57.59404454190095,
+        "target_p50_reduction_percent": 57.332208653255854,
+        "target_p95_reduction_percent": 57.59404454190095
       }
     }
   ]
