@@ -1,7 +1,7 @@
 {
   "schema_version": "moonlight/cli-benchmark-history/v1",
   "repository": "moritzbrantner/moonlight",
-  "updated_at": "2026-11-13T08:29:14.144Z",
+  "updated_at": "2026-11-13T19:10:45.349Z",
   "entries": [
     {
       "commit": "4d7f58117933159176885e1d8fa46b9c54162f05",
@@ -1205,6 +1205,49 @@
         "case_p95_reduction_percent": 57.59404454190095,
         "target_p50_reduction_percent": 57.332208653255854,
         "target_p95_reduction_percent": 57.59404454190095
+      }
+    },
+    {
+      "commit": "48ad9432f04d1c34708f068bccf590826c1847c4",
+      "timestamp": "2026-11-13T19:08:38Z",
+      "generated_at": "2026-11-13T19:09:36.418548+00:00",
+      "environment": {
+        "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "cargo": "cargo 1.100.0 (3acc79c0c 2026-11-05)",
+        "benchmark_git_sha": "48ad9432f04d1c34708f068bccf590826c1847c4"
+      },
+      "config": {
+        "comparison_runs": 20,
+        "comparison_cases": 25,
+        "warmup": 20
+      },
+      "shell": {
+        "status": "ok",
+        "suite_p50_ms": 93.46463349999112,
+        "suite_p95_ms": 95.70354475000471,
+        "case_p50_ms": 3.738585339999645,
+        "case_p95_ms": 3.8281417900001884,
+        "target_p50_ms": 1.8692926699998225,
+        "target_p95_ms": 1.9140708950000942,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv": {
+        "status": "ok",
+        "suite_p50_ms": 44.58483600001273,
+        "suite_p95_ms": 45.247808350008256,
+        "case_p50_ms": 1.7833934400005091,
+        "case_p95_ms": 1.8099123340003302,
+        "target_p50_ms": 0.8916967200002546,
+        "target_p95_ms": 0.9049561670001651,
+        "total_cases": 500,
+        "total_target_invocations": 1000
+      },
+      "argv_vs_shell": {
+        "case_p50_reduction_percent": 52.29763994097622,
+        "case_p95_reduction_percent": 52.72086476190211,
+        "target_p50_reduction_percent": 52.29763994097622,
+        "target_p95_reduction_percent": 52.72086476190211
       }
     }
   ]
