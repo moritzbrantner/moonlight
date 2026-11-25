@@ -1,6 +1,6 @@
 services:
   primary:
-    image: rust:1.100-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea
+    image: rust:1.100-bookworm@sha256:75d26c23c24cc6ea1cdabf0714a6bff8fd7bf3248716043fd7ae86dac7f41b94
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -11,7 +11,7 @@ services:
       - "3001:3001"
 
   candidate:
-    image: rust:1.100-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea
+    image: rust:1.100-bookworm@sha256:75d26c23c24cc6ea1cdabf0714a6bff8fd7bf3248716043fd7ae86dac7f41b94
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -22,7 +22,7 @@ services:
       - "3002:3002"
 
   secondary:
-    image: rust:1.100-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea
+    image: rust:1.100-bookworm@sha256:75d26c23c24cc6ea1cdabf0714a6bff8fd7bf3248716043fd7ae86dac7f41b94
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -33,7 +33,7 @@ services:
       - "3003:3003"
 
   moonlight-http:
-    image: rust:1.100-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea
+    image: rust:1.100-bookworm@sha256:75d26c23c24cc6ea1cdabf0714a6bff8fd7bf3248716043fd7ae86dac7f41b94
     working_dir: /workspace
     depends_on:
       - primary
@@ -54,7 +54,7 @@ services:
       - "8080:8080"
 
   moonlight-ui:
-    image: oven/bun:1.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d
+    image: oven/bun:1.4@sha256:3aa040e5445efa09d75bb428a64ba50db13e2b3ac9b6b0c7f145615f62b2ee18
     working_dir: /workspace
     depends_on:
       - moonlight-http
